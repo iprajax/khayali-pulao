@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Khayali Pulao — daydream calculator for Kite</title>
+  <meta name="description" content="A daydream calculator that floats on top of Zerodha Kite. What if it moves +5%? Did you beat an FD? What does the profit buy, in hand after tax? On-device only, zero permissions.">
+  <meta name="theme-color" content="#17202A">
+  <link rel="icon" href="media/icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Khayali Pulao — daydream calculator for Kite">
+  <meta property="og:description" content="Tap a holding: what if it moves +0.5% … 2×, did you beat an FD, what the profit buys in hand after tax. Open source, on-device only.">
+  <meta property="og:image" content="https://iprajax.github.io/khayali-pulao/media/social-preview.png">
+  <meta property="og:url" content="https://iprajax.github.io/khayali-pulao/">
+  <meta name="twitter:card" content="summary_large_image">
+  <style>
+    :root {
+      --red: #CF5B52;
+      --bg: #17202A; --surface: #1F2937; --line: #324050; --text: #FFFFFF; --muted: #9B9BAD;
+      --dim: #6E7883; --blue: #5282EB; --green: #67AD5B; --saffron: #FFB547;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      overflow-x: hidden;
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+    header { padding: 20px 0; border-bottom: 1px solid var(--line); }
+    header .wrap { display: flex; align-items: center; gap: 12px; }
+    header img { width: 36px; height: 36px; border-radius: 9px; }
+    header b { font-size: 18px; font-weight: 600; }
+    header nav { margin-left: auto; display: flex; gap: 20px; font-size: 15px; }
+    .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; align-items: center; padding: 64px 0 40px; }
+    .hero h1 { font-size: clamp(36px, 6vw, 56px); line-height: 1.1; margin: 0 0 16px; font-weight: 700; letter-spacing: -0.02em; }
+    .hero p.lead { font-size: 19px; color: var(--muted); margin: 0 0 24px; }
+    .meaning { border-left: 3px solid var(--saffron); padding: 4px 0 4px 16px; color: var(--muted); margin: 0 0 28px; }
+    .meaning b { color: var(--text); font-weight: 600; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-block; padding: 13px 22px; border-radius: 6px; font-weight: 500; font-size: 15px; }
+    .btn.primary { background: var(--blue); color: #fff; }
+    .btn.ghost { border: 1px solid var(--line); color: var(--blue); }
+    .btn:hover { text-decoration: none; filter: brightness(1.08); }
+    .phone { justify-self: center; width: min(320px, 100%); max-width: 100%; border-radius: 28px; border: 1px solid var(--line);
+             overflow: hidden; background: #000; box-shadow: 0 30px 60px rgba(0,0,0,.45); }
+    .phone video, .phone img { display: block; width: 100%; height: auto; }
+    .note { font-size: 13px; color: var(--dim); text-align: center; margin-top: 10px; }
+    section { padding: 56px 0; border-top: 1px solid var(--line); }
+    h2 { font-size: 28px; margin: 0 0 8px; font-weight: 600; }
+    .sub { color: var(--muted); margin: 0 0 32px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { background: var(--surface); border-radius: 8px; padding: 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .shots { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; }
+    .shots figure { margin: 0; flex: 0 0 220px; scroll-snap-align: start; }
+    .shots img { width: 220px; border-radius: 14px; border: 1px solid var(--line); display: block; }
+    .shots figcaption { font-size: 13px; color: var(--muted); text-align: center; margin-top: 8px; }
+    .privacy { background: var(--surface); border: 1px solid rgba(103,173,91,.45); border-radius: 8px; padding: 24px 28px; }
+    .privacy h2 { color: var(--green); }
+    .privacy ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
+    .privacy li { margin: 6px 0; }
+    .privacy li b { color: var(--text); font-weight: 600; }
+    ol.steps { color: var(--muted); padding-left: 20px; }
+    ol.steps li { margin: 8px 0; }
+    code { background: var(--surface); border: 1px solid var(--line); padding: 1px 6px; border-radius: 4px; font-size: 14px; }
+    /* ---- playground ---- */
+    .play { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; }
+    #play-inputs { background: var(--surface); border-radius: 8px; padding: 18px; position: sticky; top: 16px; }
+    #play-inputs .lbl { color: var(--muted); font-size: 13px; margin: 14px 0 8px; }
+    #play-inputs .lbl:first-child { margin-top: 0; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; font-size: 13px; color: var(--muted); }
+    .field.inline { flex-direction: row; align-items: center; justify-content: space-between; color: var(--text); font-size: 14px; }
+    .field input { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; font: inherit; font-size: 15px; font-variant-numeric: tabular-nums; }
+    .field.inline input { width: 150px; }
+    .field input:focus { outline: 2px solid var(--blue); outline-offset: 0; border-color: var(--blue); }
+    .seg { display: flex; gap: 8px; margin: 8px 0; }
+    .seg button, .chip { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+    .seg button.on, .chip.on { color: var(--blue); border-color: var(--blue); background: rgba(82,130,235,.14); }
+    .chip.neg.on { color: var(--red); border-color: var(--red); background: rgba(207,91,82,.14); }
+    .chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 10px; }
+    .chips .chip { flex: 0 0 auto; }
+    .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); margin-top: 12px; }
+    details.assume { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+    details.assume summary { cursor: pointer; color: var(--blue); font-size: 14px; }
+    .tiny { font-size: 12px; color: var(--dim); margin: 12px 0 0; }
+    .tiny.c { text-align: center; margin: 16px 0 4px; }
+    #play-sheet { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 0 16px 12px; max-height: 760px; overflow-y: auto; font-variant-numeric: tabular-nums; }
+    .sh-bar { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 1; }
+    .sh-bar img { width: 24px; height: 24px; border-radius: 6px; }
+    .sh-head { padding: 12px 0 4px; }
+    .sh-head .row, .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .sh-title { font-size: 20px; font-weight: 500; }
+    .tag { font-size: 10px; color: var(--blue); background: rgba(82,130,235,.15); border-radius: 3px; padding: 3px 6px; letter-spacing: .05em; }
+    .tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 6px 0 14px; }
+    .tabs button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 15px; font-weight: 500; padding: 10px 12px 8px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+    .tabs button.on { color: var(--blue); border-bottom-color: var(--blue); }
+    .sh-body .card { margin: 10px 0; }
+    .sh-body hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+    .big { font-size: 32px; line-height: 1.2; margin: 4px 0; }
+    .fig { font-size: 18px; }
+    .pair { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .r { text-align: right; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .pos { color: var(--green); } .neg { color: var(--red); } .blue { color: var(--blue); }
+    .saffron { color: var(--saffron); font-size: 13px; margin-top: 6px; }
+    .quip { color: var(--saffron); font-style: italic; font-size: 13px; margin-top: 6px; }
+    .verdict { font-size: 18px; font-weight: 500; }
+    .sub2 { font-size: 16px; font-weight: 500; margin: 4px 0; }
+    .slider { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
+    .slider input, .sh-body > input[type=range] { flex: 1; width: 100%; accent-color: var(--blue); }
+    .step { background: none; border: 0; color: var(--blue); font-size: 24px; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
+    .step:hover { background: rgba(82,130,235,.12); }
+    table.ladder, table.bench { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+    table.ladder th, table.bench th { color: var(--muted); font-weight: 400; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    table.ladder td, table.bench td { padding: 9px 8px; border-bottom: 1px solid rgba(50,64,80,.6); }
+    table.ladder tr, table.bench tr { cursor: pointer; }
+    table.ladder tr.sel, table.bench tr.sel { background: var(--surface); }
+    table.ladder small, table.bench small { font-size: 12px; }
+    .barcell { position: relative; width: 22%; }
+    .barcell::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; background: rgba(50,64,80,.8); border-radius: 2px; }
+    .bar { position: absolute; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; min-width: 4px; }
+    .bar.pos { background: var(--green); } .bar.neg { background: var(--red); }
+    .idea { display: flex; gap: 12px; padding: 9px 0; }
+    .idea .em { width: 26px; font-size: 18px; text-align: center; }
+    .iv { font-size: 16px; font-weight: 500; }
+    .card a.try { display: inline-block; margin-top: 10px; font-size: 14px; }
+    .hero > *, .play > * { min-width: 0; }  /* let grid children shrink instead of forcing page width */
+    @media (max-width: 860px) {
+      .play { grid-template-columns: 1fr; } #play-inputs { position: static; } #play-sheet { max-height: none; }
+      .field.inline input { width: 120px; }
+      .seg button { padding: 8px 6px; }
+    }
+
+    footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--dim); font-size: 13px; }
+    footer p { margin: 6px 0; }
+    @media (max-width: 820px) {
+      .hero { grid-template-columns: 1fr; padding-top: 40px; }
+      .grid { grid-template-columns: 1fr; }
+      header nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <img src="media/icon.png" alt="">
+      <b>Khayali Pulao</b>
+      <nav>
+        <a href="#try">Try it</a>
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/iprajax/khayali-pulao">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="hero">
+      <div>
+        <h1>Daydream your Kite portfolio.</h1>
+        <p class="lead">A tiny bubble floats on top of Zerodha Kite. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2× — whether you beat an FD — and what the profit really buys, in hand after tax.</p>
+        <p class="meaning"><b>ख़याली पुलाव (khayali pulao)</b> — literally “imaginary pulao”: rice you cook only in your head. Hindi for daydreaming. Every investor does it; this does the maths properly.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/iprajax/khayali-pulao/releases">Download APK</a>
+          <a class="btn ghost" href="#try">Try it in your browser</a>
+          <a class="btn ghost" href="https://github.com/iprajax/khayali-pulao">View source</a>
+        </div>
+      </div>
+      <div>
+        <div class="phone">
+          <video src="media/demo.mp4" poster="screens/move.png" autoplay muted loop playsinline aria-label="Demo of the daydream sheet with fictional data"></video>
+        </div>
+        <p class="note">In-app demo · fictional data</p>
+      </div>
+    </div>
+
+    <section id="try">
+      <h2>Try it right here</h2>
+      <p class="sub">The same maths as the app, running in your browser. Change the numbers, switch tabs, pick a tone. Nothing leaves this page.</p>
+      <div class="play">
+        <aside id="play-inputs" aria-label="Inputs"></aside>
+        <div id="play-sheet" aria-live="polite"></div>
+      </div>
+      <noscript><p class="sub">The playground needs JavaScript — the screenshots below show the same thing.</p></noscript>
+    </section>
+
+    <section id="features">
+      <h2>Six ways to cook a khayali pulao</h2>
+      <p class="sub">Every number is configurable — FD rate, gold and Nifty assumptions, inflation, your expenses, ladder steps, tone.</p>
+      <div class="grid">
+        <div class="card"><h3>Move %</h3><p>0.5% steps to 5%, then 7, 10, 12, 15, 20… Slider, ± steps and target price → %. From your average or today's LTP.</p><a class="try" href="#try" data-try="MOVE">Try it →</a></div>
+        <div class="card"><h3>vs FD</h3><p>Your real yearly return and inflation-adjusted gain against savings, FD, PPF, gold, Nifty and inflation.</p><a class="try" href="#try" data-try="VSFD">Try it →</a></div>
+        <div class="card"><h3>Spend it</h3><p>In hand after LTCG (₹1.25 L exemption) or STCG, STT and DP charges — as FD income, months of expenses, 4%-rule income.</p><a class="try" href="#try" data-try="SPEND">Try it →</a></div>
+        <div class="card"><h3>Goal</h3><p>“I want ₹2 Cr.” The rise and LTP needed, and roughly how many years at 8–25% a year.</p><a class="try" href="#try" data-try="GOAL">Try it →</a></div>
+        <div class="card"><h3>Years &amp; Regret</h3><p>Compounding over 1–30 years — and <i>agar tab liya hota</i>: what if you'd bought cheaper?</p><a class="try" href="#try" data-try="YEARS">Years →</a> &nbsp; <a class="try" href="#try" data-try="REGRET" data-kind="HOLDING">Regret →</a></div>
+        <div class="card"><h3>Pulao maths</h3><p>Cutting chais, Bhrigu Express tickets, a bhains for the village, a plot in Ballia — or your own dream unit. Tone: Serious, Light or Masala.</p><a class="try" href="#try" data-try="SPEND">See it in Spend it →</a></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Looks like it belongs in Kite</h2>
+      <p class="sub">Kite's dark palette, tabs and cards — so it feels native, not bolted on.</p>
+      <div class="shots">
+        <figure><img src="screens/move.png" alt="Move %" loading="lazy"><figcaption>Move %</figcaption></figure>
+        <figure><img src="screens/vs-fd.png" alt="vs FD" loading="lazy"><figcaption>vs FD</figcaption></figure>
+        <figure><img src="screens/spend.png" alt="Spend it" loading="lazy"><figcaption>Spend it</figcaption></figure>
+        <figure><img src="screens/spend-list.png" alt="What it buys" loading="lazy"><figcaption>What it buys</figcaption></figure>
+        <figure><img src="screens/goal.png" alt="Goal" loading="lazy"><figcaption>Goal</figcaption></figure>
+        <figure><img src="screens/years.png" alt="Years" loading="lazy"><figcaption>Years</figcaption></figure>
+        <figure><img src="screens/watchlist-goal.png" alt="Watchlist stock" loading="lazy"><figcaption>Watchlist</figcaption></figure>
+        <figure><img src="screens/settings.png" alt="Settings" loading="lazy"><figcaption>Settings</figcaption></figure>
+      </div>
+      <p class="note" style="text-align:left">All screenshots: in-app Demo with fictional data.</p>
+    </section>
+
+    <section id="privacy">
+      <div class="privacy">
+        <h2>🔒 Nothing leaves your phone</h2>
+        <ul>
+          <li><b>Zero permissions.</b> No internet — Android itself blocks the app from going online. CI fails if the APK ever requests one.</li>
+          <li><b>Reads, never trades.</b> Reads the numbers Kite already shows, only while Kite is open. Your taps can't reach Buy/Sell while the bubble is on.</li>
+          <li><b>Keeps nothing of yours.</b> Only your settings and the hold periods you type — excluded from cloud backup and phone transfer.</li>
+          <li><b>No login, analytics, ads or trackers.</b> No third-party SDKs at all. This page has no trackers either — the playground runs entirely in your browser.</li>
+        </ul>
+        <p style="margin:16px 0 0"><a href="https://github.com/iprajax/khayali-pulao/blob/main/PRIVACY.md">Privacy policy</a> · <a href="https://github.com/iprajax/khayali-pulao/blob/main/SECURITY.md">Security model</a></p>
+      </div>
+    </section>
+
+    <section id="install">
+      <h2>Install</h2>
+      <ol class="steps">
+        <li>Download the APK from <a href="https://github.com/iprajax/khayali-pulao/releases">Releases</a> and install it.</li>
+        <li>Open Khayali Pulao → <b>Turn it on</b> → Accessibility → Installed apps → Khayali Pulao → On.<br>
+            <small>Android 13+: if greyed out, Settings → Apps → Khayali Pulao → ⋮ → Allow restricted settings.</small></li>
+        <li>Open Kite, tap the 🍚 bubble (blue ring = on), then tap a holding, a watchlist stock or the Invested card.</li>
+      </ol>
+      <p class="sub" style="margin:0">No Kite? Tap <b>Try the demo</b> on the home screen. Building from source: <code>./gradlew assembleDebug</code></p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>Khayali Pulao is a daydream, not investment, tax or financial advice. Projections are hypothetical; tax and charges are estimates.</p>
+      <p>“Zerodha” and “Kite” are trademarks of Zerodha Broking Ltd., used only to describe compatibility. Not affiliated with or endorsed by Zerodha.</p>
+      <p>Open source under the MIT licence · <a href="https://github.com/iprajax/khayali-pulao">github.com/iprajax/khayali-pulao</a></p>
+    </div>
+  </footer>
+  <script src="khayali.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

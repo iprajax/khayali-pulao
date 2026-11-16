@@ -1,0 +1,39 @@
+# --- Build output ---
+build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+output-metadata.json
+
+# --- Local machine config (SDK path etc.) ---
+local.properties
+
+# --- Secrets: never commit signing keys or credentials ---
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+*.p12
+*.pem
+.env
+.env.*
+google-services.json
+
+# --- IDEs / OS ---
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Logs / dumps (may contain personal data from a device) ---
+*.log
+*.hprof
+window_dump.xml
+*.uix
+screenshots-raw/
