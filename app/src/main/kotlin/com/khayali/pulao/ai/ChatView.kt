@@ -64,6 +64,8 @@ class ChatView(
     /** A holding @mentioned in the current message. */
     private var turnStock: Stock? = null
     private var lastPills: List<String> = emptyList()
+    private var lastCall: ToolEvent? = null
+    private val directTools by lazy { AppTools(host) }
     private val session = ChatSession(ctx.applicationContext, host, { prefs.tone }, scope)
 
     private val list = k.column().apply { setPadding(k.dp(16), k.dp(12), k.dp(16), k.dp(24)) }
@@ -515,19 +517,46 @@ class ChatView(
         session.send(text, object : ChatSession.Listener {
             override fun onThinking() = bot.thinking(AiEngine.state.value !is AiEngine.State.Ready)
             override fun onTool(e: ToolEvent) {
+                if (e.ok && FollowUps.from(e.name, e.argsJson).isNotEmpty()) lastCall = e
                 if (e.name == "kite_account") rememberKite(if (e.resultJson.contains("\"holdings\"")) "holdings" else "", e.resultJson)
                 bot.tool(e); scrollToEnd()
             }
             override fun onText(full: String) { bot.text(full); scrollToEnd() }
             override fun onDone(full: String, tokensPerSec: Double?) {
                 bot.done(full, tokensPerSec, { submit(display) }, question = display); setWorking(false)
-                setPills(followUps()); scrollToEnd()
+                showFollowUps(); scrollToEnd()
             }
             override fun onError(message: String) { bot.error(message) { submit(display) }; setWorking(false) }
         })
     }
 
     private fun stopGenerating() { session.stop() }
+
+    /** Exact re-runs of the last calculation (no model), falling back to generic prompts. */
+    private fun showFollowUps() {
+        val call = lastCall
+        val exact = call?.let { FollowUps.from(it.name, it.argsJson) }.orEmpty()
+        if (exact.isEmpty()) { setPills(followUps()); return }
+        setPills(exact.map { "↻  " + it.label }, remember = true) { label ->
+            exact.firstOrNull { "↻  " + it.label == label }?.let { runExact(it) }
+        }
+    }
+
+    private fun runExact(p: FollowUps.Pill) {
+        if (session.busy) return
+        messageCount++
+        setPills(emptyList())
+        addUser(p.label)
+        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
+        bot.appear()
+        val json = directTools.execute(p.tool, p.args)
+        val ev = ToolEvent(p.tool, directTools.defs.firstOrNull { it.name == p.tool }?.label ?: p.tool, !json.contains("\"error\""), json, p.args)
+        bot.tool(ev)
+        if (ev.ok) lastCall = ev
+        val summary = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["summary"]?.asString }.getOrNull()
+        bot.done(summary ?: "Done.", null, null, question = p.label)
+        showFollowUps(); scrollToEnd()
+    }
 
     private fun addUser(text: String) {
         val b = k.text(text, 15.5f, Pal.TEXT).apply {

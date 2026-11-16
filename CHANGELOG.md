@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+- Kite MCP: adapted to Zerodha's consolidated tools (`portfolio`, `orders`, `market`… with a `mode`); read-only now enforced per (tool, mode) — every place/modify/cancel/delete/create/logout mode is refused.
+- Kite login returns via an HTTPS callback page (works even when Android freezes the app in the background).
+- Follow-up pills re-run the last calculation exactly (e.g. "At 15% a year") instead of asking the model to guess.
+
 ## 0.6.0
 
 - **Ask Khayali Pulao** — on-device AI chat (Gemma 4 E2B via LiteRT-LM) with tool calling over every calculator, settings and screens; Gemini-style motion; in the app and in the bubble sheet ("✨").

@@ -18,18 +18,28 @@ object KiteData {
     /** OAuth redirect: a static page on the project site that hands the code to the app. */
     const val REDIRECT = "https://iprajax.github.io/khayali-pulao/callback.html"
 
-    /** The ONLY Kite MCP tools this app will ever call. No order / GTT writes, ever. */
-    val READ_ONLY = setOf(
-        "login", "get_profile", "get_margins", "get_holdings", "get_positions", "get_mf_holdings",
-        "get_orders", "get_trades", "get_gtts", "get_ltp", "get_quotes", "get_ohlc", "search_instruments",
+    /**
+     * The ONLY (tool, mode) pairs this app will ever send. Kite MCP groups reads and writes under one
+     * tool with a `mode` argument, so read-only is enforced per mode: every place/modify/cancel/delete/
+     * create/logout mode is absent here and therefore refused before any request is made.
+     */
+    val READ_ONLY: Map<String, Set<String>> = mapOf(
+        "portfolio" to setOf("profile", "margins", "holdings", "positions"),
+        "mutual_funds" to setOf("holdings"),
+        "orders" to setOf("list", "trades", "history"),
+        "gtt" to setOf("list"),
+        "alerts" to setOf("get"),
+        "market" to setOf("quote", "ltp", "ohlc", "historical", "search"),
+        "session" to setOf("status"),
     )
 
-    fun allowed(tool: String) = tool in READ_ONLY
+    fun allowed(tool: String, mode: String?) = mode != null && READ_ONLY[tool]?.contains(mode) == true
 
-    /** Account sections the chat may ask for → Kite tool. */
-    val SECTIONS = mapOf(
-        "holdings" to "get_holdings", "positions" to "get_positions", "margins" to "get_margins",
-        "profile" to "get_profile", "mutual_funds" to "get_mf_holdings", "orders" to "get_orders", "trades" to "get_trades",
+    /** Account sections the chat may ask for → (tool, mode). */
+    val SECTIONS: Map<String, Pair<String, String>> = mapOf(
+        "holdings" to ("portfolio" to "holdings"), "positions" to ("portfolio" to "positions"),
+        "margins" to ("portfolio" to "margins"), "profile" to ("portfolio" to "profile"),
+        "mutual_funds" to ("mutual_funds" to "holdings"), "orders" to ("orders" to "list"), "trades" to ("orders" to "trades"),
     )
 
     /** MCP over HTTP may answer with plain JSON or an SSE stream ("data: {…}"). Returns the JSON-RPC message. */

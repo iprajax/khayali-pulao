@@ -11,10 +11,23 @@ import org.junit.Test
 class KiteDataTest {
 
     @Test fun readOnlyAllowlistBlocksEveryWrite() {
-        listOf("place_order", "modify_order", "cancel_order", "place_gtt_order", "modify_gtt_order", "delete_gtt_order")
-            .forEach { assertFalse(it, KiteData.allowed(it)) }
-        assertTrue(KiteData.allowed("get_holdings"))
-        assertTrue(KiteData.SECTIONS.values.all { KiteData.allowed(it) })
+        // Writes live under the same tool names with a different mode — all must be refused.
+        listOf("orders" to "place", "orders" to "modify", "orders" to "cancel", "gtt" to "place", "gtt" to "modify",
+            "gtt" to "delete", "alerts" to "create", "alerts" to "modify", "alerts" to "delete", "session" to "logout")
+            .forEach { (t, m) -> assertFalse("$t/$m", KiteData.allowed(t, m)) }
+        assertFalse(KiteData.allowed("orders", null))           // no mode → refused
+        assertFalse(KiteData.allowed("place_order", "any"))     // unknown tool → refused
+        assertTrue(KiteData.allowed("portfolio", "holdings"))
+        assertTrue(KiteData.SECTIONS.values.all { (t, m) -> KiteData.allowed(t, m) })
+    }
+
+    @Test fun summarizesCurrentKiteShape() {
+        // Kite MCP now wraps rows as {data:[…], pagination:{…}}. Fictional values.
+        val raw = """{"data":[{"tradingsymbol":"INFRA","quantity":250,"t1_quantity":0,"average_price":1200,"last_price":1450}],
+                      "pagination":{"from":0,"limit":500,"total":1,"has_more":false,"returned":1}}"""
+        val o = JsonParser.parseString(KiteData.summarize("holdings", raw)).asJsonObject
+        assertEquals(1, o["count"].asInt)
+        assertEquals(362500.0, o["current"].asDouble, 0.0)
     }
 
     @Test fun parsesJsonAndSseReplies() {

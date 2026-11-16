@@ -85,7 +85,7 @@ class KiteMcpClient private constructor(ctx: Context) {
             prefs.edit().remove(KEY_PENDING).apply()
             session = null
             val name = runCatching {
-                JsonParser.parseString(KiteData.summarize("profile", call("get_profile"))).asJsonObject["name"]?.asString
+                JsonParser.parseString(KiteData.summarize("profile", call("portfolio", mapOf("mode" to "profile")))).asJsonObject["name"]?.asString
             }.getOrNull()
             prefs.edit().putString(KEY_NAME, name).apply()
             runCatching { account("holdings") }      // warm the @mention list
@@ -165,9 +165,9 @@ class KiteMcpClient private constructor(ctx: Context) {
         http("POST", KiteData.ENDPOINT, "application/json", """{"jsonrpc":"2.0","method":"notifications/initialized"}""")
     }
 
-    /** Calls one read-only tool. Refuses anything not on the allowlist. */
-    private fun call(tool: String, args: Map<String, Any?> = emptyMap()): String {
-        require(KiteData.allowed(tool)) { "Blocked: '$tool' is not a read-only Kite tool" }
+    /** Calls one read-only (tool, mode). Refuses anything not on the allowlist. */
+    private fun call(tool: String, args: Map<String, Any?>): String {
+        require(KiteData.allowed(tool, args["mode"] as? String)) { "Blocked: '$tool/${args["mode"]}' is not a read-only Kite call" }
         if (session == null) handshake()
         val params = JsonObject().apply { addProperty("name", tool); add("arguments", gson.toJsonTree(args)) }
         val body = try { http("POST", KiteData.ENDPOINT, "application/json", gson.toJson(rpc("tools/call", params))) }
@@ -179,9 +179,11 @@ class KiteMcpClient private constructor(ctx: Context) {
 
     /** Compact JSON for the chat (or {"error":…}). Also refreshes the @mention list on holdings reads. */
     suspend fun account(section: String): String = withContext(Dispatchers.IO) {
-        val tool = KiteData.SECTIONS[section] ?: return@withContext """{"error":"Unknown section '$section'"}"""
+        val (tool, mode) = KiteData.SECTIONS[section] ?: return@withContext """{"error":"Unknown section '$section'"}"""
         runCatching {
-            val out = KiteData.summarize(section, call(tool))
+            val args = mutableMapOf<String, Any?>("mode" to mode)
+            if (section == "holdings" || section == "positions") { args["type"] = "full"; args["limit"] = 500 }
+            val out = KiteData.summarize(section, call(tool, args))
             if (section == "holdings") runCatching {
                 val syms = JsonParser.parseString(out).asJsonObject.getAsJsonArray("holdings").map { it.asJsonObject["symbol"].asString }
                 prefs.edit().putString(KEY_SYMBOLS, syms.joinToString(",")).apply()
@@ -191,7 +193,7 @@ class KiteMcpClient private constructor(ctx: Context) {
     }
 
     suspend fun ltp(symbols: List<String>): String = withContext(Dispatchers.IO) {
-        runCatching { call("get_ltp", mapOf("instruments" to symbols.map { if (":" in it) it else "NSE:$it" })) }
+        runCatching { call("market", mapOf("mode" to "ltp", "instruments" to symbols.map { if (":" in it) it else "NSE:$it" })) }
             .getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
     }
 

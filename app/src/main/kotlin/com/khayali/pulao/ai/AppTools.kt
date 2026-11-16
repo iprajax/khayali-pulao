@@ -31,7 +31,7 @@ interface ToolHost {
 }
 
 /** One tool call as seen by the UI (for the "✓ Calculated vs FD" chips). */
-data class ToolEvent(val name: String, val label: String, val ok: Boolean, val resultJson: String = "{}")
+data class ToolEvent(val name: String, val label: String, val ok: Boolean, val resultJson: String = "{}", val argsJson: String = "{}")
 
 /**
  * The tool catalogue (OpenAPI-style JSON for Gemma 4 function calling) and a pure executor.
@@ -138,7 +138,7 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
         }.getOrElse { mapOf("error" to (it.message ?: "Couldn't calculate that")) }
         val ok = !(result is Map<*, *> && result.containsKey("error"))
         val json = gson.toJson(result)
-        onEvent(ToolEvent(name, def?.label ?: name, ok, json))
+        onEvent(ToolEvent(name, def?.label ?: name, ok, json, argsJson.ifBlank { "{}" }))
         return json
     }
 
