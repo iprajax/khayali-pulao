@@ -54,6 +54,7 @@ object Pal {
     const val GREEN = 0xFF67AD5B.toInt()
     const val RED = 0xFFCF5B52.toInt()
     const val SAFFRON = 0xFFFFB547.toInt()   // our pulao — used sparingly
+    const val VIOLET = 0xFF8E7CF0.toInt()
 
     fun alpha(c: Int, a: Float) = (c and 0x00FFFFFF) or ((a * 255).toInt() shl 24)
     fun signed(v: Double) = if (v >= 0) GREEN else RED

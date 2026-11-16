@@ -36,13 +36,15 @@ class Prefs(ctx: Context) {
     var tab by str("tab", "MOVE")
     var cagr by dbl("cagr", 12.0)
     var years by int("years", 10)
-    var funOn by bool("funOn", true)
+    var funOn by bool("funOn", false)
+    var personaName by str("persona", "ANALYST")
+    var disclaimerSeen by bool("disclaimerSeen", false)
 
-    var fdRate by dbl("fdRate", 6.5)
-    var savingsRate by dbl("savingsRate", 2.7)
-    var ppfRate by dbl("ppfRate", 7.1)
-    var goldRate by dbl("goldRate", 10.0)
-    var niftyRate by dbl("niftyRate", 12.0)
+    var fdRate by dbl("fdRate", Rates.FD)
+    var savingsRate by dbl("savingsRate", Rates.SAVINGS)
+    var ppfRate by dbl("ppfRate", Rates.PPF)
+    var goldRate by dbl("goldRate", Rates.GOLD)
+    var niftyRate by dbl("niftyRate", Rates.NIFTY)
     var toneName by str("tone", Tone.LIGHT.name)
     var tone: Tone
         get() = runCatching { Tone.valueOf(toneName) }.getOrDefault(Tone.LIGHT)
@@ -58,7 +60,7 @@ class Prefs(ctx: Context) {
         else PulaoMaths.Item(customName.trim(), customName.trim(), "⭐", customPrice)
 
     fun benches() = Bench.list(fdRate, inflation, savingsRate, ppfRate, goldRate, niftyRate)
-    var inflation by dbl("inflation", 5.0)
+    var inflation by dbl("inflation", Rates.INFLATION)
     var monthlyExpense by dbl("monthlyExpense", 50_000.0)
     var taxKindName by str("taxKind", TaxKind.LTCG.name)
     var taxKind: TaxKind
@@ -81,6 +83,10 @@ class Prefs(ctx: Context) {
     fun ladder() = Levels.ladder(Levels.parse(gainsText), Levels.parse(lossesText), showLosses)
 
     fun reset() = sp.edit().clear().apply()
+
+    /** Restore researched comparison rates (keeps everything else). */
+    fun resetRates() = sp.edit().remove("fdRate").remove("savingsRate").remove("ppfRate").remove("goldRate")
+        .remove("niftyRate").remove("inflation").apply()
 
     // --- tiny delegates -----------------------------------------------------
     private fun str(k: String, d: String) = object : ReadWriteProperty<Any?, String> {

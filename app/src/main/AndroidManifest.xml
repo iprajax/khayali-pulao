@@ -58,6 +58,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="Settings"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".DemoActivity"
             android:exported="false"
             android:label="Khayali Pulao demo" />

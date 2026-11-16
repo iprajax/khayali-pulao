@@ -13,6 +13,7 @@ import com.khayali.pulao.PulaoMaths
 import com.khayali.pulao.QtyMode
 import com.khayali.pulao.Stock
 import com.khayali.pulao.TaxKind
+import kotlin.math.abs
 import kotlin.math.floor
 
 /**
@@ -23,6 +24,8 @@ import kotlin.math.floor
 interface ToolHost {
     /** Stock the user tapped (overlay) or picked (demo); null in the plain app chat. */
     val stock: Stock?
+    /** The user's real holdings (from Kite), largest first; empty if not connected. */
+    val holdings: List<Stock.Holding> get() = emptyList()
     fun setting(name: String): Any?
     /** Returns null on success, or a human-readable error. */
     fun updateSetting(name: String, value: String): String?
@@ -31,13 +34,33 @@ interface ToolHost {
 }
 
 /** One tool call as seen by the UI (for the "✓ Calculated vs FD" chips). */
-data class ToolEvent(val name: String, val label: String, val ok: Boolean, val resultJson: String = "{}", val argsJson: String = "{}")
+data class ToolEvent(val name: String, val label: String, val ok: Boolean, val resultJson: String = "{}", val argsJson: String = "{}", val ms: Long = 0)
+
+/** Timing + trace of one answer, for the details accordion. */
+data class TurnStats(val totalMs: Long, val firstTokenMs: Long?, val tokensPerSec: Double?, val backend: String?, val warmupMs: Long?, val tools: List<ToolEvent>)
 
 /**
  * The tool catalogue (OpenAPI-style JSON for Gemma 4 function calling) and a pure executor.
  * Every number the model says should come from here, so it can't invent maths.
  */
-class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> Unit = {}) {
+class AppTools(private val host: ToolHost, onEvent: (ToolEvent) -> Unit = {}) {
+    var onEventSink: (ToolEvent) -> Unit = onEvent
+    private fun onEvent(e: ToolEvent) = onEventSink(e)
+
+    /** Percentages the user literally typed this turn (signed). The model's guesses are corrected to these. */
+    @Volatile var userPercents: List<Double> = emptyList()
+
+    companion object Intent {
+        private val DOWN = Regex("""(?i)\b(fall|falls|fell|drop|drops|down|crash|crashes|decline|declines|lose|loses|dip|dips|minus)\b""")
+        /** "falls 20%" → [-20.0]; "+15%" → [15.0]; "12% a year" excluded when [moveOnly]. */
+        fun percents(text: String): List<Double> {
+            val down = DOWN.containsMatchIn(text)
+            return Regex("""([+\-−]?)\s*(\d+(?:\.\d+)?)\s*%(?!\s*(?:a|per|p\.?a|/)\s*(?:year|yr|annum))""").findAll(text).map { m ->
+                val v = m.groupValues[2].toDouble()
+                when { m.groupValues[1] == "-" || m.groupValues[1] == "−" -> -v; m.groupValues[1] == "+" -> v; down -> -v; else -> v }
+            }.toList()
+        }
+    }
 
     private val gson = Gson()
 
@@ -46,13 +69,14 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
 
     val defs: List<Def> = listOf(
         Def("get_current_stock", "Read the stock",
-            "Get the stock or portfolio the user is looking at right now (name, quantity, average price, last price, invested, current value, P&L). Call this first whenever the user says 'this', 'my stock' or 'my portfolio'.",
+            "Get the user's portfolio: the stock in view, or their whole portfolio with EVERY holding ranked by value (biggest first). Call this first for 'my stock', 'my portfolio', 'my biggest holding', 'my best/worst stock'.",
             emptyMap()),
         Def("project_move", "Projected a move",
             "What a holding/stock/portfolio is worth if its price moves by a percentage. Uses the current stock unless ltp is given.",
             mapOf(
                 "percent" to Param("number", "Price move in percent, e.g. 10 for +10%, -5 for -5%"),
                 "from" to Param("string", "Start from the user's average buy price or today's price", listOf("avg", "ltp")),
+                "symbol" to Param("string", "Optional: one of the user's holdings, e.g. the biggest one from get_current_stock"),
                 "ltp" to Param("number", "Optional: current price per share if no stock is selected"),
                 "qty" to Param("number", "Optional: number of shares if no stock is selected"),
                 "avg" to Param("number", "Optional: average buy price if no stock is selected"),
@@ -76,19 +100,16 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
         Def("regret", "Ran a regret check",
             "'If only I had bought at a lower price': value today of the same shares bought at a past price.",
             mapOf("past_price" to Param("number", "The price per share the user wishes they had bought at")), listOf("past_price")),
-        Def("pulao_maths", "Did pulao maths",
-            "Express a rupee amount in fun desi units (cutting chais, train tickets, plots in Ballia…). Use only when the user wants something fun.",
-            mapOf("amount_rupees" to Param("string", "Amount, e.g. \"1 lakh\", \"50000\", \"2.5 crore\"")), listOf("amount_rupees")),
         Def("get_settings", "Read settings",
             "Read the user's assumptions: FD rate, savings, PPF, gold, Nifty, inflation, monthly expenses, tone, ladder steps.", emptyMap()),
         Def("update_setting", "Changed a setting",
             "Change one app setting when the user explicitly asks.",
-            mapOf("name" to Param("string", "Setting to change", SETTINGS),
+            mapOf("name" to Param("string", "Setting to change", Lists.SETTINGS),
                 "value" to Param("string", "New value, e.g. '7.1' for rates, 'serious'/'light'/'masala' for tone, 'Thar for the farm|1500000' for dream_unit")),
             listOf("name", "value")),
         Def("open_screen", "Opened a screen",
             "Open a part of the app for the user.",
-            mapOf("target" to Param("string", "Where to go", TARGETS)), listOf("target")),
+            mapOf("target" to Param("string", "Where to go", Lists.TARGETS)), listOf("target")),
     )
 
     /** OpenAPI function JSON for one tool. */
@@ -113,6 +134,7 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
     /** Run a tool. Always returns JSON (result or {"error": …}); never throws. */
     fun execute(name: String, argsJson: String): String {
         val def = defs.firstOrNull { it.name == name }
+        val t0 = System.nanoTime()
         val result = runCatching {
             val a = if (argsJson.isBlank()) JsonObject() else JsonParser.parseString(argsJson).asJsonObject
             when (name) {
@@ -124,37 +146,50 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
                 "in_hand_after_tax" -> inHand(a)
                 "regret" -> regret(a)
                 "pulao_maths" -> mapOf("text" to (PulaoMaths.describe(a.num("amount_rupees")!!) ?: "less than a cutting chai"))
-                "get_settings" -> SETTINGS.associateWith { host.setting(it) }
+                "get_settings" -> Lists.SETTINGS.associateWith { host.setting(it) }
                 "update_setting" -> {
                     val n = a.str("name")!!; val v = a.str("value")!!
                     host.updateSetting(n, v)?.let { mapOf("error" to it) } ?: mapOf("ok" to true, "name" to n, "value" to v)
                 }
                 "open_screen" -> {
                     val t = a.str("target")!!
-                    if (host.open(t)) mapOf("ok" to true, "opened" to t) else mapOf("error" to "Unknown screen '$t'. Use one of $TARGETS")
+                    if (host.open(t)) mapOf("ok" to true, "opened" to t) else mapOf("error" to "Unknown screen '$t'. Use one of ${Lists.TARGETS}")
                 }
                 else -> mapOf("error" to "Unknown tool '$name'")
             }
         }.getOrElse { mapOf("error" to (it.message ?: "Couldn't calculate that")) }
         val ok = !(result is Map<*, *> && result.containsKey("error"))
         val json = gson.toJson(result)
-        onEvent(ToolEvent(name, def?.label ?: name, ok, json, argsJson.ifBlank { "{}" }))
+        onEvent(ToolEvent(name, def?.label ?: name, ok, json, argsJson.ifBlank { "{}" }, (System.nanoTime() - t0) / 1_000_000))
         return json
     }
 
     // ------------------------------------------------------------------ tools
 
+    private fun holdingsList() = host.holdings.map {
+        mapOf("symbol" to it.name, "qty" to it.qty, "avg_price" to it.avg, "ltp" to it.ltp, "current_value" to r(it.current),
+            "pnl" to r(it.pnl), "pnl_percent" to r1(it.pnlPct))
+    }
+
     private fun currentStock(): Any = when (val s = host.stock) {
-        null -> mapOf("error" to "No stock is selected. Ask the user which stock and its price/quantity, or to tap one in Kite.")
+        null -> if (host.holdings.isNotEmpty()) {
+            val inv = host.holdings.sumOf { it.invested }; val cur = host.holdings.sumOf { it.current }
+            mapOf("type" to "portfolio", "invested" to r(inv), "current_value" to r(cur), "pnl" to r(cur - inv),
+                "pnl_percent" to r1(if (inv > 0) (cur - inv) / inv * 100 else 0.0), "biggest_holding" to host.holdings.first().name,
+                "holdings" to holdingsList())
+        } else mapOf("error" to "No portfolio loaded. If Kite is connected call kite_account with section=holdings; otherwise ask the user for the stock's price and quantity.")
         is Stock.Holding -> mapOf("type" to "holding", "name" to s.name, "qty" to s.qty, "avg_price" to s.avg, "ltp" to s.ltp,
             "invested" to r(s.invested), "current_value" to r(s.current), "pnl" to r(s.pnl), "pnl_percent" to r1(s.pnlPct))
         is Stock.Quote -> mapOf("type" to "watchlist", "name" to s.name, "exchange" to s.exchange, "ltp" to s.ltp,
             "note" to "Not owned. Assume an amount (default ₹${Fmt.amount(host.setting("watch_amount") as? Double ?: 10000.0)}) unless the user says.")
         is Stock.Portfolio -> mapOf("type" to "portfolio", "invested" to r(s.invested), "current_value" to r(s.current),
-            "pnl" to r(s.pnl), "pnl_percent" to r1(s.pnlPct))
+            "pnl" to r(s.pnl), "pnl_percent" to r1(s.pnlPct)) + (if (host.holdings.isNotEmpty()) mapOf("biggest_holding" to host.holdings.first().name, "holdings" to holdingsList()) else emptyMap())
     }
 
     private fun stockOrArgs(a: JsonObject): Stock {
+        a.str("symbol")?.removePrefix("@")?.let { sym ->
+            host.holdings.firstOrNull { it.name.equals(sym, true) }?.let { return it }
+        }
         a.num("ltp")?.let { ltp ->
             val qty = a.num("qty"); val avg = a.num("avg")
             return if (qty != null && avg != null) Stock.Holding("Your stock", qty, avg, qty * avg, ltp) else Stock.Quote("Stock", "NSE", ltp)
@@ -163,7 +198,8 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
     }
 
     private fun projectMove(a: JsonObject): Any {
-        val pct = a.num("percent")!!
+        var pct = a.num("percent")!!
+        if (userPercents.isNotEmpty() && userPercents.none { abs(it - pct) < 1e-6 }) pct = userPercents.first()
         val s = stockOrArgs(a)
         val base = if (a.str("from") == "avg") Base.AVG else Base.LTP
         val amt = host.setting("watch_amount") as? Double ?: 10000.0
@@ -263,7 +299,7 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
 
     @Suppress("UNCHECKED_CAST")
     private fun rates(): Map<String, Double> =
-        listOf("fd", "savings", "ppf", "gold", "nifty", "inflation").associateWith { (host.setting("${it}_rate") as? Double) ?: DEFAULTS[it]!! }
+        listOf("fd", "savings", "ppf", "gold", "nifty", "inflation").associateWith { (host.setting("${it}_rate") as? Double) ?: Lists.DEFAULTS[it]!! }
 
     // ---------------------------------------------------------------- helpers
 
@@ -278,10 +314,10 @@ class AppTools(private val host: ToolHost, private val onEvent: (ToolEvent) -> U
     private fun r1(v: Double) = Math.round(v * 10) / 10.0
     private fun r2(v: Double) = Math.round(v * 100) / 100.0
 
-    companion object {
+    object Lists {
         val SETTINGS = listOf("fd_rate", "savings_rate", "ppf_rate", "gold_rate", "nifty_rate", "inflation_rate",
             "monthly_expense", "watch_amount", "tone", "compact_numbers", "show_in_hand", "dream_unit")
         val TARGETS = listOf("move", "vs_fd", "spend", "goal", "years", "regret", "settings", "demo", "home")
-        private val DEFAULTS = mapOf("fd" to 6.5, "savings" to 2.7, "ppf" to 7.1, "gold" to 10.0, "nifty" to 12.0, "inflation" to 5.0)
+        val DEFAULTS = with(com.khayali.pulao.Rates) { mapOf("fd" to FD, "savings" to SAVINGS, "ppf" to PPF, "gold" to GOLD, "nifty" to NIFTY, "inflation" to INFLATION) }
     }
 }

@@ -58,6 +58,16 @@
 
 Tap **Connect Kite** in the chat to let it read your real holdings, positions, margins and orders through **Zerodha's official [Kite MCP](https://github.com/zerodha/kite-mcp-server)** (`mcp.kite.trade`), using standard MCP OAuth 2.1 (PKCE + a one-time loopback redirect on the phone). You log in on Zerodha's own page in your browser — if you're already logged in to Kite in Chrome it's usually a one-tap "Authorize". The app **only allows read tools**: every order/GTT tool is blocked in code (and tested), on top of Zerodha's hosted server excluding them. Your Kite data comes from Zerodha to your phone and is used only by the on-device model.
 
+## What's new in 0.7
+
+- **Interactive D3 answers** — every result is a native card with an animated chart (holdings treemap + P&L, price history with scrubbing, compounding curve vs inflation, FD/PPF/gold/Nifty bars, goal ring, tax split, margins donut, orders timeline). Same renderer runs live on the [website](https://iprajax.github.io/khayali-pulao/#visuals). d3 is bundled; the chart WebView blocks all network.
+- **Personas** — 📊 Analyst · 🧭 Financial planner · 🔎 Research. Same exact tools; different focus. Educational only — never buy/sell/hold calls; not a SEBI-registered adviser.
+- **Kite MCP, all read methods** — holdings, positions, margins, profile, mutual funds, orders/trades, live price (falls back to last close when the market is shut), price history. Read-only enforced per *(tool, mode)*.
+- **Context pills** — starters built from your live holdings (biggest, best, worst, concentration) and follow-ups from the last result; exact re-runs like "at 15% a year".
+- **Exact numbers** — percentages you type are pinned to the tool call; when a calculator ran, the reply shows its exact summary and only number-free insight from the model.
+- **Response details** — tap ⏱ for total time, time to first word, tokens/s, GPU/CPU and every tool step.
+- **New home** — bento dashboard + left drawer; settings on their own screen; comparison rates refreshed (Nov 2026).
+
 ## What it does
 
 | | |

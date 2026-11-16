@@ -94,7 +94,7 @@ object KiteData {
                     val qty = h.d("quantity") + h.d("t1_quantity")
                     val avg = h.d("average_price"); val ltp = h.d("last_price")
                     val inv = qty * avg; val cur = qty * ltp
-                    mapOf("symbol" to h.s("tradingsymbol"), "qty" to qty, "avg_price" to avg, "ltp" to ltp,
+                    mapOf("symbol" to h.s("tradingsymbol"), "exchange" to h.s("exchange").ifBlank { "NSE" }, "token" to h.d("instrument_token").toLong(), "qty" to qty, "avg_price" to avg, "ltp" to ltp,
                         "invested" to r(inv), "current" to r(cur), "pnl" to r(cur - inv),
                         "pnl_percent" to if (inv > 0) Math.round((cur - inv) / inv * 1000) / 10.0 else 0.0,
                         "day_change_percent" to h.d("day_change_percentage"))
@@ -130,7 +130,8 @@ object KiteData {
                 val eq = if (el.isJsonObject) el.asJsonObject.getAsJsonObject("equity") ?: el.asJsonObject else JsonObject()
                 val avail = eq.get("available")?.takeIf { it.isJsonObject }?.asJsonObject
                 val net = eq.d("net"); val cash = avail?.d("live_balance") ?: avail?.d("cash") ?: 0.0
-                gson.toJson(mapOf("summary" to "Equity margin available ${inr(net)} (cash ${inr(cash)}).", "net" to r(net), "cash" to r(cash)))
+                val used = eq.get("utilised")?.takeIf { it.isJsonObject }?.asJsonObject?.d("debits") ?: 0.0
+                gson.toJson(mapOf("summary" to "Equity margin available ${inr(net)} (cash ${inr(cash)}, used ${inr(used)}).", "net" to r(net), "cash" to r(cash), "used" to r(used)))
             }
             "profile" -> {
                 // Only what's useful for a greeting — never echo email/phone/PAN into the model.
@@ -146,7 +147,42 @@ object KiteData {
                 }
                 gson.toJson(mapOf("summary" to "${items.size} $section today.", section to items))
             }
+            "history" -> {
+                val rows = (arrayIn(el) ?: JsonArray()).map { it.asJsonObject }
+                val pts = rows.map { mapOf("t" to it.s("date"), "c" to it.d("close")) }
+                val first = rows.firstOrNull()?.d("close") ?: 0.0; val last = rows.lastOrNull()?.d("close") ?: 0.0
+                val hi = rows.maxOfOrNull { it.d("high") } ?: 0.0; val lo = rows.minOfOrNull { it.d("low") } ?: 0.0
+                val chg = if (first > 0) Math.round((last - first) / first * 1000) / 10.0 else 0.0
+                gson.toJson(mapOf("summary" to "From ₹${Fmt.price(first)} to ₹${Fmt.price(last)} (${if (chg >= 0) "+" else ""}$chg%) over ${rows.size} sessions; high ₹${Fmt.price(hi)}, low ₹${Fmt.price(lo)}.",
+                    "first" to first, "last" to last, "change_percent" to chg, "high" to hi, "low" to lo, "points" to pts))
+            }
+            "ltp" -> {
+                val data = if (el.isJsonObject) el.asJsonObject.getAsJsonObject("data") ?: el.asJsonObject else JsonObject()
+                val quotes = data.entrySet().map { (k, v) -> mapOf("symbol" to k.substringAfter(':'), "ltp" to (v.asJsonObject.get("last_price")?.asDouble ?: 0.0)) }
+                gson.toJson(mapOf("summary" to quotes.joinToString("; ") { "${it["symbol"]} ₹${Fmt.price(it["ltp"] as Double)}" }, "quotes" to quotes))
+            }
             else -> raw.take(3000)
         }
+    }
+
+    /** First NSE equity token from a market/search reply. */
+    fun firstToken(raw: String, symbol: String): Long? = runCatching {
+        val rows = arrayIn(JsonParser.parseString(raw))?.map { it.asJsonObject } ?: return null
+        (rows.firstOrNull { it.s("tradingsymbol").equals(symbol, true) && it.s("exchange") == "NSE" }
+            ?: rows.firstOrNull { it.s("tradingsymbol").equals(symbol, true) } ?: rows.firstOrNull())
+            ?.d("instrument_token")?.toLong()?.takeIf { it > 0 }
+    }.getOrNull()
+
+    /** "1m" / "6m" / "1y" / "5y" → (from, to, interval). */
+    fun period(p: String?, today: java.time.LocalDate = java.time.LocalDate.now()): Triple<String, String, String> {
+        val (from, interval) = when (p?.lowercase()?.trim()) {
+            "1w" -> today.minusWeeks(1) to "60minute"
+            "1m" -> today.minusMonths(1) to "day"
+            "3m" -> today.minusMonths(3) to "day"
+            "1y" -> today.minusYears(1) to "day"
+            "5y" -> today.minusYears(5).plusDays(2) to "day"     // Kite has no weekly interval; daily ≤ 2000 days
+            else -> today.minusMonths(6) to "day"
+        }
+        return Triple(from.toString(), today.toString(), interval)
     }
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+- D3.js visual cards for every Kite read and calculator (bundled, offline WebView); interactive gallery on the website.
+- Personas (Analyst, Financial planner, Research) with disclaimers; English-only, professional tone in chat.
+- Kite: /chart with price history (5y fixed — Kite has no weekly interval), live price with last-close fallback, exchange-aware quotes, holdings preloaded for tools and @mentions.
+- Context-curated pills (live holdings + last result + model); exact follow-up re-runs.
+- Number integrity: user-typed % pinned to tool args; replies use the tool's exact summary.
+- Response timing + step-by-step details accordion; native markdown (tables, lists, code).
+- Bento home + navigation drawer + Settings screen; comparison rates updated to Nov 2026 with "Reset to current rates".
+
 ## 0.6.1
 
 - Kite MCP: adapted to Zerodha's consolidated tools (`portfolio`, `orders`, `market`… with a `mode`); read-only now enforced per (tool, mode) — every place/modify/cancel/delete/create/logout mode is refused.

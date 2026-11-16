@@ -26,7 +26,7 @@ class AppToolsTest {
             if (d > 50) return "too high"
             settings[name] = d; return null
         }
-        override fun open(target: String) = (target in AppTools.TARGETS).also { if (it) opened += target }
+        override fun open(target: String) = (target in AppTools.Lists.TARGETS).also { if (it) opened += target }
     }
 
     private val infra = Stock.Holding("INFRA", 250.0, 1200.0, 300000.0, 1450.0)
@@ -128,7 +128,7 @@ class AppToolsTest {
 
     @Test fun unverifiedRupeesAreRemoved() {
         val known = listOf(100000.0, 310585.0, 190670.0)
-        assertEquals("It becomes ₹3,10,585, or the amount shown above today.",
+        assertEquals("It becomes ₹3,10,585, or (see card) today.",
             NumberGuard.verify("It becomes ₹310585, or ₹19,067 today.", known))
         assertEquals("₹1,00,000 grows nicely", NumberGuard.verify("₹1,00,000 grows nicely", known))
         assertEquals("fee ₹20", NumberGuard.verify("fee ₹20", known))   // tiny amounts are left alone
@@ -143,5 +143,34 @@ class AppToolsTest {
         assertNull(Money.parse("lots"))
         val g = obj(AppTools(FakeHost(infra)).execute("goal_plan", """{"target_rupees": "10 lakh"}"""))
         assertEquals(1_000_000.0, g["goal"].asDouble, 0.0)
+    }
+
+    @Test fun biggestHoldingWorksWithoutAskingTheUser() {
+        val h = listOf(Stock.Holding("INFRA", 250.0, 1200.0, 300000.0, 1450.0), Stock.Holding("CHAICO", 10.0, 700.0, 7000.0, 658.2))
+        val host = object : ToolHost {
+            override val stock: Stock? = null
+            override val holdings = h
+            override fun setting(name: String): Any? = null
+            override fun updateSetting(name: String, value: String): String? = null
+            override fun open(target: String) = false
+        }
+        val t = AppTools(host)
+        val cur = obj(t.execute("get_current_stock", "{}"))
+        assertEquals("INFRA", cur["biggest_holding"].asString)
+        assertEquals(2, cur.getAsJsonArray("holdings").size())
+        t.userPercents = listOf(-20.0)                                       // user typed "falls 20%"
+        val mv = obj(t.execute("project_move", """{"percent": -2, "symbol": "INFRA"}"""))   // model garbled it
+        assertEquals("INFRA", mv["stock"].asString)
+        assertEquals(290000.0, mv["value_after"].asDouble, 0.0)          // 250 × 1450 × 0.8
+        assertTrue(obj(AppTools(FakeHost(null)).execute("get_current_stock", "{}"))["error"].asString.contains("kite_account"))
+    }
+
+    @Test fun composeKeepsExactNumbersAndOnlyNumberFreeInsight() {
+        val out = NumberGuard.compose(
+            "If it moves up by 2%, value becomes (see card). That is a 9.4.4% gain. Concentration in one stock raises risk. Diversifying can reduce swings.",
+            listOf("If INFRA moves −20%, it becomes ₹1,160.00 a share; 250 shares worth ₹2,90,000."))
+        assertTrue(out.startsWith("If INFRA moves −20%"))
+        assertTrue(out.contains("Concentration in one stock raises risk."))
+        assertTrue(!out.contains("2%") && !out.contains("9.4.4"))
     }
 }

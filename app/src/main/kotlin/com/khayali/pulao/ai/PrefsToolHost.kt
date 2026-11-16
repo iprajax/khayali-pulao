@@ -9,7 +9,10 @@ class PrefsToolHost(
     private val prefs: Prefs,
     private val stockProvider: () -> Stock?,
     private val opener: (String) -> Boolean,
+    private val holdingsProvider: () -> List<Stock.Holding> = { emptyList() },
 ) : ToolHost {
+
+    override val holdings: List<Stock.Holding> get() = holdingsProvider()
 
     override val stock: Stock? get() = stockProvider()
 

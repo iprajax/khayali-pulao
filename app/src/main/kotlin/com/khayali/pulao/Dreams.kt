@@ -138,7 +138,8 @@ object Bench {
 
     fun list(
         fdRate: Double, inflation: Double,
-        savings: Double = 2.7, ppf: Double = 7.1, gold: Double = 10.0, nifty: Double = 12.0,
+        savings: Double = com.khayali.pulao.Rates.SAVINGS, ppf: Double = com.khayali.pulao.Rates.PPF,
+        gold: Double = com.khayali.pulao.Rates.GOLD, nifty: Double = com.khayali.pulao.Rates.NIFTY,
     ) = listOf(
         B("Savings account", "🏦", savings, "Settings"),
         B("Bank FD", "🧾", fdRate, "Settings"),

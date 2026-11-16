@@ -185,16 +185,56 @@ class KiteMcpClient private constructor(ctx: Context) {
             if (section == "holdings" || section == "positions") { args["type"] = "full"; args["limit"] = 500 }
             val out = KiteData.summarize(section, call(tool, args))
             if (section == "holdings") runCatching {
-                val syms = JsonParser.parseString(out).asJsonObject.getAsJsonArray("holdings").map { it.asJsonObject["symbol"].asString }
-                prefs.edit().putString(KEY_SYMBOLS, syms.joinToString(",")).apply()
+                val rows = JsonParser.parseString(out).asJsonObject.getAsJsonArray("holdings").map { it.asJsonObject }
+                val e = prefs.edit().putString(KEY_SYMBOLS, rows.joinToString(",") { it["symbol"].asString })
+                rows.forEach { r ->
+                    r["token"]?.asLong?.takeIf { it > 0 }?.let { e.putLong("tok:" + r["symbol"].asString, it) }
+                    r["exchange"]?.asString?.let { e.putString("ex:" + r["symbol"].asString, it) }
+                }
+                e.apply()
             }
             out
         }.getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
     }
 
+    /** Live prices on each symbol's own exchange (from holdings), falling back NSE → BSE. */
     suspend fun ltp(symbols: List<String>): String = withContext(Dispatchers.IO) {
-        runCatching { call("market", mapOf("mode" to "ltp", "instruments" to symbols.map { if (":" in it) it else "NSE:$it" })) }
-            .getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
+        fun inst(s: String, ex: String? = null) = if (":" in s) s else "${ex ?: prefs.getString("ex:$s", null) ?: "NSE"}:$s"
+        runCatching {
+            var out = KiteData.summarize("ltp", call("market", mapOf("mode" to "ltp", "instruments" to symbols.map { inst(it) })))
+            if (out.contains("\"error\"") || !out.contains("\"quotes\":[{")) {
+                out = runCatching { KiteData.summarize("ltp", call("market", mapOf("mode" to "ltp", "instruments" to symbols.map { inst(it, "BSE") }))) }.getOrDefault(out)
+            }
+            if (out.contains("\"error\"") || !out.contains("\"quotes\":[{")) {
+                // Market closed / no live tick: use the last daily close so the maths can still go ahead.
+                val quotes = symbols.mapNotNull { sym ->
+                    runCatching { JsonParser.parseString(historyNow(sym.substringAfter(':'), "1m")).asJsonObject }.getOrNull()
+                        ?.takeIf { !it.has("error") }?.let { mapOf("symbol" to sym.substringAfter(':'), "ltp" to it["last"].asDouble, "source" to "last close") }
+                }
+                if (quotes.isNotEmpty()) out = gson.toJson(mapOf("summary" to quotes.joinToString("; ") { "${it["symbol"]} ₹${com.khayali.pulao.Fmt.price(it["ltp"] as Double)} (last close)" } +
+                    ". Live price unavailable — using the last close.", "quotes" to quotes, "market_closed" to true))
+            }
+            out
+        }.getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
+    }
+
+    fun exchangeOf(symbol: String): String? = prefs.getString("ex:$symbol", null)
+
+    /** Price history for a symbol (resolves the instrument token via holdings cache or search). */
+    suspend fun history(symbol: String, period: String?): String = withContext(Dispatchers.IO) { historyNow(symbol, period) }
+
+    private fun historyNow(symbol: String, period: String?): String {
+        return runCatching {
+            val sym = symbol.uppercase().removePrefix("NSE:").trim()
+            val token = prefs.getLong("tok:$sym", 0L).takeIf { it > 0 }
+                ?: KiteData.firstToken(call("market", mapOf("mode" to "search", "query" to sym, "limit" to 10)), sym)
+                ?: error("Couldn't find $sym on Kite")
+            prefs.edit().putLong("tok:$sym", token).apply()
+            val (from, to, interval) = KiteData.period(period)
+            val out = KiteData.summarize("history", call("market", mapOf("mode" to "historical", "instrument_token" to token,
+                "interval" to interval, "from_date" to from, "to_date" to to)))
+            JsonParser.parseString(out).asJsonObject.apply { addProperty("symbol", sym); addProperty("period", period ?: "6m") }.toString()
+        }.getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
     }
 
     fun disconnect() {

@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
  */
 class ChatSession(
     private val ctx: Context,
+    private val prefsPersona: () -> String? = { null },
     private val host: ToolHost,
     private val tone: () -> Tone,
     private val scope: CoroutineScope,
@@ -33,14 +34,16 @@ class ChatSession(
         fun onThinking()
         fun onTool(e: ToolEvent)
         fun onText(full: String)
-        fun onDone(full: String, tokensPerSec: Double?)
+        fun onDone(full: String, stats: TurnStats)
         fun onError(message: String)
     }
 
     private var conversation: Conversation? = null
+    private var tools: AppTools? = null
     /** Amounts produced by tools during the current turn — the only ₹ figures the model may quote. */
     private val known = mutableListOf<Double>()
     @Volatile private var currentListener: Listener? = null
+    private val turnTools = mutableListOf<ToolEvent>()
     private var job: Job? = null
     val busy get() = job?.isActive == true
 
@@ -52,25 +55,25 @@ class ChatSession(
             is Stock.Quote -> "The user is looking at ${s.name} on their watchlist (not owned), LTP ₹${Fmt.price(s.ltp)}."
             is Stock.Portfolio -> "The user is looking at their whole portfolio: invested ₹${Fmt.amount(s.invested)}, current ₹${Fmt.amount(s.current)}."
         }
-        val style = when (tone()) {
-            Tone.SERIOUS -> "Be plain, precise and brief. No jokes, no emojis."
-            Tone.LIGHT -> "Be warm and calm. At most one light touch of humour."
-            Tone.MASALA -> "Be playful and witty with desi humour (FD wale uncle, Sharma ji ka beta, Ballia plots) but keep numbers exact."
-        }
+        val persona = Persona.of(prefsPersona())
+        val style = "Persona: ${persona.title}. ${persona.focus} Be professional, clear and concise. No jokes, slang, Hindi words or emojis."
         return """
-            You are Khayali Pulao, a friendly daydream calculator for Indian stock investors, running fully on the user's phone.
-            "Khayali pulao" means daydreaming. You help users imagine what-if scenarios with exact maths.
+            You are Khayali Pulao, a what-if calculator for Indian stock investors, running fully on the user's phone.
+            You help users explore scenarios for their portfolio with exact maths.
             $ctxLine
             ${if (KiteMcpClient.get(ctx).connected) "The user's Zerodha Kite account is CONNECTED (read-only): use kite_account for their real holdings/positions/P&L, then the calculators on those numbers." else "Kite is not connected; if they ask about their real account, suggest tapping 'Connect Kite'."}
             Rules:
             - ALWAYS call a tool for any number (moves, FD comparison, goals, compounding, tax, regret) — including follow-ups like "and at 15%?" or "in today's money?". Call the tool again with the new values. Never do maths yourself.
-            - The app automatically shows each tool's exact numbers in a visual card above your reply. So DON'T repeat long amounts; say things like "as shown above" and add 1–3 sentences of insight (what it means, what to try next). If you must mention one figure, copy it exactly from the tool's "summary".
-            - If information is missing (stock, amount, years held), ask one short question.
+            - The app automatically shows each tool's exact numbers in a visual card above your reply. So DON'T repeat amounts; refer to "the card above" and add 1–3 sentences of insight (what it means, what to try next). If you must mention one figure, copy it exactly from the tool's "summary".
+            - For "my portfolio / my biggest holding / my best or worst stock", call get_current_stock (or kite_account holdings) and pick from the result — never ask the user for data the tools can fetch. Pass "symbol" to project_move to use a specific holding.
+            - Only if a tool says the data isn't available, ask one short question.
             - Write amounts in Indian style with ₹ (e.g. ₹1,23,456, ₹12.5 lakh, ₹1.2 crore).
-            - Keep answers short: 2–5 sentences or a few bullets. Use **bold** for the key number.
+            - Keep answers short: 2–4 sentences, or up to 4 bullets. Use **bold** sparingly. Never use tables or headings — the app already shows the numbers in a card.
             - You can change settings and open screens with tools when the user asks. Confirm what you changed.
-            - You cannot buy, sell or place orders, and you never recommend buying or selling. If asked, say it's a daydream tool, not advice.
-            - Reply in the same language the user wrote in (English → English, Hindi/Hinglish → Hinglish).
+            - If the market is closed or a live price is missing, use the last traded price / last close the tools give — never apologise or stop; just say it's the last price.
+            - You cannot buy, sell or place orders, and you NEVER recommend buying, selling or holding any security, nor give target prices. If asked, explain the scenarios and say you can't give investment advice.
+            - You are educational only, not a SEBI-registered investment adviser.
+            - Always reply in English.
             - $style
         """.trimIndent()
     }
@@ -78,8 +81,10 @@ class ChatSession(
     private suspend fun ensure(listener: Listener): Conversation {
         conversation?.takeIf { it.isAlive }?.let { return it }
         val engine = AiEngine.acquire(ctx)
-        val tools = AppTools(host) { e ->
+        val tools = AppTools(host).also { this.tools = it }
+        tools.onEventSink = { e ->
             synchronized(known) { known += ResultCards.amounts(e.resultJson) }
+            synchronized(turnTools) { turnTools += e }
             scope.launch(Dispatchers.Main) { currentListener?.onTool(e) }
         }
         val providers = tools.defs.map { d ->
@@ -103,16 +108,19 @@ class ChatSession(
     private fun kiteTools(): List<com.google.ai.edge.litertlm.ToolProvider> {
         val kite = KiteMcpClient.get(ctx)
         if (!kite.connected) return emptyList()
-        fun emit(name: String, label: String, json: String) {
+        fun emit(name: String, label: String, json: String, args: String = "{}", ms: Long = 0) {
             val ok = !json.contains("\"error\"")
             synchronized(known) { known += ResultCards.amounts(json) }
-            scope.launch(Dispatchers.Main) { currentListener?.onTool(ToolEvent(name, label, ok, json)) }
+            val ev = ToolEvent(name, label, ok, json, args, ms)
+            synchronized(turnTools) { turnTools += ev }
+            scope.launch(Dispatchers.Main) { currentListener?.onTool(ev) }
         }
         val account = object : OpenApiTool {
             override fun getToolDescriptionJsonString() = """{"name":"kite_account","description":"Read the user's REAL Zerodha Kite account (read-only): holdings, positions, margins, profile, mutual_funds, orders or trades. Use for questions about 'my portfolio', 'my holdings', 'my P&L'.","parameters":{"type":"object","properties":{"section":{"type":"string","enum":["holdings","positions","margins","profile","mutual_funds","orders","trades"],"description":"Which part of the account"}},"required":["section"]}}"""
             override fun execute(paramsJsonString: String): String {
                 val section = runCatching { com.google.gson.JsonParser.parseString(paramsJsonString).asJsonObject["section"].asString }.getOrDefault("holdings")
-                return kotlinx.coroutines.runBlocking { kite.account(section) }.also { emit("kite_account", "Read Kite $section", it) }
+                val t = System.nanoTime()
+                return kotlinx.coroutines.runBlocking { kite.account(section) }.also { emit("kite_account", "Read Kite $section", it, paramsJsonString, (System.nanoTime() - t) / 1_000_000) }
             }
         }
         val quote = object : OpenApiTool {
@@ -120,23 +128,38 @@ class ChatSession(
             override fun execute(paramsJsonString: String): String {
                 val syms = runCatching { com.google.gson.JsonParser.parseString(paramsJsonString).asJsonObject["symbols"].asString }.getOrDefault("")
                     .split(',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }.take(10)
-                return kotlinx.coroutines.runBlocking { kite.ltp(syms) }.also { emit("kite_quote", "Got live price", it) }
+                val t = System.nanoTime()
+                return kotlinx.coroutines.runBlocking { kite.ltp(syms) }.also { emit("kite_quote", "Got live price", it, paramsJsonString, (System.nanoTime() - t) / 1_000_000) }
             }
         }
-        return listOf(tool(account), tool(quote))
+        val chart = object : OpenApiTool {
+            override fun getToolDescriptionJsonString() = """{"name":"kite_chart","description":"Price history chart from Kite for one NSE symbol over a period. Use when the user asks how a stock has done, its trend, chart or past prices.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"NSE trading symbol, e.g. INFY"},"period":{"type":"string","enum":["1w","1m","3m","6m","1y","5y"]}},"required":["symbol"]}}"""
+            override fun execute(paramsJsonString: String): String {
+                val o = runCatching { com.google.gson.JsonParser.parseString(paramsJsonString).asJsonObject }.getOrNull()
+                val sym = o?.get("symbol")?.asString.orEmpty(); val per = o?.get("period")?.asString
+                val t = System.nanoTime()
+                return kotlinx.coroutines.runBlocking { kite.history(sym, per) }.also { emit("kite_chart", "Charted $sym", it, paramsJsonString, (System.nanoTime() - t) / 1_000_000) }
+            }
+        }
+        return listOf(tool(account), tool(quote), tool(chart))
     }
 
     fun send(text: String, listener: Listener, retried: Boolean = false) {
         if (busy) return
         job = scope.launch {
             currentListener = listener
+            tools?.userPercents = AppTools.percents(text)
             synchronized(known) { known.clear() }
+            synchronized(turnTools) { turnTools.clear() }
+            val tSend = System.nanoTime()
+            val wasLoaded = AiEngine.state.value is AiEngine.State.Ready
             listener.onThinking()
             val sb = StringBuilder()
             var tFirst = 0L      // decode speed is measured from the first token, not from "send"
             var chunks = 0
             try {
                 val conv = ensure(listener)
+                tools?.userPercents = AppTools.percents(text)
                 AiEngine.touch()
                 conv.sendMessageAsync(text).catch { throw it }.collect { msg ->
                     val piece = msg.contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
@@ -150,9 +173,14 @@ class ChatSession(
                 val secs = (System.nanoTime() - tFirst) / 1e9
                 val tps = if (secs > 0.2 && chunks > 3) (chunks - 1) / secs else null   // ≈ tokens/s (one chunk ≈ one token)
                 AiEngine.touch()
-                withContext(Dispatchers.Main) { listener.onDone(NumberGuard.verify(sb.toString().trim(), synchronized(known) { known.toList() }), tps) }
+                val ready = AiEngine.state.value as? AiEngine.State.Ready
+                val stats = TurnStats((System.nanoTime() - tSend) / 1_000_000, if (tFirst > 0) (tFirst - tSend) / 1_000_000 else null, tps,
+                    ready?.backend, if (!wasLoaded) ready?.loadMs else null, synchronized(turnTools) { turnTools.toList() })
+                withContext(Dispatchers.Main) { listener.onDone(NumberGuard.verify(sb.toString().trim(), synchronized(known) { known.toList() }), stats) }
             } catch (c: CancellationException) {
-                withContext(Dispatchers.Main + kotlinx.coroutines.NonCancellable) { listener.onDone(sb.toString().trim(), null) }
+                withContext(Dispatchers.Main + kotlinx.coroutines.NonCancellable) {
+                    listener.onDone(sb.toString().trim(), TurnStats((System.nanoTime() - tSend) / 1_000_000, null, null, null, null, synchronized(turnTools) { turnTools.toList() }))
+                }
             } catch (t: Throwable) {
                 if (!retried && sb.isEmpty() && AiEngine.onGpu) {
                     // GPU initialised but can't run here (e.g. no OpenCL): retry once on CPU, transparently.
@@ -165,6 +193,23 @@ class ChatSession(
                 withContext(Dispatchers.Main) { listener.onError(friendly(t)) }
             }
         }
+    }
+
+    /**
+     * Ask the model for 3 short follow-ups on a CLONE of the conversation (so the real thread
+     * isn't polluted). Returns empty quickly if anything goes wrong.
+     */
+    suspend fun suggest(): List<String> = withContext(Dispatchers.IO) {
+        val conv = conversation ?: return@withContext emptyList()
+        if (busy) return@withContext emptyList()
+        runCatching {
+            val c = conv.clone()
+            try {
+                val reply = c.sendMessage("Suggest exactly 3 very short follow-up questions (max 8 words each) the user might ask next, " +
+                    "one per line, no numbering, no explanations. Prefer ones about their own stocks or the result above.")
+                ContextPills.parseModel(reply.contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text })
+            } finally { runCatching { c.close() } }
+        }.getOrDefault(emptyList())
     }
 
     fun stop() {

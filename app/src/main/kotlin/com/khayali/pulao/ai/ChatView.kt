@@ -57,7 +57,7 @@ class ChatView(
     private val k = Kit(ctx)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val mm = ModelManager.get(ctx)
-    private val host = PrefsToolHost(prefs, { stockProvider() ?: turnStock ?: kitePortfolio }, opener)
+    private val host = PrefsToolHost(prefs, { stockProvider() ?: turnStock ?: kitePortfolio }, opener, { kiteHoldings() })
     /** Real portfolio totals + rows from the last Kite holdings read (memory only). */
     private var kitePortfolio: Stock.Portfolio? = null
     private var kiteRows: List<com.google.gson.JsonObject> = emptyList()
@@ -66,7 +66,8 @@ class ChatView(
     private var lastPills: List<String> = emptyList()
     private var lastCall: ToolEvent? = null
     private val directTools by lazy { AppTools(host) }
-    private val session = ChatSession(ctx.applicationContext, host, { prefs.tone }, scope)
+    private val session = ChatSession(ctx.applicationContext, { prefs.personaName }, host, { prefs.tone }, scope)
+    private val persona get() = Persona.of(prefs.personaName)
 
     private val list = k.column().apply { setPadding(k.dp(16), k.dp(12), k.dp(16), k.dp(24)) }
     private val scroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(list) }
@@ -103,7 +104,7 @@ class ChatView(
         scope.launch {
             mm.state.combine(AiEngine.state) { m, e -> m to e }.collect { (m, e) -> onState(m, e) }
         }
-        scope.launch { kite.state.collect { renderKitePill(it) } }
+        scope.launch { kite.state.collect { renderKitePill(it); preloadKite() } }
         mm.refresh()
     }
 
@@ -188,30 +189,53 @@ class ChatView(
         spark.alpha = 0f; spark.scaleX = 0.6f; spark.scaleY = 0.6f
         spark.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(500).setInterpolator(OvershootInterpolator(1.6f)).start()
         val hi = FlowingGradientText(context).apply {
-            k.style(this, "Namaste 👋", if (compact) 28f else 36f, Pal.TEXT, 300); gravity = Gravity.CENTER
+            k.style(this, "What shall we cook today?", if (compact) 24f else 30f, Pal.TEXT, 300); gravity = Gravity.CENTER
         }
         list.addView(hi, k.lp(MATCH_PARENT).apply { topMargin = k.dp(16) })
         val sub = when (s) {
-            null -> "What shall we daydream about today?"
-            is Stock.Portfolio -> "Let's daydream about your portfolio"
-            else -> "Let's daydream about ${s.name}"
+            null -> if (kite.connected) "Ask about your portfolio, any stock, or a what-if." else "Ask any what-if — or connect Kite to use your real portfolio."
+            is Stock.Portfolio -> "Ask anything about your portfolio."
+            else -> "Ask anything about ${s.name}."
         }
         list.addView(k.text(sub, if (compact) 15f else 17f, Pal.MUTED, 400).apply {
             gravity = Gravity.CENTER; setPadding(0, k.dp(6), 0, 0); setLineSpacing(0f, 1.25f)
         }, k.lp(MATCH_PARENT))
         if (error != null) list.addView(k.text("⚠️ $error", 13f, Pal.RED).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(12), 0, 0) }, k.lp(MATCH_PARENT))
-        list.addView(k.text("🔒 ${ModelSpec.DISPLAY_NAME} · runs on your phone · not advice", 11f, Pal.DIM).apply {
-            gravity = Gravity.CENTER; setPadding(0, k.dp(20), 0, 0)
+        // Persona picker
+        val pr = k.row(Gravity.CENTER).apply { setPadding(0, k.dp(18), 0, 0) }
+        Persona.entries.forEachIndexed { i, p ->
+            val on = p == persona
+            pr.addView(k.text("${p.icon}  ${p.title}", 13f, if (on) Pal.BLUE else Pal.MUTED, 500).apply {
+                setPadding(k.dp(12), k.dp(8), k.dp(12), k.dp(8))
+                background = k.press(k.rounded(if (on) Pal.alpha(Pal.BLUE, 0.14f) else Pal.SURFACE, 999f, if (on) Pal.BLUE else Pal.LINE), 999f)
+                setOnClickListener { choosePersona(p) }
+            }, k.lp(WRAP_CONTENT).apply { if (i > 0) marginStart = k.dp(6) })
+        }
+        list.addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false; addView(pr) }, k.lp(WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        list.addView(k.text(persona.tagline, 12f, Pal.DIM).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(6), 0, 0) }, k.lp(MATCH_PARENT))
+        list.addView(k.text("🔒 ${ModelSpec.DISPLAY_NAME} · runs on your phone\n${Persona.DISCLAIMER}", 11f, Pal.DIM).apply {
+            gravity = Gravity.CENTER; setPadding(k.dp(8), k.dp(20), k.dp(8), 0); setLineSpacing(0f, 1.3f)
         }, k.lp(MATCH_PARENT))
         for ((n, v) in listOf(hi, list.getChildAt(list.childCount - 2), list.getChildAt(list.childCount - 1)).withIndex()) {
             v.alpha = 0f; v.translationY = k.dpf(12)
             v.animate().alpha(1f).translationY(0f).setStartDelay(150L + n * 90L).setDuration(420).setInterpolator(DecelerateInterpolator(2f)).start()
         }
-        setPills(suggestions(s).map { (icon, label) -> "$icon  $label" })
+        setPills(if (s == null) startersNow() else suggestions(s).map { (icon, label) -> "$icon  $label" })
     }
 
-    private fun suggestions(s: Stock?): List<Pair<String, String>> = if (s == null && kite.connected) listOf(
+    private fun choosePersona(p: Persona) {
+        val apply = { prefs.personaName = p.name; prefs.disclaimerSeen = true; session.reset(); shownState = null; onState(mm.state.value, AiEngine.state.value) }
+        if (p != Persona.ANALYST && !prefs.disclaimerSeen) android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("${p.icon}  ${p.title}").setMessage(p.tagline + "\n\n" + Persona.DISCLAIMER + "\n\nIt will never tell you to buy, sell or hold a security.")
+            .setNegativeButton("Cancel", null).setPositiveButton("I understand") { _, _ -> apply() }.show()
+        else apply()
+    }
+
+    private fun suggestions(s: Stock?): List<Pair<String, String>> = if (s == null && persona != Persona.ANALYST)
+        persona.starters.map { persona.icon to it }
+    else if (s == null && kite.connected) listOf(
         "📊" to "/holdings",
+        "📉" to "/chart " + (kite.knownSymbols.firstOrNull() ?: "INFY"),
         "📈" to "How is my portfolio doing?",
         "🧾" to "/fd 3",
         "🎯" to "/goal 1 crore",
@@ -450,16 +474,33 @@ class ChatView(
         addUser(label)
         val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
         bot.appear(); bot.thinking(false); scrollToEnd()
-        if (!kite.connected) { bot.done("Connect Kite first — tap the **Connect Kite** pill at the top.", null, null); return }
+        if (!kite.connected) { bot.done("Connect Kite first — tap the **Connect Kite** pill at the top.", null, null); lastShown = null; showFollowUps(useModel = false); return }
         scope.launch {
+            val t0 = System.nanoTime()
             val json = kite.account(section)
             val ok = !json.contains("\"error\"")
             rememberKite(section, json)
-            bot.tool(ToolEvent("kite_account", "Read Kite $section", ok, json))
+            bot.tool(ToolEvent("kite_account", "Read Kite $section", ok, json, """{"section":"$section"}""", (System.nanoTime() - t0) / 1_000_000))
             val summary = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["summary"]?.asString }.getOrNull()
             val err = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["error"]?.asString }.getOrNull()
             bot.done(err?.let { "⚠️ $it" } ?: summary ?: "Here it is.", null, null, question = label)
-            setPills(listOf("How is my portfolio doing?", "/fd 3", "/goal 1 crore", "/tax")); scrollToEnd()
+            lastShown = ToolEvent("kite_account", "", ok, json); lastQuestion = label; lastCall = null
+            showFollowUps(useModel = false); scrollToEnd()
+        }
+    }
+
+    private fun startersNow() = ContextPills.starters(
+        kiteHoldings().map { ContextPills.H(it.name, it.current, it.pnlPct) }, persona, kite.connected)
+
+    private fun kiteHoldings(): List<Stock.Holding> = kiteRows.mapNotNull { r ->
+        runCatching { val q = r["qty"].asDouble; val a = r["avg_price"].asDouble; Stock.Holding(r["symbol"].asString, q, a, q * a, r["ltp"].asDouble) }.getOrNull()
+    }.sortedByDescending { it.current }
+
+    /** Load real holdings in the background so tools can answer "my biggest holding" straight away. */
+    private fun preloadKite() {
+        if (kite.connected && kiteRows.isEmpty()) scope.launch {
+            rememberKite("holdings", kite.account("holdings"))
+            if (messageCount == 0 && stockProvider() == null) setPills(startersNow())   // refresh with live holdings
         }
     }
 
@@ -475,7 +516,7 @@ class ChatView(
 
     private fun submit(raw: String) {
         var text = raw.trim()
-        if (text.isEmpty() || session.busy || !mm.isReady()) return
+        if (text.isEmpty() || session.busy) return
         if (text.startsWith("Connect Kite")) { onKitePill(kite.state.value); return }
         if (Commands.isCommand(text)) {
             input.setText("")
@@ -483,15 +524,47 @@ class ChatView(
                 Commands.Parsed.Clear -> { newChat(); return }
                 Commands.Parsed.Help -> { showHelp(); return }
                 is Commands.Parsed.Kite -> { runKite(c.section, text); return }
+                is Commands.Parsed.Chart -> { runChart(c.symbol, c.period, text); return }
                 is Commands.Parsed.Unknown -> { showHelp(); return }
                 is Commands.Parsed.Prompt -> { sendToModel(display = text, prompt = c.text); return }
             }
         }
+        if (!mm.isReady()) { showOnce("model:" + mm.state.value::class.simpleName) {}; return }
         sendToModel(display = text, prompt = text)
     }
 
+    private fun runChart(symbol: String, period: String?, label: String) {
+        if (messageCount == 0) { list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY; shownState = "chat" }
+        messageCount++
+        setPills(emptyList()); addUser(label)
+        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
+        bot.appear(); bot.thinking(false); scrollToEnd()
+        if (!kite.connected) { bot.done("Connect Kite first — tap **Connect Kite** at the top.", null, null); lastShown = null; showFollowUps(useModel = false); return }
+        scope.launch {
+            val t0 = System.nanoTime()
+            val json = kite.history(symbol, period)
+            val ok = !json.contains("\"error\"")
+            bot.tool(ToolEvent("kite_chart", "Charted $symbol", ok, json, """{"symbol":"$symbol","period":"${period ?: "6m"}"}""", (System.nanoTime() - t0) / 1_000_000))
+            val o = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject }.getOrNull()
+            bot.done(o?.get("error")?.asString?.let { "⚠️ $it" } ?: o?.get("summary")?.asString ?: "", null, null, question = label)
+            lastShown = ToolEvent("kite_chart", "", ok, json); lastQuestion = label; lastCall = null
+            showFollowUps(useModel = false); scrollToEnd()
+        }
+    }
+
     private fun sendToModel(display: String, prompt: String) {
+        val sym = Commands.mentions(display).firstOrNull()
+        if (sym != null && kite.connected && kiteRows.none { it["symbol"].asString.equals(sym, true) } && sym in kite.knownSymbols) {
+            // Holding details aren't loaded in this session yet: read them first, then continue.
+            scope.launch { rememberKite("holdings", kite.account("holdings")); sendToModelNow(display, prompt) }
+            return
+        }
+        sendToModelNow(display, prompt)
+    }
+
+    private fun sendToModelNow(display: String, prompt: String) {
         var text = prompt
+        lastQuestion = display; lastShown = null; pillJob?.cancel()
         // @mentions: point the tools at that holding, or tell the model which symbol to quote.
         turnStock = null
         val mentioned = Commands.mentions(display)
@@ -500,8 +573,8 @@ class ChatView(
                 val qty = r["qty"].asDouble; val avg = r["avg_price"].asDouble
                 turnStock = Stock.Holding(sym, qty, avg, qty * avg, r["ltp"].asDouble)
             }
-            text += if (turnStock != null) "\n(@$sym is one of my holdings — use get_current_stock / the calculators on it.)"
-                else "\n(@$sym = NSE:$sym. ${if (kite.connected) "Use kite_quote for its price." else ""})"
+            text += if (turnStock != null) "\n(@$sym is one of my holdings — call get_current_stock, then the calculators on it.)"
+                else "\n(@$sym = ${kite.exchangeOf(sym) ?: "NSE"}:$sym. ${if (kite.connected) "Use kite_quote for its price." else "Kite isn't connected, so ask me for its price."})"
         }
         if (session.busy || !mm.isReady()) return
         performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -518,12 +591,14 @@ class ChatView(
             override fun onThinking() = bot.thinking(AiEngine.state.value !is AiEngine.State.Ready)
             override fun onTool(e: ToolEvent) {
                 if (e.ok && FollowUps.from(e.name, e.argsJson).isNotEmpty()) lastCall = e
+                lastShown = e
                 if (e.name == "kite_account") rememberKite(if (e.resultJson.contains("\"holdings\"")) "holdings" else "", e.resultJson)
                 bot.tool(e); scrollToEnd()
             }
             override fun onText(full: String) { bot.text(full); scrollToEnd() }
-            override fun onDone(full: String, tokensPerSec: Double?) {
-                bot.done(full, tokensPerSec, { submit(display) }, question = display); setWorking(false)
+            override fun onDone(full: String, stats: TurnStats) {
+                val sums = stats.tools.filter { it.ok }.mapNotNull { runCatching { com.google.gson.JsonParser.parseString(it.resultJson).asJsonObject["summary"]?.asString }.getOrNull() }
+                bot.done(NumberGuard.compose(full, sums), stats, { submit(display) }, question = display); setWorking(false)
                 showFollowUps(); scrollToEnd()
             }
             override fun onError(message: String) { bot.error(message) { submit(display) }; setWorking(false) }
@@ -532,13 +607,33 @@ class ChatView(
 
     private fun stopGenerating() { session.stop() }
 
-    /** Exact re-runs of the last calculation (no model), falling back to generic prompts. */
-    private fun showFollowUps() {
-        val call = lastCall
-        val exact = call?.let { FollowUps.from(it.name, it.argsJson) }.orEmpty()
-        if (exact.isEmpty()) { setPills(followUps()); return }
-        setPills(exact.map { "↻  " + it.label }, remember = true) { label ->
-            exact.firstOrNull { "↻  " + it.label == label }?.let { runExact(it) }
+    private var lastShown: ToolEvent? = null
+    private var lastQuestion: String? = null
+    private var pillJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Pills after an answer, curated from context in three layers:
+     * exact re-runs of the last calculation → context pills (real holdings, last result) →
+     * model-generated follow-ups that slide in when ready.
+     */
+    private fun showFollowUps(useModel: Boolean = true) {
+        val exact = lastCall?.let { c -> FollowUps.from(c.name, c.argsJson).filter { it.args != c.argsJson && it.label != lastQuestion } }.orEmpty()
+        val ctx = ContextPills.build(ContextPills.Ctx(kite.connected, kite.knownSymbols, lastShown?.name, lastShown?.resultJson, lastQuestion))
+        val base = exact.map { "↻  " + it.label } + ctx
+        fun render(extra: List<String>) = setPills((base + extra.map { "✨  $it" }).distinct().take(8), remember = true) { label ->
+            when {
+                label.startsWith("↻  ") -> exact.firstOrNull { "↻  " + it.label == label }?.let { runExact(it) }
+                label == "Try again" -> lastQuestion?.let { submit(it) }
+                label == "Do this with my real portfolio" -> lastQuestion?.let { submit("$it — use my real Kite portfolio") }
+                else -> submit(label.removePrefix("✨  "))
+            }
+        }
+        render(emptyList())
+        if (!useModel || !mm.isReady()) return
+        pillJob?.cancel()
+        pillJob = scope.launch {
+            val ai = session.suggest()
+            if (ai.isNotEmpty() && !session.busy) render(ai)
         }
     }
 
@@ -549,13 +644,15 @@ class ChatView(
         addUser(p.label)
         val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
         bot.appear()
+        val t0 = System.nanoTime()
         val json = directTools.execute(p.tool, p.args)
-        val ev = ToolEvent(p.tool, directTools.defs.firstOrNull { it.name == p.tool }?.label ?: p.tool, !json.contains("\"error\""), json, p.args)
+        val ev = ToolEvent(p.tool, directTools.defs.firstOrNull { it.name == p.tool }?.label ?: p.tool, !json.contains("\"error\""), json, p.args, (System.nanoTime() - t0) / 1_000_000)
         bot.tool(ev)
+        lastShown = ev
         if (ev.ok) lastCall = ev
         val summary = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["summary"]?.asString }.getOrNull()
         bot.done(summary ?: "Done.", null, null, question = p.label)
-        showFollowUps(); scrollToEnd()
+        showFollowUps(useModel = false); scrollToEnd()
     }
 
     private fun addUser(text: String) {
@@ -584,7 +681,7 @@ class ChatView(
         private val cards = k.column()
         private val status = FlowingGradientText(context).apply { k.style(this, "", 13f, Pal.TEXT, 500) }
         private val shimmer = ShimmerLines(context, k)
-        private val txt = StreamingText(context, k)
+        private val txt = MarkdownView(context, k)
         private val actions = k.row().apply { visibility = GONE }
         private var spin: ValueAnimator? = null
 
@@ -621,6 +718,7 @@ class ChatView(
         }
 
         fun tool(e: ToolEvent) {
+            localTools += e
             toolRow.visibility = VISIBLE
             status.text = e.label + "…"
             val chip = k.text((if (e.ok) "✓  " else "!  ") + e.label, 12f, if (e.ok) Pal.GREEN else Pal.SAFFRON, 500).apply {
@@ -644,26 +742,78 @@ class ChatView(
             txt.update(full)
         }
 
-        fun done(full: String, tps: Double?, retry: (() -> Unit)?, question: String = "") {
+        fun done(full: String, stats: TurnStats?, retry: (() -> Unit)?, question: String = "") {
             stopSpin(); shimmer.visibility = GONE; status.visibility = GONE
             if (full.isBlank()) { txt.visibility = VISIBLE; txt.update("(stopped)") }
-            txt.finish()
+            else if (txt.visibility != VISIBLE) { txt.visibility = VISIBLE; txt.update(full) }
             actions.removeAllViews(); actions.visibility = VISIBLE
             actions.addView(k.iconButton("⧉", 16f) { copy(full) }.apply { contentDescription = "Copy" })
             if (retry != null) actions.addView(k.iconButton("↻", 18f) { retry() }.apply { contentDescription = "Regenerate" })
             if (question.isNotBlank()) actions.addView(k.iconButton("⤴", 18f) { shareAnswer(body, question) }.apply { contentDescription = "Share" })
-            val meta = buildString {
-                append("Gemma 4 · on-device")
-                (AiEngine.state.value as? AiEngine.State.Ready)?.let { append(" · ").append(it.backend) }
-                tps?.let { append(" · ").append(it.toInt()).append(" tok/s") }
+            val st = stats ?: TurnStats(localMs(), null, null, null, null, localTools)
+            val meta = k.text("⏱ ${secs(st.totalMs)}" + (st.backend?.let { " · $it" } ?: if (st.tools.isNotEmpty() && st.backend == null) " · app" else "") +
+                (st.tokensPerSec?.let { " · ${it.toInt()} tok/s" } ?: "") + "  ▾", 11f, Pal.DIM).apply {
+                setPadding(k.dp(8), k.dp(6), k.dp(8), k.dp(6)); maxLines = 1
+                background = k.press(null, 999f)
+                contentDescription = "Response details"
+                setOnClickListener { toggleDetails(st, this) }
             }
-            actions.addView(k.text(meta, 11f, Pal.DIM).apply { setPadding(k.dp(6), 0, 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
+            actions.addView(meta, k.lp(0, WRAP_CONTENT, 1f))
+            if (stats?.backend != null && persona != Persona.ANALYST) body.addView(k.text("Educational only · not investment advice", 10.5f, Pal.DIM).apply { setPadding(k.dp(8), 0, 0, 0) })
             actions.alpha = 0f; actions.animate().alpha(1f).setDuration(300).start()
+        }
+
+        private val started = System.nanoTime()
+        val localTools = mutableListOf<ToolEvent>()
+        fun localMs() = (System.nanoTime() - started) / 1_000_000
+        private var details: LinearLayout? = null
+
+        /** Accordion: timing breakdown + every tool call with its inputs, result and time. */
+        private fun toggleDetails(st: TurnStats, anchor: TextView) {
+            details?.let { d ->
+                d.animate().alpha(0f).setDuration(150).withEndAction { body.removeView(d) }.start()
+                details = null; anchor.text = anchor.text.toString().replace("▴", "▾"); return
+            }
+            anchor.text = anchor.text.toString().replace("▾", "▴")
+            val d = k.column().apply {
+                background = k.rounded(Pal.alpha(Pal.SURFACE, 0.7f), 12f, Pal.LINE)
+                setPadding(k.dp(14), k.dp(12), k.dp(14), k.dp(12))
+            }
+            fun row(label: String, value: String, color: Int = Pal.TEXT) {
+                val r = k.row().apply { setPadding(0, k.dp(3), 0, k.dp(3)) }
+                r.addView(k.text(label, 12f, Pal.MUTED), k.lp(0, WRAP_CONTENT, 1f))
+                r.addView(k.text(value, 12f, color, 500))
+                d.addView(r, k.lp(MATCH_PARENT))
+            }
+            d.addView(k.caps("Response details", Pal.BLUE)); d.addView(k.space(6))
+            row("Total time", secs(st.totalMs))
+            st.warmupMs?.let { row("Model warm-up (first use)", secs(it)) }
+            st.firstTokenMs?.let { row("Time to first word", secs(it)) }
+            st.tokensPerSec?.let { row("Generation speed", "${it.toInt()} tokens/s") }
+            row("Runs on", st.backend?.let { "Gemma 4 E2B · $it · on-device" } ?: "App only (no AI needed)")
+            if (st.tools.isNotEmpty()) {
+                d.addView(k.space(8)); d.addView(k.caps("Steps", Pal.MUTED)); d.addView(k.space(4))
+                st.tools.forEachIndexed { i, t ->
+                    val step = k.column().apply { setPadding(0, k.dp(6), 0, k.dp(6)) }
+                    val h = k.row()
+                    h.addView(k.text("${i + 1}. ${if (t.ok) "✓" else "!"} ${t.name}", 12.5f, if (t.ok) Pal.GREEN else Pal.SAFFRON, 500), k.lp(0, WRAP_CONTENT, 1f))
+                    h.addView(k.text(secs(t.ms), 12f, Pal.MUTED))
+                    step.addView(h, k.lp(MATCH_PARENT))
+                    step.addView(k.text("in: " + t.argsJson.take(160), 11f, Pal.DIM).apply { setPadding(0, k.dp(2), 0, 0) })
+                    val summary = runCatching { com.google.gson.JsonParser.parseString(t.resultJson).asJsonObject.let { o -> o["summary"]?.asString ?: o["error"]?.asString } }.getOrNull()
+                    step.addView(k.text("out: " + (summary ?: t.resultJson.take(160)), 11f, Pal.DIM).apply { setPadding(0, k.dp(2), 0, 0) })
+                    d.addView(step, k.lp(MATCH_PARENT))
+                }
+            }
+            d.alpha = 0f; d.translationY = -k.dpf(6)
+            body.addView(d, k.lp(MATCH_PARENT).apply { topMargin = k.dp(6) })
+            d.animate().alpha(1f).translationY(0f).setDuration(220).start()
+            details = d
         }
 
         fun error(message: String, retry: () -> Unit) {
             stopSpin(); shimmer.visibility = GONE; status.visibility = GONE
-            txt.visibility = VISIBLE; txt.update("⚠️ $message"); txt.finish()
+            txt.visibility = VISIBLE; txt.update("⚠️ $message")
             actions.removeAllViews(); actions.visibility = VISIBLE
             actions.addView(k.chip("Try again") { retry() })
         }
@@ -693,8 +843,9 @@ class ChatView(
     }
 
     private fun pick(l: List<String>) = l.random()
+    private fun secs(ms: Long) = if (ms < 1000) "${ms} ms" else String.format(java.util.Locale.US, "%.1f s", ms / 1000.0)
 
     companion object {
-        private val THINKING = listOf("Cooking the pulao…", "Doing the maths…", "Daydreaming…", "Checking the numbers…")
+        private val THINKING = listOf("Working it out…", "Running the numbers…", "Checking the maths…")
     }
 }

@@ -24,7 +24,7 @@
     portfolio: { invested: 300000, current: 362500 },
     tab: "MOVE", base: "LTP", pct: 10, held: 2, spendSrc: "TODAY",
     goal: null, cagr: 12, years: 10, regret: null, tone: "LIGHT", compact: false, taxOn: true,
-    r: { fd: 6.5, savings: 2.7, ppf: 7.1, gold: 10, nifty: 12, inflation: 5, expense: 50000 },
+    r: { fd: 6.45, savings: 2.5, ppf: 7.1, gold: 13, nifty: 11.5, inflation: 6.1, expense: 50000 },   // as of Nov 2026
   };
   const gains = Levels.parse(K.DEFAULT_GAINS), losses = Levels.parse(K.DEFAULT_LOSSES);
   const ladder = Levels.ladder(gains, losses, true);

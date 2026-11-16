@@ -134,7 +134,9 @@ object SettingsPanel {
             numRow("📈 Nifty 50, assumed (% / yr)", prefs.niftyRate) { prefs.niftyRate = it }
             numRow("🛒 Inflation (% / yr)", prefs.inflation) { prefs.inflation = it }
             numRow("🛋️ Monthly expenses (₹)", prefs.monthlyExpense) { prefs.monthlyExpense = it }
-            addView(k.text("SBI FDs were ~6.05% (5–10 yr) and 6.45% (444-day) for the general public in early 2026 — check your bank.", 11f, Pal.DIM).apply {
+            addView(k.space(8))
+            addView(k.button("Reset to current rates (${Rates.AS_OF})", primary = false) { prefs.resetRates(); onReset() }, k.lp(MATCH_PARENT))
+            addView(k.text(Rates.NOTE, 11f, Pal.DIM).apply {
                 setPadding(0, k.dp(8), 0, 0); setLineSpacing(0f, 1.3f)
             })
         })

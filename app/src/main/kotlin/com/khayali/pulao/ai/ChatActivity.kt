@@ -30,7 +30,7 @@ class ChatActivity : Activity() {
         bar.addView(k.iconButton("←", 22f, Pal.TEXT) { finish() }.apply { contentDescription = "Back" })
         val titles = k.column()
         titles.addView(k.text("Khayali Pulao", 17f, Pal.TEXT, 500))
-        titles.addView(k.text("${ModelSpec.DISPLAY_NAME} · on your phone", 12f, Pal.MUTED))
+        titles.addView(k.text("${com.khayali.pulao.ai.Persona.of(prefs.personaName).title} · ${ModelSpec.DISPLAY_NAME} on your phone", 12f, Pal.MUTED))
         bar.addView(titles, k.lp(0, WRAP_CONTENT, 1f))
         bar.addView(k.iconButton("✎", 20f, Pal.TEXT) { chat.newChat() }.apply { contentDescription = "New chat" })
         bar.addView(k.iconButton("⋮", 22f, Pal.TEXT) { menu() }.apply { contentDescription = "More" })
@@ -55,7 +55,7 @@ class ChatActivity : Activity() {
                 else -> startActivity(Intent(this, DemoActivity::class.java))
             }
         }
-        return target in AppTools.TARGETS
+        return target in AppTools.Lists.TARGETS
     }
 
     private fun menu() {

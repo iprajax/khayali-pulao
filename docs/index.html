@@ -138,6 +138,15 @@
       .seg button { padding: 8px 6px; }
     }
 
+    .viz-tabs { display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; }
+    .viz-tabs button { flex:0 0 auto; background:var(--bg); color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font:inherit; font-size:14px; cursor:pointer; }
+    .viz-tabs button.on { color:var(--blue); border-color:var(--blue); background:rgba(82,130,235,.14); }
+    .viz-stage { max-width:440px; border:1px solid var(--line); }
+    .viz-stage iframe { width:100%; height:340px; border:0; display:block; margin-top:10px; background:transparent; }
+    .kicker { font-size:11px; letter-spacing:.08em; color:var(--blue); font-weight:600; }
+    .vbig { font-size:30px; font-weight:500; margin-top:6px; }
+    .cmds { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+    .cmds code { font-size:13px; }
     footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--dim); font-size: 13px; }
     footer p { margin: 6px 0; }
     @media (max-width: 820px) {
@@ -153,7 +162,8 @@
       <img src="media/icon.png" alt="">
       <b>Khayali Pulao</b>
       <nav>
-        <a href="#ai">AI chat</a>
+        <a href="#visuals">Visuals</a>
+        <a href="#chat">Chat</a>
         <a href="#try">Try it</a>
         <a href="#features">Features</a>
         <a href="#privacy">Privacy</a>
@@ -166,7 +176,7 @@
   <main class="wrap">
     <div class="hero">
       <div>
-        <h1>Daydream your Kite portfolio.</h1>
+        <h1>What shall we cook today?</h1>
         <p class="lead">A tiny bubble floats on top of Zerodha Kite — now with an on-device AI you can just ask. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2× — whether you beat an FD — and what the profit really buys, in hand after tax.</p>
         <p class="meaning"><b>ख़याली पुलाव (khayali pulao)</b> — literally “imaginary pulao”: rice you cook only in your head. Hindi for daydreaming. Every investor does it; this does the maths properly.</p>
         <div class="cta">
@@ -182,6 +192,41 @@
         <p class="note">In-app demo · fictional data</p>
       </div>
     </div>
+
+    <section id="visuals">
+      <h2>Answers you can see</h2>
+      <p class="sub">Every answer is a native card with an animated D3 chart, drawn on your phone from exact tool output. Below: the same renderer the app ships, live, on fictional data. Tap the treemap or drag across the price chart.</p>
+      <div class="viz-tabs" role="tablist">
+        <button class="on" data-v="holdings">Holdings</button><button data-v="history">Price history</button>
+        <button data-v="growth">Compounding</button><button data-v="versus">vs FD &amp; Nifty</button>
+        <button data-v="goal">Goal</button><button data-v="tax">Tax in hand</button>
+        <button data-v="margins">Margins</button><button data-v="orders">Orders</button>
+      </div>
+      <div class="viz-stage card">
+        <div class="viz-head"><span class="kicker" id="vk">YOUR KITE HOLDINGS · 4</span><div class="vbig" id="vb">₹5,88,320</div><div class="muted" id="vs">+₹68,320 (+13.1%) on ₹5,20,000</div></div>
+        <iframe id="vf" src="viz/viz.html" title="Chart"></iframe>
+        <div class="tiny">Fictional data · rendered by d3.js inside the app's offline WebView (network blocked)</div>
+      </div>
+    </section>
+
+    <section id="chat">
+      <h2>A chat that knows your portfolio</h2>
+      <p class="sub">Gemma 4 runs on-device and calls the app's tools — calculators and read-only Kite — so numbers are exact. Pick a persona, use /commands, @mention a holding.</p>
+      <div class="grid">
+        <div class="card"><h3>📊 Analyst</h3><p>Exact what-ifs on your holdings: moves, targets, regret, compounding.</p></div>
+        <div class="card"><h3>🧭 Financial planner</h3><p>Goals, horizons, FD/PPF comparison, tax-aware in-hand amounts, allocation trade-offs.</p></div>
+        <div class="card"><h3>🔎 Research</h3><p>Concentration, price history and downside scenarios — both sides, never buy/sell calls.</p></div>
+      </div>
+      <div class="cmds">
+        <code>/holdings</code><code>/positions</code><code>/margins</code><code>/orders</code><code>/mf</code><code>/chart INFRA 1y</code><code>/fd 3</code><code>/goal 1 crore</code><code>/tax</code><code>@INFRA</code>
+      </div>
+      <div class="grid" style="margin-top:16px">
+        <div class="card"><h3>Pills that think</h3><p>Follow-ups are curated from the last result and your live holdings — exact re-runs ("at 15% a year"), context ("why is @X lagging?") and model suggestions.</p></div>
+        <div class="card"><h3>Numbers you can trust</h3><p>Percentages you type are pinned to the tool call; prose never invents figures — the card and summary carry the exact ₹.</p></div>
+        <div class="card"><h3>See how it answered</h3><p>Tap ⏱ on any reply: total time, time to first word, tokens/s, GPU/CPU, and every tool step with inputs and outputs.</p></div>
+      </div>
+      <p class="tiny" style="text-align:left">Educational only — not investment, tax or financial advice. Khayali Pulao is not a SEBI-registered investment adviser.</p>
+    </section>
 
     <section id="ai">
       <h2>✨ Ask Khayali Pulao — AI that runs on your phone</h2>
@@ -275,5 +320,36 @@
   </footer>
   <script src="khayali.js"></script>
   <script src="site.js"></script>
+  <script>
+  (function () {
+    var f = document.getElementById("vf"), vk = document.getElementById("vk"), vb = document.getElementById("vb"), vs = document.getElementById("vs");
+    var pts = []; for (var i = 0; i < 250; i++) pts.push({ t: new Date(2025, 10, 17 + i).toISOString(), c: 1200 + i * 1.1 + Math.sin(i / 9) * 45 + Math.sin(i / 3) * 12 });
+    var S = {
+      holdings: ["YOUR KITE HOLDINGS · 4", "₹5,88,320", "+₹68,320 (+13.1%) on ₹5,20,000", 330, { holdings: [
+        { symbol: "INFRA", current: 362500, pnl: 62500, pnl_percent: 20.8 }, { symbol: "BALLIA", current: 120000, pnl: 20000, pnl_percent: 20 },
+        { symbol: "CHAICO", current: 65820, pnl: -4180, pnl_percent: -6 }, { symbol: "JHUMRI", current: 40000, pnl: -10000, pnl_percent: -20 }] }],
+      history: ["INFRA · 1Y", "₹1,450.00", "+21.0% · high ₹1,520 · low ₹1,140", 220, { points: pts }],
+      growth: ["COMPOUNDING", "₹3,10,585", "₹1,00,000 at 12% a year · 10 years · 3.11× (dashed: today's money)", 200, { start: 100000, rate: 12, years: 10, inflation: 6.1 }],
+      versus: ["YOU VS THE ALTERNATIVES", "+9.9% a year", "₹3,00,000 → ₹3,62,500 in 2 yrs · ahead of a 6.45% FD", 200, { items: [
+        { label: "You", value: 362500 }, { label: "Bank FD", value: 339989 }, { label: "PPF", value: 340815 }, { label: "Gold", value: 383070 },
+        { label: "Nifty 50", value: 372968 }, { label: "Inflation", value: 337731 }] }],
+      goal: ["GOAL", "+175.9% to go", "₹3,62,500 of ₹10,00,000 · 2.76× from today", 160, { now: 362500, goal: 1000000, years: { "8%": 13.2, "12%": 9, "15%": 7.3, "20%": 5.6, "25%": 4.5 } }],
+      tax: ["IN HAND IF YOU SELL · LTCG", "₹58,109", "of ₹62,500 profit", 130, { in_hand: 58109, tax: 3360, charges: 1031 }],
+      margins: ["MARGINS · EQUITY", "₹2,50,000", "available to trade", 160, { net: 250000, used: 80000, cash: 180000 }],
+      orders: ["ORDERS TODAY · 3", "3 orders", "1 complete · 1 open · 1 rejected", 160, { orders: [
+        { symbol: "INFRA", side: "BUY", qty: 10, price: 1450, status: "COMPLETE", time: "2026-11-17 09:21:00" },
+        { symbol: "CHAICO", side: "SELL", qty: 5, price: 0, status: "OPEN", time: "2026-11-17 10:02:00" },
+        { symbol: "TCS", side: "BUY", qty: 1, price: 2405, status: "REJECTED", time: "2026-11-17 11:15:00" }] }],
+    };
+    function show(k) {
+      var s = S[k]; vk.textContent = s[0]; vb.textContent = s[1]; vs.textContent = s[2]; f.style.height = s[3] + "px";
+      try { if (f.contentWindow && f.contentWindow.render) f.contentWindow.render({ type: k, height: s[3], data: s[4] }); } catch (e) {}
+    }
+    document.querySelectorAll(".viz-tabs button").forEach(function (b) {
+      b.addEventListener("click", function () { document.querySelectorAll(".viz-tabs button").forEach(function (x) { x.classList.remove("on"); }); b.classList.add("on"); show(b.dataset.v); });
+    });
+    f.addEventListener("load", function () { show(document.querySelector(".viz-tabs .on").dataset.v); });
+  })();
+  </script>
 </body>
 </html>

@@ -19,8 +19,20 @@ object NumberGuard {
         if (known.isEmpty()) return fix(text)
         return RUPEE.replace(fix(text)) { m ->
             val v = (m.groupValues[1] + m.groupValues[2]).replace(",", "").toDoubleOrNull() ?: return@replace m.value
-            if (known.any { k -> k != 0.0 && abs(v - k) / abs(k) <= 0.01 } || v < 100) m.value else "the amount shown above"
+            if (known.any { k -> k != 0.0 && abs(v - k) / abs(k) <= 0.01 } || v < 100) m.value else "(see card)"
         }
+    }
+
+    /**
+     * When tools ran, the exact numbers come from their summaries; from the model we keep only
+     * up to [maxInsights] sentences that contain no digits (insight, not arithmetic).
+     */
+    fun compose(modelText: String, toolSummaries: List<String>, maxInsights: Int = 2): String {
+        if (toolSummaries.isEmpty()) return modelText
+        val insights = modelText.replace("\n", " ").split(Regex("""(?<=[.!?])\s+"""))
+            .map { it.trim() }.filter { it.length > 12 && !it.any(Char::isDigit) && !it.contains("(see card)") && !it.contains("card above", true) }
+            .take(maxInsights)
+        return (toolSummaries.distinct().joinToString("\n\n") + if (insights.isEmpty()) "" else "\n\n" + insights.joinToString(" ")).trim()
     }
 
     fun fix(text: String): String = RUPEE.replace(text) { m ->

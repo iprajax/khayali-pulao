@@ -33,7 +33,14 @@ class OnDeviceOnlyTest {
         // The download is done by the system DownloadManager; the app itself never opens a connection.
         val banned = listOf("java.net.", "HttpURLConnection", "okhttp", "Socket(", "WebView", "retrofit", "ktor", "URLConnection")
         // Exception: the opt-in Kite MCP client talks to Zerodha's official server only.
-        sources.filter { it.name != "KiteMcpClient.kt" }.forEach { f -> banned.forEach { b -> assertFalse("${f.name} uses $b", f.readText().contains(b)) } }
+        sources.filter { it.name != "KiteMcpClient.kt" }.forEach { f ->
+            banned.filter { !(f.name == "VizView.kt" && it == "WebView") }   // local-only chart view, checked below
+                .forEach { b -> assertFalse("${f.name} uses $b", f.readText().contains(b)) }
+        }
+        // The chart WebView must block every network load and only serve bundled assets.
+        val viz = sources.first { it.name == "VizView.kt" }.readText()
+        assertTrue(viz.contains("blockNetworkLoads = true") && viz.contains("file:///android_asset/viz/") && viz.contains("allowFileAccess = false"))
+        assertFalse("charts must not load remote scripts", File(main, "assets/viz/viz.html").readText().contains("http"))
     }
 
     @Test fun onlyHuggingFaceIsEverAddressed() {
@@ -41,6 +48,7 @@ class OnDeviceOnlyTest {
             .filterNot { (f, u) -> f == "KiteData.kt" && u.startsWith("https://kite") }   // regex that recognises Zerodha's login link; not a request
             .filterNot { (f, u) -> f == "KiteData.kt" && u == "https://iprajax.github.io/khayali-pulao/callback.html" }   // OAuth redirect page (static, on our own site)
             .filterNot { (f, u) -> f == "ShareAnswer.kt" && u.startsWith("https://iprajax.github.io/khayali-pulao") }   // text in a share, not a request
+            .filterNot { (f, u) -> f == "Links.kt" && (u.startsWith("https://iprajax.github.io/khayali-pulao") || u.startsWith("https://github.com/iprajax/khayali-pulao")) }   // opened in browser
         val hosts = sources.filter { it.readText().contains("https://" + "\$" + "HOST") }   // ModelSpec + KiteData
         assertTrue("model URL must be built from ModelSpec.HOST", hosts.isNotEmpty())
         urls.forEach { (file, u) -> fail("$file hard-codes $u — use ModelSpec") }

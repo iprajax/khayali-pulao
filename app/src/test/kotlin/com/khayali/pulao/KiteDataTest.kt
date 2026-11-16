@@ -63,4 +63,28 @@ class KiteDataTest {
         assertFalse(s.contains("example.com") || s.contains("ABCDE") || s.contains("999"))
         assertTrue(s.contains("Test"))
     }
+
+    @Test fun historyAndLtpAndPeriods() {
+        val hist = """{"data":[{"date":"2026-08-01T00:00:00+0530","open":1,"high":110,"low":90,"close":100,"volume":1},
+                               {"date":"2026-08-02T00:00:00+0530","open":1,"high":125,"low":95,"close":120,"volume":1}],"meta":{}}"""
+        val h = JsonParser.parseString(KiteData.summarize("history", hist)).asJsonObject
+        assertEquals(20.0, h["change_percent"].asDouble, 0.0)
+        assertEquals(2, h.getAsJsonArray("points").size())
+        val ltp = JsonParser.parseString(KiteData.summarize("ltp", """{"data":{"NSE:INFRA":{"instrument_token":1,"last_price":1450.5}}}""")).asJsonObject
+        assertEquals("INFRA", ltp.getAsJsonArray("quotes")[0].asJsonObject["symbol"].asString)
+        val (from, to, interval) = KiteData.period("1y", java.time.LocalDate.of(2026, 11, 17))
+        assertEquals(Triple("2025-11-17", "2026-11-17", "day"), Triple(from, to, interval))
+        assertEquals("day", KiteData.period("5y").third)   // Kite has no "week" interval
+        val (f5, t5, _) = KiteData.period("5y", java.time.LocalDate.of(2026, 11, 17))
+        assertTrue(java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.parse(f5), java.time.LocalDate.parse(t5)) <= 2000)
+        val search = """{"data":[{"tradingsymbol":"INFRA","exchange":"BSE","instrument_token":7},{"tradingsymbol":"INFRA","exchange":"NSE","instrument_token":9}]}"""
+        assertEquals(9L, KiteData.firstToken(search, "INFRA"))
+        assertTrue(KiteData.allowed("market", "historical") && !KiteData.allowed("market", "place"))
+    }
+
+    @Test fun marginsIncludeUsed() {
+        val m = JsonParser.parseString(KiteData.summarize("margins",
+            """{"equity":{"net":250000,"available":{"live_balance":180000},"utilised":{"debits":80000}}}""")).asJsonObject
+        assertEquals(80000.0, m["used"].asDouble, 0.0)
+    }
 }

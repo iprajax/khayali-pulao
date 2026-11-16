@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  :root { --text:#fff; --muted:#9B9BAD; --dim:#6E7883; --line:#324050; --blue:#5282EB; --green:#67AD5B; --red:#CF5B52; --saffron:#FFB547; --violet:#8E7CF0; }
+  html, body { margin:0; padding:0; background:transparent; color:var(--text); overflow:hidden;
+    font-family: Roboto, "Google Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+  svg { display:block; }
+  .lbl { fill:var(--muted); font-size:11px; }
+  .val { fill:var(--text); font-size:11px; font-weight:500; }
+  .big { fill:var(--text); font-size:20px; font-weight:500; }
+  .tip { position:absolute; pointer-events:none; background:#263241; border:1px solid var(--line); border-radius:8px;
+    padding:6px 9px; font-size:12px; opacity:0; transition:opacity .15s; white-space:nowrap; }
+</style>
+</head>
+<body>
+<div id="c"></div>
+<div class="tip" id="tip"></div>
+<script src="d3.min.js"></script>
+<script>
+"use strict";
+// Everything here runs locally inside the app. No network: the WebView blocks all loads.
+const C = { text:"#fff", muted:"#9B9BAD", dim:"#6E7883", line:"#324050", blue:"#5282EB", green:"#67AD5B", red:"#CF5B52", saffron:"#FFB547", violet:"#8E7CF0", pink:"#FF6FA5" };
+const W = () => document.documentElement.clientWidth;
+const inr = v => { const n = Math.round(Math.abs(v)); const s = n.toString(); const l3 = s.slice(-3), r = s.slice(0,-3);
+  return (v < 0 ? "−" : "") + "₹" + (r ? r.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + l3 : l3); };
+const short = v => { const a = Math.abs(v); const s = a >= 1e7 ? (a/1e7).toFixed(2).replace(/\.00$/,"") + " Cr" : a >= 1e5 ? (a/1e5).toFixed(2).replace(/\.00$/,"") + " L" : Math.round(a).toLocaleString("en-IN");
+  return (v < 0 ? "−₹" : "₹") + s; };
+const pct = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(1) + "%";
+const pnlColor = d3.scaleLinear().domain([-25, 0, 25]).range([C.red, "#3a4656", C.green]).clamp(true);
+const tip = d3.select("#tip");
+function showTip(html, x, y) { tip.html(html).style("opacity", 1).style("left", Math.min(x, W() - 150) + "px").style("top", Math.max(0, y - 40) + "px"); }
+function hideTip() { tip.style("opacity", 0); }
+const T = 700;
+
+function svg(h) { d3.select("#c").selectAll("*").remove(); return d3.select("#c").append("svg").attr("width", W()).attr("height", h); }
+
+const R = {
+  // ---------- Kite: holdings treemap + P&L bars ----------
+  holdings(d, h) {
+    const rows = d.holdings || [];
+    const tH = Math.min(200, h * 0.55), s = svg(h);
+    const root = d3.hierarchy({ children: rows }).sum(r => Math.max(1, r.current));
+    d3.treemap().size([W(), tH]).paddingInner(3).round(true)(root);
+    const g = s.selectAll("g.t").data(root.leaves()).join("g").attr("class", "t").attr("transform", n => `translate(${n.x0},${n.y0})`);
+    g.append("rect").attr("rx", 8).attr("width", 0).attr("height", n => n.y1 - n.y0).attr("fill", n => pnlColor(n.data.pnl_percent))
+      .on("click", (e, n) => showTip(`<b>${n.data.symbol}</b> ${short(n.data.current)} · ${pct(n.data.pnl_percent)}`, e.pageX, e.pageY))
+      .transition().duration(T).delay((n, i) => i * 40).attr("width", n => n.x1 - n.x0);
+    g.append("text").attr("x", 8).attr("y", 18).attr("class", "val").style("font-size", "12px").text(n => (n.x1 - n.x0) > 54 ? n.data.symbol : "");
+    g.append("text").attr("x", 8).attr("y", 33).attr("class", "lbl").text(n => (n.x1 - n.x0) > 70 && (n.y1 - n.y0) > 40 ? pct(n.data.pnl_percent) : "");
+    // P&L ranking
+    const top = rows.slice().sort((a, b) => b.pnl - a.pnl).slice(0, 6);
+    const by = tH + 18, bh = (h - by) / Math.max(1, top.length);
+    const x = d3.scaleLinear().domain([Math.min(0, d3.min(top, r => r.pnl)), Math.max(0, d3.max(top, r => r.pnl))]).range([88, W() - 70]);
+    const b = s.selectAll("g.b").data(top).join("g").attr("class", "b").attr("transform", (r, i) => `translate(0,${by + i * bh})`);
+    b.append("text").attr("class", "lbl").attr("y", bh / 2 + 4).text(r => r.symbol);
+    b.append("rect").attr("rx", 4).attr("y", bh / 2 - 6).attr("height", 12).attr("x", x(0)).attr("width", 0).attr("fill", r => r.pnl >= 0 ? C.green : C.red)
+      .transition().duration(T).delay(250).attr("x", r => x(Math.min(0, r.pnl))).attr("width", r => Math.abs(x(r.pnl) - x(0)));
+    b.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", bh / 2 + 4).text(r => short(r.pnl));
+  },
+
+  // ---------- Kite: positions diverging bars ----------
+  positions(d, h) {
+    const rows = (d.positions || []).slice(0, 10), s = svg(h);
+    if (!rows.length) { s.append("text").attr("class", "lbl").attr("x", W() / 2).attr("y", h / 2).attr("text-anchor", "middle").text("No open positions today"); return; }
+    const bh = h / rows.length, x = d3.scaleLinear().domain(d3.extent([0, ...rows.map(r => r.pnl)])).nice().range([90, W() - 70]);
+    s.append("line").attr("x1", x(0)).attr("x2", x(0)).attr("y1", 0).attr("y2", h).attr("stroke", C.line);
+    const g = s.selectAll("g").data(rows).join("g").attr("transform", (r, i) => `translate(0,${i * bh})`);
+    g.append("text").attr("class", "lbl").attr("y", bh / 2 + 4).text(r => r.symbol);
+    g.append("rect").attr("rx", 4).attr("y", bh / 2 - 7).attr("height", 14).attr("x", x(0)).attr("width", 0).attr("fill", r => r.pnl >= 0 ? C.green : C.red)
+      .transition().duration(T).attr("x", r => x(Math.min(0, r.pnl))).attr("width", r => Math.abs(x(r.pnl) - x(0)));
+    g.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", bh / 2 + 4).text(r => short(r.pnl));
+  },
+
+  // ---------- Kite: margins donut ----------
+  margins(d, h) {
+    const used = Math.max(0, (d.used || 0)), avail = Math.max(0, d.net || 0), s = svg(h);
+    const r = Math.min(h, W()) / 2 - 8, g = s.append("g").attr("transform", `translate(${r + 8},${h / 2})`);
+    const data = [{ k: "Available", v: avail, c: C.green }, { k: "Used", v: used, c: C.saffron }].filter(x => x.v > 0);
+    if (!data.length) data.push({ k: "Available", v: 1, c: C.line });
+    const arc = d3.arc().innerRadius(r * 0.68).outerRadius(r).cornerRadius(6).padAngle(0.02);
+    g.selectAll("path").data(d3.pie().value(x => x.v).sort(null)(data)).join("path").attr("fill", a => a.data.c)
+      .transition().duration(T).attrTween("d", a => { const i = d3.interpolate({ startAngle: 0, endAngle: 0 }, a); return t => arc(i(t)); });
+    g.append("text").attr("class", "big").attr("text-anchor", "middle").attr("y", 2).text(short(avail));
+    g.append("text").attr("class", "lbl").attr("text-anchor", "middle").attr("y", 20).text("available");
+    const lx = r * 2 + 30;
+    [["Available", avail, C.green], ["Used", used, C.saffron], ["Cash", d.cash || 0, C.blue]].forEach(([k, v, c], i) => {
+      s.append("circle").attr("cx", lx).attr("cy", 30 + i * 28).attr("r", 5).attr("fill", c);
+      s.append("text").attr("class", "lbl").attr("x", lx + 12).attr("y", 34 + i * 28).text(k);
+      s.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", 34 + i * 28).text(short(v));
+    });
+  },
+
+  // ---------- Kite: mutual funds bars ----------
+  mutual_funds(d, h) { R.bars({ items: (d.funds || []).slice(0, 8).map(f => ({ label: (f.fund || "").slice(0, 16), value: f.current, color: f.pnl >= 0 ? C.green : C.red })) }, h); },
+
+  // ---------- Kite: orders / trades timeline ----------
+  orders(d, h) { R.timeline(d.orders || d.trades || [], h); },
+  trades(d, h) { R.timeline(d.trades || d.orders || [], h); },
+  timeline(rows, h) {
+    rows = rows.slice(-8); const s = svg(h);
+    if (!rows.length) { s.append("text").attr("class", "lbl").attr("x", W() / 2).attr("y", h / 2).attr("text-anchor", "middle").text("Nothing today"); return; }
+    const rh = h / rows.length;
+    s.append("line").attr("x1", 10).attr("x2", 10).attr("y1", rh / 2).attr("y2", h - rh / 2).attr("stroke", C.line).attr("stroke-width", 2);
+    const g = s.selectAll("g").data(rows).join("g").attr("transform", (r, i) => `translate(0,${i * rh})`).style("opacity", 0);
+    g.transition().duration(400).delay((r, i) => i * 70).style("opacity", 1);
+    g.append("circle").attr("cx", 10).attr("cy", rh / 2).attr("r", 6).attr("fill", r => r.side === "SELL" ? C.red : C.green);
+    g.append("text").attr("class", "val").attr("x", 26).attr("y", rh / 2 - 2).text(r => `${r.side || ""} ${r.symbol}`);
+    g.append("text").attr("class", "lbl").attr("x", 26).attr("y", rh / 2 + 13).text(r => `${r.qty} @ ${r.price ? inr(r.price) : "MKT"} · ${(r.status || "").toLowerCase()}`);
+    g.append("text").attr("class", "lbl").attr("x", W()).attr("text-anchor", "end").attr("y", rh / 2 + 4).text(r => (r.time || "").slice(11, 16));
+  },
+
+  // ---------- price history (line + area) ----------
+  history(d, h) {
+    const pts = (d.points || []).map(p => ({ t: new Date(p.t), c: +p.c })).filter(p => !isNaN(p.c));
+    const s = svg(h); if (pts.length < 2) return;
+    const up = pts[pts.length - 1].c >= pts[0].c, col = up ? C.green : C.red;
+    const x = d3.scaleTime().domain(d3.extent(pts, p => p.t)).range([2, W() - 2]);
+    const y = d3.scaleLinear().domain(d3.extent(pts, p => p.c)).nice().range([h - 22, 10]);
+    const grad = s.append("defs").append("linearGradient").attr("id", "g").attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
+    grad.append("stop").attr("offset", 0).attr("stop-color", col).attr("stop-opacity", 0.35);
+    grad.append("stop").attr("offset", 1).attr("stop-color", col).attr("stop-opacity", 0);
+    s.append("path").datum(pts).attr("fill", "url(#g)").attr("d", d3.area().x(p => x(p.t)).y0(h - 22).y1(p => y(p.c)).curve(d3.curveMonotoneX));
+    const line = s.append("path").datum(pts).attr("fill", "none").attr("stroke", col).attr("stroke-width", 2).attr("d", d3.line().x(p => x(p.t)).y(p => y(p.c)).curve(d3.curveMonotoneX));
+    const L = line.node().getTotalLength(); line.attr("stroke-dasharray", L).attr("stroke-dashoffset", L).transition().duration(1000).attr("stroke-dashoffset", 0);
+    const span = (pts[pts.length - 1].t - pts[0].t) / 864e5;
+    const fmt = span > 400 ? d3.timeFormat("%b '%y") : span > 60 ? d3.timeFormat("%b") : d3.timeFormat("%d %b");
+    s.append("g").attr("transform", `translate(0,${h - 18})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(W() / 90))).tickFormat(fmt).tickSize(0))
+      .call(g => { g.select(".domain").remove(); g.selectAll("text").attr("class", "lbl"); g.selectAll(".tick:first-of-type text").attr("text-anchor", "start"); g.selectAll(".tick:last-of-type text").attr("text-anchor", "end"); });
+    const dot = s.append("circle").attr("r", 4).attr("fill", col).style("opacity", 0);
+    s.append("rect").attr("width", W()).attr("height", h).attr("fill", "transparent").on("pointermove", e => {
+      const t = x.invert(d3.pointer(e)[0]); const i = d3.bisector(p => p.t).center(pts, t); const p = pts[i];
+      dot.attr("cx", x(p.t)).attr("cy", y(p.c)).style("opacity", 1); showTip(`${d3.timeFormat("%d %b %y")(p.t)} · ${inr(p.c)}`, x(p.t), y(p.c));
+    }).on("pointerleave", () => { dot.style("opacity", 0); hideTip(); });
+  },
+
+  // ---------- generic animated bars ----------
+  bars(d, h) {
+    const items = d.items || [], s = svg(h); const bh = h / Math.max(1, items.length);
+    const x = d3.scaleLinear().domain([0, d3.max(items, i => i.value) || 1]).range([0, W() - 190]);
+    const g = s.selectAll("g").data(items).join("g").attr("transform", (it, i) => `translate(0,${i * bh})`);
+    g.append("text").attr("class", "lbl").attr("y", bh / 2 + 4).text(it => it.label);
+    g.append("rect").attr("rx", 5).attr("x", 110).attr("y", bh / 2 - 7).attr("height", 14).attr("width", 0)
+      .attr("fill", it => it.color || C.blue).attr("opacity", it => it.highlight ? 1 : 0.8)
+      .transition().duration(T).delay((it, i) => i * 60).attr("width", it => x(it.value));
+    g.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", bh / 2 + 4).text(it => short(it.value));
+  },
+
+  // ---------- calculators ----------
+  growth(d, h) {
+    const n = Math.max(1, Math.round(d.years)), pts = d3.range(0, n * 4 + 1).map(i => { const yr = d.years * i / (n * 4); return { t: yr, v: d.start * Math.pow(1 + d.rate / 100, yr), r: d.start * Math.pow(1 + d.rate / 100, yr) / Math.pow(1 + (d.inflation || 0) / 100, yr) }; });
+    const s = svg(h), x = d3.scaleLinear().domain([0, d.years]).range([16, W() - 16]), y = d3.scaleLinear().domain([0, d3.max(pts, p => p.v)]).nice().range([h - 20, 8]);
+    const grad = s.append("defs").append("linearGradient").attr("id", "gg").attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
+    grad.append("stop").attr("offset", 0).attr("stop-color", C.green).attr("stop-opacity", .35); grad.append("stop").attr("offset", 1).attr("stop-color", C.green).attr("stop-opacity", 0);
+    s.append("path").datum(pts).attr("fill", "url(#gg)").attr("d", d3.area().x(p => x(p.t)).y0(h - 20).y1(p => y(p.v)).curve(d3.curveMonotoneX));
+    const draw = (acc, col, dash) => { const p = s.append("path").datum(pts).attr("fill", "none").attr("stroke", col).attr("stroke-width", 2).attr("d", d3.line().x(q => x(q.t)).y(q => y(acc(q))).curve(d3.curveMonotoneX));
+      const L = p.node().getTotalLength(); p.attr("stroke-dasharray", dash ? "4 4" : L).attr("stroke-dashoffset", dash ? 0 : L).transition().duration(1100).attr("stroke-dashoffset", 0); };
+    draw(q => q.v, C.green, false); if (d.inflation) draw(q => q.r, C.muted, true);
+    s.append("g").attr("transform", `translate(0,${h - 16})`).call(d3.axisBottom(x).ticks(Math.min(6, n)).tickFormat(v => "Yr " + v).tickSize(0)).call(g => { g.select(".domain").remove(); g.selectAll("text").attr("class", "lbl"); });
+    s.append("circle").attr("cx", W() - 4).attr("cy", y(pts[pts.length - 1].v)).attr("r", 4).attr("fill", C.green).style("opacity", 0).transition().delay(1100).style("opacity", 1);
+  },
+  versus(d, h) { R.bars({ items: d.items.map((it, i) => ({ ...it, color: i === 0 ? C.green : (it.value > d.items[0].value ? C.saffron : C.blue), highlight: i === 0 })) }, h); },
+  goal(d, h) {
+    const s = svg(h), r = h / 2 - 6, g = s.append("g").attr("transform", `translate(${r + 6},${h / 2})`);
+    const f = Math.max(0, Math.min(1, d.now / d.goal));
+    const arc = d3.arc().innerRadius(r * 0.72).outerRadius(r).cornerRadius(8).startAngle(0);
+    g.append("path").attr("d", arc({ endAngle: 2 * Math.PI })).attr("fill", C.line);
+    const grad = s.append("defs").append("linearGradient").attr("id", "gr"); grad.append("stop").attr("offset", 0).attr("stop-color", C.blue); grad.append("stop").attr("offset", 1).attr("stop-color", C.pink);
+    g.append("path").attr("fill", "url(#gr)").transition().duration(1200).attrTween("d", () => t => arc({ endAngle: 2 * Math.PI * f * t }));
+    g.append("text").attr("class", "big").attr("text-anchor", "middle").attr("y", 7).text(Math.round(f * 100) + "%");
+    const lx = r * 2 + 28, yrs = d.years || {};
+    Object.keys(yrs).forEach((k, i) => { s.append("text").attr("class", "lbl").attr("x", lx).attr("y", 22 + i * 24).text("@" + k);
+      s.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", 22 + i * 24).text(yrs[k] == null ? "—" : yrs[k] + " yrs"); });
+  },
+  tax(d, h) {
+    const s = svg(h), parts = [["In hand", d.in_hand, C.green], ["Tax", d.tax, C.red], ["Charges", d.charges, C.saffron]].filter(p => p[1] > 0);
+    const tot = d3.sum(parts, p => p[1]) || 1; let x0 = 0;
+    parts.forEach(([k, v, c], i) => { const w = (W() * v / tot); s.append("rect").attr("x", x0).attr("y", 8).attr("height", 22).attr("width", 0).attr("rx", i === 0 ? 8 : 0).attr("fill", c).transition().duration(T).delay(i * 150).attr("width", Math.max(2, w)); x0 += w; });
+    parts.forEach(([k, v, c], i) => { s.append("circle").attr("cx", 6).attr("cy", 52 + i * 22).attr("r", 5).attr("fill", c);
+      s.append("text").attr("class", "lbl").attr("x", 18).attr("y", 56 + i * 22).text(k); s.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", 56 + i * 22).text(inr(v)); });
+  },
+};
+
+window.render = function (spec) {
+  try { const o = typeof spec === "string" ? JSON.parse(spec) : spec; (R[o.type] || R.bars)(o.data || {}, o.height || 180); }
+  catch (e) { document.body.textContent = ""; }
+};
+document.addEventListener("click", e => { if (e.target.tagName !== "rect") hideTip(); });
+</script>
+</body>
+</html>

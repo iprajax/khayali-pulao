@@ -14,6 +14,9 @@ class CommandsTest {
         assertTrue((Commands.parse("/goal 50 lakh") as Commands.Parsed.Prompt).text.contains("50 lakh"))
         assertTrue((Commands.parse("/fd 3y") as Commands.Parsed.Prompt).text.contains("3 years"))
         assertEquals(Commands.Parsed.Unknown("buy"), Commands.parse("/buy INFY"))   // no trading commands
+        assertEquals(Commands.Parsed.Chart("INFRA", "1y"), Commands.parse("/chart @infra 1Y"))
+        assertEquals(Commands.Parsed.Chart("TCS", null), Commands.parse("/chart tcs"))
+        assertEquals(Commands.Parsed.Help, Commands.parse("/chart"))
         assertEquals(listOf("goal", "grow"), Commands.suggest("/g").map { it.name })
     }
 

@@ -12,6 +12,7 @@ object Commands {
         Cmd("margins", "/margins", "Available margin", "margins"),
         Cmd("orders", "/orders", "Today's orders", "orders"),
         Cmd("mf", "/mf", "Mutual fund holdings", "mutual_funds"),
+        Cmd("chart", "/chart INFY 6m", "Price chart from Kite (1w 1m 3m 6m 1y 5y)"),
         Cmd("fd", "/fd 3", "Did my portfolio beat an FD over N years?"),
         Cmd("goal", "/goal 50 lakh", "How long to reach an amount?"),
         Cmd("grow", "/grow 1 lakh 12% 10y", "Compounding"),
@@ -23,6 +24,7 @@ object Commands {
 
     sealed class Parsed {
         data class Kite(val section: String) : Parsed()
+        data class Chart(val symbol: String, val period: String?) : Parsed()
         data class Prompt(val text: String) : Parsed()
         data object Clear : Parsed()
         data object Help : Parsed()
@@ -44,6 +46,9 @@ object Commands {
         val cmd = ALL.firstOrNull { it.name == name } ?: return Parsed.Unknown(name)
         cmd.kiteSection?.let { return Parsed.Kite(it) }
         return when (name) {
+            "chart" -> arg.split(' ').filter { it.isNotBlank() }.let { a ->
+                if (a.isEmpty()) Parsed.Help else Parsed.Chart(a[0].removePrefix("@").uppercase(), a.getOrNull(1)?.lowercase())
+            }
             "clear" -> Parsed.Clear
             "help" -> Parsed.Help
             "fd" -> Parsed.Prompt("Did my portfolio beat a bank FD? I've held it ${arg.ifBlank { "2" }.removeSuffix("y").trim()} years.")
