@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Returning to Khayali Pulao…</title>
+  <style>
+    body { margin: 0; background: #17202A; color: #fff; font: 16px/1.5 -apple-system, Roboto, sans-serif; text-align: center; padding: 56px 24px; }
+    a.btn { display: inline-block; margin-top: 20px; background: #5282EB; color: #fff; padding: 13px 22px; border-radius: 6px; text-decoration: none; font-weight: 500; }
+    p { color: #9B9BAD; }
+  </style>
+</head>
+<body>
+  <h2 id="t">Returning to Khayali Pulao…</h2>
+  <p id="m">Kite login finished. Opening the app.</p>
+  <a class="btn" id="open" href="#">Open Khayali Pulao</a>
+  <script>
+    // OAuth redirect target for the Android app. This page runs only in your browser: it does not
+    // store, log or send the code anywhere — it just hands it to the app on this phone. The code is
+    // useless without the PKCE secret that never leaves the app.
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var pass = new URLSearchParams();
+      ["code", "state", "error", "error_description"].forEach(function (k) { if (q.get(k)) pass.set(k, q.get(k)); });
+      var intent = "intent://kite/callback?" + pass.toString() +
+        "#Intent;scheme=khayalipulao;package=com.khayali.pulao;end";
+      document.getElementById("open").href = intent;
+      if (q.get("error")) {
+        document.getElementById("t").textContent = "Kite login didn't finish";
+        document.getElementById("m").textContent = q.get("error_description") || q.get("error");
+      }
+      history.replaceState(null, "", location.pathname);   // drop the code from the address bar/history
+      location.replace(intent);
+    })();
+  </script>
+</body>
+</html>

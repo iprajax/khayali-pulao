@@ -129,6 +129,7 @@ class DemoActivity : Activity() {
     private fun close() {
         val s = sheet ?: return
         sheet = null
+        s.release()
         setSheetBack(false)
         s.view.animate().translationY(s.view.height.toFloat()).setDuration(200).withEndAction { root.removeView(s.view) }.start()
     }

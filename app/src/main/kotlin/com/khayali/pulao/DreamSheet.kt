@@ -66,7 +66,49 @@ class DreamSheet(
         MOVE("Move %"), VERSUS("vs FD"), SPEND("Spend it"), GOAL("Goal"), YEARS("Years"), REGRET("Regret")
     }
 
-    private fun onBack() { if (settingsOpen && stock != null) toggleSettings() else onClose() }
+    private fun onBack() = when {
+        chatOpen -> toggleChat()
+        settingsOpen && stock != null -> toggleSettings()
+        else -> onClose()
+    }
+
+    // ---- "Ask ✨": on-device chat that already knows the tapped stock ----
+    private lateinit var bodyScroll: ScrollView
+    private val chatHolder = FrameLayout(ctx)
+    private var chat: com.khayali.pulao.ai.ChatView? = null
+    private var chatOpen = false
+    private lateinit var askBtn: TextView
+
+    private fun toggleChat() {
+        chatOpen = !chatOpen
+        if (chatOpen && chat == null) {
+            chat = com.khayali.pulao.ai.ChatView(ctx, prefs, { stock }, ::openFromChat, compact = true)
+            chatHolder.addView(chat, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        }
+        if (!chatOpen) chat?.hideKeyboard()
+        bodyScroll.visibility = if (chatOpen) View.GONE else View.VISIBLE
+        chatHolder.visibility = if (chatOpen) View.VISIBLE else View.GONE
+        askBtn.setTextColor(if (chatOpen) Pal.BLUE else Pal.MUTED)
+        if (chatOpen) { chatHolder.alpha = 0f; chatHolder.animate().alpha(1f).setDuration(200).start() }
+    }
+
+    /** Tool "open_screen" from chat: jump to a tab of this sheet. */
+    private fun openFromChat(target: String): Boolean {
+        val tab = when (target) {
+            "move" -> Tab.MOVE; "vs_fd" -> Tab.VERSUS; "spend" -> Tab.SPEND
+            "goal" -> Tab.GOAL; "years" -> Tab.YEARS; "regret" -> Tab.REGRET
+            "settings" -> null
+            else -> return false
+        }
+        view.post {
+            if (chatOpen) toggleChat()
+            if (tab == null) openSettings() else { prefs.tab = tab.name; settingsOpen = false; render() }
+        }
+        return true
+    }
+
+    /** Release the model session when the sheet goes away. */
+    fun release() { chat?.release(); chat = null }
 
     /** Predictive-back callback (API 33+); targetSdk 36 stops delivering KEYCODE_BACK. */
     private val backCallback: Any? =
@@ -108,10 +150,12 @@ class DreamSheet(
         col.addView(handle(), k.lp(MATCH_PARENT))
         col.addView(header(), k.lp(MATCH_PARENT))
         col.addView(View(ctx).apply { setBackgroundColor(Pal.LINE) }, k.lp(MATCH_PARENT, 1))
-        col.addView(ScrollView(ctx).apply {
+        bodyScroll = ScrollView(ctx).apply {
             isVerticalScrollBarEnabled = false
             addView(body.apply { setPadding(k.dp(16), k.dp(14), k.dp(16), k.dp(48)) })
-        }, k.lp(MATCH_PARENT, 0, 1f))
+        }
+        col.addView(bodyScroll, k.lp(MATCH_PARENT, 0, 1f))
+        col.addView(chatHolder.apply { visibility = View.GONE }, k.lp(MATCH_PARENT, 0, 1f))
         view.addView(col, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         render()
     }
@@ -121,6 +165,7 @@ class DreamSheet(
     fun setStock(s: Stock) {
         val old = stock
         stock = s
+        if (!s.sameAs(old)) chat?.onStockChanged()
         if (settingsOpen) { settingsOpen = false; render(); return }
         if (s.sameAs(old)) {
             if (s != old) { refreshMeta(); tabRefresh(); blink() }
@@ -161,7 +206,9 @@ class DreamSheet(
         liveDot = k.tag("● LIVE", Pal.GREEN)
         r.addView(liveDot)
         r.addView(View(ctx), k.lp(0, 1, 1f))
-        gear = k.iconButton("⚙") { toggleSettings() }
+        askBtn = k.iconButton("✨", 18f) { toggleChat() }.apply { contentDescription = "Ask Khayali Pulao" }
+        if (live) r.addView(askBtn)   // no AI chat on the fictional demo
+        gear = k.iconButton("⚙") { if (chatOpen) toggleChat(); toggleSettings() }
         r.addView(gear)
         r.addView(k.iconButton("✕") { onClose() })
         return r

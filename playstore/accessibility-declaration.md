@@ -15,7 +15,7 @@ The service:
 - draws a floating bubble and results sheet as an accessibility overlay;
 - performs only two actions in Kite: scrolling the list when the user swipes, and opening Kite's own navigation tabs when the user taps them;
 - never taps Buy/Sell, never enters text and never places orders;
-- does not collect, store, log or transmit any data read from the screen. The app requests no permissions and has no internet access.
+- does not collect, store, log or transmit any data read from the screen. The app's only network use is a one-time download of an on-device AI model; nothing is uploaded.
 ```
 
 ## Why can't this be done another way?
@@ -35,7 +35,7 @@ Record on the phone with `adb shell screenrecord` or the Android screen recorder
 2. Tap **No thanks** → show the app still works (Try the demo).
 3. Tap **Turn it on** again → **Agree & open settings** → Accessibility → Installed apps → Khayali Pulao → On.
 4. Open Kite → tap the bubble → tap a row → the sheet appears. Tap a tab. Turn the bubble off.
-5. Show Settings → Apps → Khayali Pulao → Permissions: **No permissions requested**.
+5. Show Settings → Apps → Khayali Pulao → Permissions: **only "Internet" (for the model download)**.
 
 ⚠️ Do **not** show a real portfolio in the video. Use an account view with fictional/blurred values, or record steps 1–3 and 5 on device and step 4 with the in-app Demo plus the bubble.
 

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Khayali Pulao</string>
-    <string name="service_description">Shows a floating 🍚 bubble on top of Zerodha Kite. Turn it on and tap a holding, a watchlist stock or your Invested card to daydream: what if it moves, vs FD, what the profit buys. 🔒 Everything stays on this phone: the app has no internet permission, reads Kite\'s screen only while Kite is open, keeps no copy of your holdings, and never places orders. Not affiliated with Zerodha. Not investment advice.</string>
+    <string name="service_description">Shows a floating 🍚 bubble on top of Zerodha Kite. Turn it on and tap a holding, a watchlist stock or your Invested card to daydream: what if it moves, vs FD, what the profit buys. 🔒 Everything stays on this phone: it reads Kite\'s screen only while Kite is open, keeps no copy of your holdings, uploads nothing and never places orders. Internet is used only to download the optional on-device AI model. Not affiliated with Zerodha. Not investment advice.</string>
 </resources>

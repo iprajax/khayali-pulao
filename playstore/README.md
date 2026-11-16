@@ -6,7 +6,7 @@ Everything Play asks for is in this folder. Steps marked **you** need your Googl
 - [ ] **you** — Google Play developer account (one-time US$25, identity verification) at https://play.google.com/console. Personal accounts created after Nov 2023 must run a **closed test with 12 testers for 14 days** before production access.
 - [x] Target API 36 (Android 16) — required for new apps. Done (`app/build.gradle.kts`).
 - [x] Prominent disclosure for the Accessibility API — `Disclosure.kt`, shown before enabling.
-- [x] Zero permissions, no network, no SDKs — Data safety answer is "No data collected".
+- [x] Only INTERNET (one-time model download), nothing uploaded — Data safety answer is "No data collected".
 
 ## 1. Create an upload key (once, keep it safe, never commit it)
 ```bash

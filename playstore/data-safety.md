@@ -1,6 +1,6 @@
 # Data safety & App content — Play Console answers
 
-> Play Console → **Policy and programs → App content**. Answers are based on the code: zero permissions, no network, no SDKs, no backup.
+> Play Console → **Policy and programs → App content**. Answers are based on the code: only INTERNET (one-time model download), nothing uploaded, no analytics SDKs, no backup.
 
 ## Data safety
 | Question | Answer |
@@ -9,7 +9,7 @@
 | Is all of the user data collected by your app encrypted in transit? | N/A (no data collected) |
 | Do you provide a way for users to request that their data is deleted? | N/A — nothing is collected. (Uninstall / Clear data removes local settings.) |
 
-Why "No": on-screen values are processed only in memory on the device and never stored or transmitted; the app has no internet permission. Settings stay on device and are excluded from backup. Per Google's definition, data processed only on-device and not sent off-device is not "collected".
+Why "No": on-screen values are processed only in memory on the device and never stored or transmitted; the only network request is downloading the model file from huggingface.co. Settings stay on device and are excluded from backup. Per Google's definition, data processed only on-device and not sent off-device is not "collected".
 
 ## Other App content declarations
 | Section | Answer |

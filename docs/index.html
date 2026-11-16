@@ -129,7 +129,9 @@
     .idea .em { width: 26px; font-size: 18px; text-align: center; }
     .iv { font-size: 16px; font-weight: 500; }
     .card a.try { display: inline-block; margin-top: 10px; font-size: 14px; }
-    .hero > *, .play > * { min-width: 0; }  /* let grid children shrink instead of forcing page width */
+    .hero > *, .play > * { min-width: 0; }
+    .ai-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 860px) { .ai-grid { grid-template-columns: 1fr; } }  /* let grid children shrink instead of forcing page width */
     @media (max-width: 860px) {
       .play { grid-template-columns: 1fr; } #play-inputs { position: static; } #play-sheet { max-height: none; }
       .field.inline input { width: 120px; }
@@ -151,6 +153,7 @@
       <img src="media/icon.png" alt="">
       <b>Khayali Pulao</b>
       <nav>
+        <a href="#ai">AI chat</a>
         <a href="#try">Try it</a>
         <a href="#features">Features</a>
         <a href="#privacy">Privacy</a>
@@ -164,7 +167,7 @@
     <div class="hero">
       <div>
         <h1>Daydream your Kite portfolio.</h1>
-        <p class="lead">A tiny bubble floats on top of Zerodha Kite. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2× — whether you beat an FD — and what the profit really buys, in hand after tax.</p>
+        <p class="lead">A tiny bubble floats on top of Zerodha Kite — now with an on-device AI you can just ask. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2× — whether you beat an FD — and what the profit really buys, in hand after tax.</p>
         <p class="meaning"><b>ख़याली पुलाव (khayali pulao)</b> — literally “imaginary pulao”: rice you cook only in your head. Hindi for daydreaming. Every investor does it; this does the maths properly.</p>
         <div class="cta">
           <a class="btn primary" href="https://github.com/iprajax/khayali-pulao/releases">Download APK</a>
@@ -179,6 +182,24 @@
         <p class="note">In-app demo · fictional data</p>
       </div>
     </div>
+
+    <section id="ai">
+      <h2>✨ Ask Khayali Pulao — AI that runs on your phone</h2>
+      <p class="sub">Gemma 4 runs on-device. It calls the app's own calculators, so every answer comes with an exact, visual result card — never an invented number.</p>
+      <div class="ai-grid">
+        <div class="shots" style="padding:0">
+          <figure><img src="screens/chat-greeting.png" alt="Chat greeting" loading="lazy"><figcaption>Gemini-style greeting</figcaption></figure>
+          <figure><img src="screens/chat-growth.png" alt="Answer with a growth chart card" loading="lazy"><figcaption>Answer + chart card</figcaption></figure>
+        </div>
+        <div>
+          <div class="card"><h3>Visual answers</h3><p>Growth curves, FD comparison bars, goal rings, tax breakdowns and holdings — drawn from the tool's exact numbers.</p></div>
+          <div class="card" style="margin-top:12px"><h3>/commands &amp; @mentions</h3><p><code>/holdings</code> <code>/fd 3</code> <code>/goal 50 lakh</code> <code>/tax</code> — and <code>@</code> to pick any of your Kite holdings. Share any answer as an image to WhatsApp or X.</p></div>
+          <div class="card" style="margin-top:12px"><h3>Speaks Indian money</h3><p>"10 lakh", "1.5 crore", "50k". Replies in your language — English or Hinglish.</p></div>
+          <div class="card" style="margin-top:12px"><h3>🔗 Connect Kite (read-only)</h3><p>Optional. Uses Zerodha's official Kite MCP; you log in on Zerodha's page. Order tools are blocked in code. Data goes from Zerodha to your phone only.</p></div>
+          <div class="card" style="margin-top:12px"><h3>Private by design</h3><p>2.6 GB model downloaded once from Hugging Face, SHA-256 verified. Then it works offline. Nothing you ask is uploaded.</p></div>
+        </div>
+      </div>
+    </section>
 
     <section id="try">
       <h2>Try it right here</h2>
@@ -223,7 +244,8 @@
       <div class="privacy">
         <h2>🔒 Nothing leaves your phone</h2>
         <ul>
-          <li><b>Zero permissions.</b> No internet — Android itself blocks the app from going online. CI fails if the APK ever requests one.</li>
+          <li><b>No uploads.</b> Network is used only for the optional AI model download (Hugging Face, SHA-256 checked) and, if you tap Connect Kite, Zerodha's official Kite MCP (read-only). CI fails on anything else.</li>
+          <li><b>On-device AI.</b> The chat runs Gemma 4 on your phone. Your questions and Kite's numbers never leave it.</li>
           <li><b>Reads, never trades.</b> Reads the numbers Kite already shows, only while Kite is open. Your taps can't reach Buy/Sell while the bubble is on.</li>
           <li><b>Keeps nothing of yours.</b> Only your settings and the hold periods you type — excluded from cloud backup and phone transfer.</li>
           <li><b>No login, analytics, ads or trackers.</b> No third-party SDKs at all. This page has no trackers either — the playground runs entirely in your browser.</li>

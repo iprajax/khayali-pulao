@@ -32,7 +32,8 @@ A small bubble floats over your broker app (works with the Zerodha Kite app). Sw
 No broker app? Tap "Try the demo" for a fictional portfolio.
 
 PRIVACY — NOTHING LEAVES YOUR PHONE
-• The app requests no permissions and has no internet access.
+• Internet is used only to download the optional on-device AI model once from Hugging Face. Nothing is ever uploaded.
+• The AI chat (Gemma 4) runs entirely on your phone.
 • It uses Android's Accessibility Service only to read the prices and quantities your broker app already shows on screen, only while that app is open, and only to calculate projections on your phone.
 • It never taps Buy or Sell and never places orders.
 • No account, no login, no analytics, no ads. Nothing is collected or shared.

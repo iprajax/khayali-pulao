@@ -6,3 +6,7 @@
     public static int d(...);
     public static int v(...);
 }
+
+# LiteRT-LM: native code calls back into these classes by name (JNI) — keep them intact.
+-keep class com.google.ai.edge.litertlm.** { *; }
+-dontwarn com.google.ai.edge.litertlm.**

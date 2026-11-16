@@ -34,12 +34,12 @@ jobs:
       - name: Build debug + release APKs
         run: ./gradlew --no-daemon assembleDebug assembleRelease
 
-      - name: Verify the APK requests zero permissions
+      - name: Verify the APK requests only INTERNET (model download)
         run: |
           AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
-          PERMS="$("$AAPT" dump permissions app/build/outputs/apk/release/app-release-unsigned.apk | grep -c 'uses-permission' || true)"
+          PERMS="$("$AAPT" dump permissions app/build/outputs/apk/release/app-release-unsigned.apk | grep "uses-permission" | sed -E "s/.*name='([^']+)'.*/\1/" | sort | tr '\n' ' ')"
           echo "permissions requested: $PERMS"
-          test "$PERMS" = "0"
+          test "$PERMS" = "android.permission.INTERNET "
 
       - uses: actions/upload-artifact@v4
         with:

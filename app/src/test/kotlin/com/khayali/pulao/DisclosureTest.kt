@@ -9,7 +9,7 @@ class DisclosureTest {
 
     @Test fun coversWhatWhyAndSharing() {
         listOf("accessibility service", "what it reads", "why", "does not collect, store or share",
-            "no internet permission", "never places orders", "turn it off").forEach {
+            "never leaves your phone", "never places orders", "turn it off").forEach {
             assertTrue("disclosure must mention '$it'", all.contains(it))
         }
     }

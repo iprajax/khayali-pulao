@@ -26,12 +26,13 @@ import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.min
 
-/** The on-device promise, shown everywhere. Keep in sync with the manifest (no INTERNET, no backup). */
+/** The on-device promise, shown everywhere. Keep in sync with the manifest (INTERNET only for the model download, no backup). */
 object Privacy {
-    const val BADGE = "🔒 On-device only · no internet · not advice"
+    const val BADGE = "🔒 Nothing leaves your phone · not advice"
     const val TITLE = "🔒 Nothing leaves your phone"
     val POINTS = listOf(
-        "No internet permission — Android itself blocks this app from going online. Check: Settings → Apps → Khayali Pulao → Permissions shows none.",
+        "Internet is used only for two optional things: the one-time AI model download (huggingface.co) and, if you tap Connect Kite, Zerodha's official read-only Kite MCP. Nothing you see or ask is ever uploaded.",
+        "The AI chat runs entirely on your phone (Gemma 4, on-device). Your questions and Kite's numbers never leave the device.",
         "Reads Kite's screen only while Kite is open, and only to do the maths. All calculations run on this phone (edge, not cloud).",
         "Keeps no copy of your holdings. Stores only your own settings and the hold periods you type in — on this phone, excluded from cloud backup and phone-to-phone transfer.",
         "No login, no account, no analytics, no ads, no trackers.",

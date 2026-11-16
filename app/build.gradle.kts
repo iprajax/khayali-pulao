@@ -10,8 +10,10 @@ android {
         applicationId = "com.khayali.pulao"
         minSdk = 28
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 6
+        versionName = "0.6.0"
+        // LiteRT-LM ships arm64 only; every modern Android phone is arm64.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     // Release signing comes from the environment (CI secrets or your shell) — never from the repo.
@@ -45,5 +47,10 @@ android {
 }
 
 dependencies {
+    // On-device LLM runtime (Gemma 4 E2B). Runs locally; the model file is downloaded once from Hugging Face.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.19.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("com.google.code.gson:gson:2.14.0")
+
     testImplementation("junit:junit:4.13.2")
 }

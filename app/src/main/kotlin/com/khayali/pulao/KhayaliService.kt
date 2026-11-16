@@ -478,7 +478,7 @@ class KhayaliService : AccessibilityService() {
         val h = (screenH * 0.76).toInt()
         wm.addView(s.view, overlayParams(MATCH_PARENT, h, FLAG_NOT_TOUCH_MODAL).apply {
             gravity = Gravity.BOTTOM
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         })
         s.view.translationY = h.toFloat()
         s.view.animate().translationY(0f).setDuration(300).setInterpolator(DecelerateInterpolator(2.5f)).start()
@@ -512,6 +512,7 @@ class KhayaliService : AccessibilityService() {
     private fun closeSheet() {
         val s = sheet ?: return
         sheet = null
+        s.release()
         stopLive()
         catcher?.highlight(null)
         // Return the bubble to where the user left it.

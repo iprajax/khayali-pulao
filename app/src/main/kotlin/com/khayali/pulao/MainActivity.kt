@@ -63,6 +63,8 @@ class MainActivity : Activity() {
             packageManager.getLaunchIntentForPackage(KhayaliService.KITE)?.let(::startActivity)
         }, k.lp(MATCH_PARENT))
         col.addView(k.space(10))
+        col.addView(askCard(), k.lp(MATCH_PARENT))
+        col.addView(k.space(10))
         col.addView(k.button("Try the demo — no Kite needed", primary = false) {
             startActivity(Intent(this, DemoActivity::class.java))
         }, k.lp(MATCH_PARENT))
@@ -130,6 +132,28 @@ class MainActivity : Activity() {
             addView(col, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         })
         updateStatus()
+    }
+
+    /** Gemini-style entry card for the on-device chat. */
+    private fun askCard(): android.view.View {
+        val glow = com.khayali.pulao.ai.GlowBorder(k, 20f).apply { this.glow = 0.9f }
+        val card = k.row().apply {
+            background = glow
+            setPadding(k.dp(16), k.dp(16), k.dp(16), k.dp(16))
+            setOnClickListener { startActivity(Intent(this@MainActivity, com.khayali.pulao.ai.ChatActivity::class.java)) }
+        }
+        card.addView(k.text("✨", 24f), k.lp(k.dp(40)))
+        val c = k.column()
+        c.addView(com.khayali.pulao.ai.FlowingGradientText(this).apply { k.style(this, "Ask Khayali Pulao", 17f, Pal.TEXT, 600) })
+        c.addView(k.text("On-device AI chat · Gemma 4 · uses the app's calculators", 12f, Pal.MUTED).apply { setPadding(0, k.dp(3), 0, 0) })
+        card.addView(c, k.lp(0, WRAP_CONTENT, 1f))
+        card.addView(k.text("›", 24f, Pal.MUTED))
+        android.animation.ValueAnimator.ofFloat(0f, 360f).apply {
+            duration = 6000; repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { glow.angle = it.animatedValue as Float }; start()
+        }
+        return card
     }
 
     private fun feature(parent: LinearLayout, title: String, sub: String) {

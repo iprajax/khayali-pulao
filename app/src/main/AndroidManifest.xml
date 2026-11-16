@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- On-device only: make sure no library can ever add network access. -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <!-- Internet is used for ONE thing: the one-time download of the on-device AI model from
+         huggingface.co (via Android's DownloadManager). No analytics, no APIs, no data upload.
+         Enforced by OnDeviceOnlyTest. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <queries>
@@ -19,6 +21,11 @@
         android:label="@string/app_name"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
+        <!-- GPU inference for the on-device model (LiteRT-LM). Optional: falls back to CPU. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -28,10 +35,39 @@
             </intent-filter>
         </activity>
 
+        <!-- Kite OAuth return: the HTTPS callback page opens khayalipulao://kite/callback -->
+        <activity
+            android:name=".ai.KiteCallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="khayalipulao" android:host="kite" android:path="/callback" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ai.ChatActivity"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:exported="false"
+            android:label="Ask Khayali Pulao"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".DemoActivity"
             android:exported="false"
             android:label="Khayali Pulao demo" />
+
+        <!-- Serves only the share image from cache/share, read-only, via a one-time URI grant. -->
+        <provider
+            android:name=".ai.ShareProvider"
+            android:authorities="com.khayali.pulao.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <service
             android:name=".KhayaliService"
