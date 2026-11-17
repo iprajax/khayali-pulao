@@ -106,11 +106,11 @@ Under each reply, **How this was made**: why you're seeing it (you typed it, a p
 ### 💼 Your portfolio, read-only
 **Connect Kite** (optional) and it reads your holdings, positions, margins and orders through Zerodha's official Kite MCP — reviewing each holding's trend, concentration and risk. The original **daydream sheet** still floats on Kite: tap a holding to see what it's worth at +5%, +15% or 2×, whether you beat an FD, and what the profit buys in hand after tax.
 
-### 📟 81 commands, and opt-in web
+### 📟 83 commands, and opt-in web
 A market terminal in the chat — indices, sectors, movers, breadth, option chain, technicals, results as a money-flow, shareholding, global markets, mutual funds and planners. With **Web** on: the week's calendar, IPOs and grey-market premium, and news with numbered sources (figures not found in a source are removed).
 
 <details>
-<summary><b>All 81 commands</b></summary>
+<summary><b>All 83 commands</b></summary>
 
 <!-- terminal-commands -->
 
@@ -273,7 +273,7 @@ Everything in that picture runs on the phone. The router, planner, engine and ex
 
 ```bash
 git clone https://github.com/iprajax/khayali-pulao.git && cd khayali-pulao
-./gradlew testDebugUnitTest     # 300+ tests: engine, planner, routing, maths, privacy guards
+./gradlew testDebugUnitTest     # 320+ tests: engine, planner, routing, maths, privacy guards
 ./gradlew assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
 ```
 

@@ -87,7 +87,8 @@ object SectorFeature : Feature {
     override suspend fun run(arg: String, f: Fetch): String {
         val book = f.sectors() ?: return Card.error(Sec.NEED, "/data update")
         val words = arg.replace(Regex("""\d{4}-\d{2}-\d{2}|\b(1d|1w|5d|1m|3m|6m|ytd|1y|3y|5y|from|to|day|week|month|year)\b""", RegexOption.IGNORE_CASE), " ").trim()
-        val s = Sectors.find(words.ifBlank { arg }) ?: return Card.error("Which sector? Try ${Sectors.ALL.take(6).joinToString(", ") { it.short }}…", "/sectorboard")
+        if (words.isBlank()) return SectorBoardFeature.build(book, Sec.window(arg, Period.D1))      // no sector named: show them all
+        val s = Sectors.find(words) ?: return Card.error("Which sector? Try ${Sectors.ALL.take(6).joinToString(", ") { it.short }}…", "/sectorboard")
         return build(book, f.market(1300), s, Sec.window(arg, Period.M1), f.holdings.map { it.name.uppercase() }.toSet())
     }
 

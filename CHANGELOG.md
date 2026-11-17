@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- **Sector member lists retry until they arrive** — a failed fetch was recorded as done and wouldn't retry for 30 days, leaving sector cards without gainers and losers. Now it retries whenever none are stored. Checked on a phone: 18 of 18 lists, and `/sector PSU Bank 1w` shows its members' breadth, gainers and the wheel on each.
+- `/sector` with no sector named shows every sector instead of asking.
+- The wheel's centre fits long symbols (BANKINDIA, BAJAJFINSV) instead of cutting them off.
+
 ## 0.9.3
 
 - **Fixed: one tap could delete your market history.** After `/data`, a suggestion labelled "📦 Models & data" actually ran `/data delete`, with no confirmation. Deleting is now never one tap: delete actions are no longer offered as suggestions, `/data delete` asks first (with the size) and only "Yes, delete it" deletes, and every data action is labelled for what it does. Tested.

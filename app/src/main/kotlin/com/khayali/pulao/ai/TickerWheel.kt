@@ -51,7 +51,11 @@ class TickerWheel(
     private val centre = k.column().apply {
         gravity = Gravity.CENTER
         background = k.rounded(Pal.alpha(white, 0.08f), 999f, Pal.alpha(white, 0.22f))
-        addView(k.text(symbol, if (symbol.length > 8) 9.5f else 11f, Pal.alpha(white, 0.95f), 600).apply { gravity = Gravity.CENTER; maxLines = 1; letterSpacing = 0.02f })
+        addView(k.text(symbol, 11f, Pal.alpha(white, 0.95f), 600).apply {
+            gravity = Gravity.CENTER; maxLines = 1; letterSpacing = 0.02f
+            // long symbols (BANKINDIA, BAJAJFINSV) shrink to fit instead of being cut off
+            setAutoSizeTextTypeUniformWithConfiguration(6, 11, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+        }, k.lp(k.dp(48), WRAP_CONTENT))
         setOnClickListener { close() }
         contentDescription = "Close $symbol actions"
     }
