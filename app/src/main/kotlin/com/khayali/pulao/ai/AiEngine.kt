@@ -40,6 +40,18 @@ object AiEngine {
     val state: StateFlow<State> = _state
 
     @Volatile private var engine: Engine? = null
+    /**
+     * Bumped every time a new engine is loaded. A Conversation belongs to the engine that made it,
+     * so a chat compares this with the value it saw at creation to know its conversation is dead.
+     */
+    @Volatile var generation = 0
+        private set
+    /** Turns currently generating. The engine is never unloaded under a running turn. */
+    private val inUse = java.util.concurrent.atomic.AtomicInteger(0)
+    @Volatile private var memoryHook = false
+
+    fun begin() { inUse.incrementAndGet(); touch() }
+    fun end() { if (inUse.decrementAndGet() < 0) inUse.set(0); touch() }
     /** Set when the GPU loaded but failed at inference time on this device; we stay on CPU after that. */
     @Volatile var gpuBroken = false
         private set
@@ -49,6 +61,7 @@ object AiEngine {
         gpuBroken = true
         engine?.let { runCatching { it.close() } }
         engine = null
+        generation++
         _state.value = State.Unloaded
     }
 
@@ -59,6 +72,7 @@ object AiEngine {
     suspend fun acquire(ctx: Context): Engine = lock.withLock {
         touch()
         engine?.let { return it }
+        registerMemoryHook(ctx)
         val mm = ModelManager.get(ctx)
         check(mm.isReady()) { "The AI model isn't downloaded yet." }
         val cache = File(ctx.cacheDir, "litertlm").apply { mkdirs() }.path
@@ -74,6 +88,7 @@ object AiEngine {
             }.onFailure { lastError = it; if (BuildConfig.DEBUG) Log.w("KhayaliAI", "$name backend failed", it) }.getOrNull()
             if (e != null) {
                 engine = e
+                generation++
                 _state.value = State.Ready(name, SystemClock.elapsedRealtime() - t0)
                 touch()
                 return e
@@ -92,11 +107,25 @@ object AiEngine {
     fun unload() {
         scope.launch {
             lock.withLock {
+                if (inUse.get() > 0) { touch(); return@withLock }     // a turn is running: try again after the next idle period
                 idleJob?.cancel()
-                engine?.let { runCatching { it.close() } }
+                engine?.let { runCatching { it.close() }; generation++ }
                 engine = null
-                _state.value = State.Unloaded
+                if (_state.value !is State.Failed) _state.value = State.Unloaded
             }
         }
+    }
+
+    /** Give the ~1 GB back when Android is running out of memory and the app isn't generating. */
+    private fun registerMemoryHook(ctx: Context) {
+        if (memoryHook) return
+        memoryHook = true
+        ctx.applicationContext.registerComponentCallbacks(object : android.content.ComponentCallbacks2 {
+            override fun onTrimMemory(level: Int) {
+                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) unload()
+            }
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
+            @Deprecated("Deprecated in Java") override fun onLowMemory() = unload()
+        })
     }
 }

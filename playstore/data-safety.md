@@ -9,7 +9,9 @@
 | Is all of the user data collected by your app encrypted in transit? | N/A (no data collected) |
 | Do you provide a way for users to request that their data is deleted? | N/A — nothing is collected. (Uninstall / Clear data removes local settings.) |
 
-Why "No": on-screen values are processed only in memory on the device and never stored or transmitted; the only network request is downloading the model file from huggingface.co. Settings stay on device and are excluded from backup. Per Google's definition, data processed only on-device and not sent off-device is not "collected".
+> **Review before submitting 0.8+.** With the optional Web feature, search words the user types (or the chat composes) are sent to DuckDuckGo, and company symbols to Yahoo Finance. They go straight from the phone to those services — never to the developer — and are off until the user allows it. Google may still treat this as *App activity → In-app search history, shared with third parties, optional*. The cautious answer is to declare exactly that; decide with the current Play policy text in front of you.
+
+Why "No" (0.7 and earlier): on-screen values are processed only in memory on the device and never stored or transmitted; the only network request is downloading the model file from huggingface.co. Settings stay on device and are excluded from backup. Per Google's definition, data processed only on-device and not sent off-device is not "collected".
 
 ## Other App content declarations
 | Section | Answer |

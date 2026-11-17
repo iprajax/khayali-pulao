@@ -8,9 +8,11 @@
   html, body { margin:0; padding:0; background:transparent; color:var(--text); overflow:hidden;
     font-family: Roboto, "Google Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
   svg { display:block; }
-  .lbl { fill:var(--muted); font-size:11px; }
-  .val { fill:var(--text); font-size:11px; font-weight:500; }
+  .lbl { fill:var(--muted); font-size:12px; }
+  .val { fill:var(--text); font-size:12.5px; font-weight:600; }
   .big { fill:var(--text); font-size:20px; font-weight:500; }
+  .axl { fill:#8A96A3; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; font-weight:600; }
+  .tag { font-size:11.5px; font-weight:700; }
   .tip { position:absolute; pointer-events:none; background:#263241; border:1px solid var(--line); border-radius:8px;
     padding:6px 9px; font-size:12px; opacity:0; transition:opacity .15s; white-space:nowrap; }
 </style>
@@ -36,6 +38,29 @@ function hideTip() { tip.style("opacity", 0); }
 const T = 700;
 
 function svg(h) { d3.select("#c").selectAll("*").remove(); return d3.select("#c").append("svg").attr("width", W()).attr("height", h); }
+
+// ---------- shared axes: every chart names both axes and prints their values ----------
+const M = { l: 50, r: 16, t: 18, b: 38 };
+const ax = v => { const a = Math.abs(v), f = (n, u) => n.toFixed(n < 10 && n % 1 ? 1 : 0).replace(/\.0$/, "") + u;
+  return (v < 0 ? "−" : "") + "₹" + (a >= 1e7 ? f(a / 1e7, "Cr") : a >= 1e5 ? f(a / 1e5, "L") : a >= 1e3 ? f(a / 1e3, "K") : Math.round(a)); };
+const px = v => "₹" + (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-IN") : (+v).toFixed(v < 100 ? 1 : 0));
+function axes(s, x, y, h, o) {
+  const gy = s.append("g").attr("transform", `translate(${M.l},0)`).call(d3.axisLeft(y).ticks(o.yTicks || 4).tickFormat(o.yFmt || ax).tickSize(-(W() - M.l - M.r)));
+  gy.select(".domain").remove(); gy.selectAll("line").attr("stroke", C.line).attr("stroke-opacity", .55).attr("stroke-dasharray", "2 3"); gy.selectAll("text").attr("class", "lbl").attr("x", -6);
+  const bx = d3.axisBottom(x).tickSize(4); if (o.xValues) bx.tickValues(o.xValues); else bx.ticks(o.xTicks || 4); if (o.xFmt) bx.tickFormat(o.xFmt);
+  const gx = s.append("g").attr("transform", `translate(0,${h - M.b})`).call(bx);
+  gx.select(".domain").attr("stroke", C.line); gx.selectAll("line").attr("stroke", C.line); gx.selectAll("text").attr("class", "lbl");
+  gx.selectAll(".tick:last-of-type text").each(function () { if (this.getBoundingClientRect().right > W() - 2) d3.select(this).attr("text-anchor", "end").attr("dx", 6); });
+  if (o.yLabel) s.append("text").attr("class", "axl").attr("x", 2).attr("y", 9).text(o.yLabel);
+  if (o.xLabel) s.append("text").attr("class", "axl").attr("x", W() - M.r).attr("y", h - 4).attr("text-anchor", "end").text(o.xLabel);
+}
+function dateFmt(pts) { const span = (pts[pts.length - 1].t - pts[0].t) / 864e5;
+  return span > 400 ? d3.timeFormat("%b '%y") : span > 45 ? d3.timeFormat("%b") : span > 6 ? d3.timeFormat("%d %b") : d3.timeFormat("%a %d"); }
+function drawLine(s, pts, x, y, acc, col, dashed) { const p = s.append("path").datum(pts).attr("fill", "none").attr("stroke", col).attr("stroke-width", 2)
+    .attr("d", d3.line().x(q => x(q.t)).y(q => y(acc(q))).curve(d3.curveMonotoneX));
+  const L = p.node().getTotalLength(); p.attr("stroke-dasharray", dashed ? "4 4" : L).attr("stroke-dashoffset", dashed ? 0 : L).transition().duration(1000).attr("stroke-dashoffset", 0); return p; }
+function legend(s, items, y) { let x0 = M.l; items.forEach(([k, c, dash]) => { s.append("line").attr("x1", x0).attr("x2", x0 + 14).attr("y1", y - 3).attr("y2", y - 3).attr("stroke", c).attr("stroke-width", 2).attr("stroke-dasharray", dash ? "3 3" : null);
+  const t = s.append("text").attr("class", "lbl").attr("x", x0 + 18).attr("y", y).text(k); x0 += 26 + t.node().getComputedTextLength(); }); }
 
 const R = {
   // ---------- Kite: holdings treemap + P&L bars ----------
@@ -112,55 +137,141 @@ const R = {
     g.append("text").attr("class", "lbl").attr("x", W()).attr("text-anchor", "end").attr("y", rh / 2 + 4).text(r => (r.time || "").slice(11, 16));
   },
 
-  // ---------- price history (line + area) ----------
+  // ---------- price history: close by date, with both axes, high/low marks and a scrubber ----------
   history(d, h) {
-    const pts = (d.points || []).map(p => ({ t: new Date(p.t), c: +p.c })).filter(p => !isNaN(p.c));
-    const s = svg(h); if (pts.length < 2) return;
+    const pts = (d.points || []).map(p => ({ t: new Date(p.t), c: +p.c })).filter(p => !isNaN(p.c) && !isNaN(p.t));
+    const s = svg(h); if (pts.length < 2) { s.append("text").attr("class", "lbl").attr("x", W() / 2).attr("y", h / 2).attr("text-anchor", "middle").text("Not enough price history"); return; }
     const up = pts[pts.length - 1].c >= pts[0].c, col = up ? C.green : C.red;
-    const x = d3.scaleTime().domain(d3.extent(pts, p => p.t)).range([2, W() - 2]);
-    const y = d3.scaleLinear().domain(d3.extent(pts, p => p.c)).nice().range([h - 22, 10]);
+    const x = d3.scaleTime().domain(d3.extent(pts, p => p.t)).range([M.l, W() - M.r]);
+    const y = d3.scaleLinear().domain(d3.extent(pts, p => p.c)).nice().range([h - M.b, M.t]);
+    axes(s, x, y, h, { yFmt: px, xFmt: dateFmt(pts), xTicks: Math.max(2, Math.floor((W() - M.l) / 70)), yLabel: d.yLabel || "Price (₹)", xLabel: "Date" });
     const grad = s.append("defs").append("linearGradient").attr("id", "g").attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
-    grad.append("stop").attr("offset", 0).attr("stop-color", col).attr("stop-opacity", 0.35);
+    grad.append("stop").attr("offset", 0).attr("stop-color", col).attr("stop-opacity", 0.32);
     grad.append("stop").attr("offset", 1).attr("stop-color", col).attr("stop-opacity", 0);
-    s.append("path").datum(pts).attr("fill", "url(#g)").attr("d", d3.area().x(p => x(p.t)).y0(h - 22).y1(p => y(p.c)).curve(d3.curveMonotoneX));
-    const line = s.append("path").datum(pts).attr("fill", "none").attr("stroke", col).attr("stroke-width", 2).attr("d", d3.line().x(p => x(p.t)).y(p => y(p.c)).curve(d3.curveMonotoneX));
-    const L = line.node().getTotalLength(); line.attr("stroke-dasharray", L).attr("stroke-dashoffset", L).transition().duration(1000).attr("stroke-dashoffset", 0);
-    const span = (pts[pts.length - 1].t - pts[0].t) / 864e5;
-    const fmt = span > 400 ? d3.timeFormat("%b '%y") : span > 60 ? d3.timeFormat("%b") : d3.timeFormat("%d %b");
-    s.append("g").attr("transform", `translate(0,${h - 18})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(W() / 90))).tickFormat(fmt).tickSize(0))
-      .call(g => { g.select(".domain").remove(); g.selectAll("text").attr("class", "lbl"); g.selectAll(".tick:first-of-type text").attr("text-anchor", "start"); g.selectAll(".tick:last-of-type text").attr("text-anchor", "end"); });
-    const dot = s.append("circle").attr("r", 4).attr("fill", col).style("opacity", 0);
-    s.append("rect").attr("width", W()).attr("height", h).attr("fill", "transparent").on("pointermove", e => {
+    s.append("path").datum(pts).attr("fill", "url(#g)").attr("d", d3.area().x(p => x(p.t)).y0(h - M.b).y1(p => y(p.c)).curve(d3.curveMonotoneX));
+    drawLine(s, pts, x, y, p => p.c, col, false);
+    const hi = pts.reduce((a, b) => b.c > a.c ? b : a), lo = pts.reduce((a, b) => b.c < a.c ? b : a);
+    [[hi, "High ", C.green, -7], [lo, "Low ", C.red, y(lo.c) + 16 > h - M.b ? -7 : 14]].forEach(([p, k, c, dy]) => {
+      s.append("circle").attr("cx", x(p.t)).attr("cy", y(p.c)).attr("r", 3).attr("fill", c);
+      s.append("text").attr("class", "tag").attr("fill", c).attr("x", Math.min(Math.max(x(p.t), M.l + 34), W() - 40)).attr("y", y(p.c) + dy).attr("text-anchor", "middle").text(k + px(p.c)); });
+    if (pts.length <= 12) s.selectAll("circle.pt").data(pts).join("circle").attr("class", "pt").attr("cx", p => x(p.t)).attr("cy", p => y(p.c)).attr("r", 2.5).attr("fill", col);
+    const rule = s.append("line").attr("y1", M.t).attr("y2", h - M.b).attr("stroke", C.muted).attr("stroke-dasharray", "2 3").style("opacity", 0);
+    const dot = s.append("circle").attr("r", 4).attr("fill", col).attr("stroke", "#fff").attr("stroke-width", 1).style("opacity", 0);
+    s.append("rect").attr("width", W()).attr("height", h).attr("fill", "transparent").on("pointermove pointerdown", e => {
       const t = x.invert(d3.pointer(e)[0]); const i = d3.bisector(p => p.t).center(pts, t); const p = pts[i];
-      dot.attr("cx", x(p.t)).attr("cy", y(p.c)).style("opacity", 1); showTip(`${d3.timeFormat("%d %b %y")(p.t)} · ${inr(p.c)}`, x(p.t), y(p.c));
-    }).on("pointerleave", () => { dot.style("opacity", 0); hideTip(); });
+      rule.attr("x1", x(p.t)).attr("x2", x(p.t)).style("opacity", 1);
+      dot.attr("cx", x(p.t)).attr("cy", y(p.c)).style("opacity", 1); showTip(`${d3.timeFormat("%d %b %Y")(p.t)} · <b>${inr(p.c)}</b>`, x(p.t), y(p.c));
+    }).on("pointerleave", () => { dot.style("opacity", 0); rule.style("opacity", 0); hideTip(); });
   },
 
-  // ---------- generic animated bars ----------
+  // ---------- candlesticks: open/high/low/close by day, volume underneath ----------
+  candles(d, h) {
+    const pts = (d.points || []).map(p => ({ t: new Date(p.t), o: +p.o, h: +p.h, l: +p.l, c: +p.c, v: +p.v || 0 })).filter(p => !isNaN(p.c) && !isNaN(p.t));
+    const s = svg(h); if (pts.length < 2) return R.history(d, h);
+    const volH = d3.max(pts, p => p.v) > 0 ? 34 : 0, bottom = h - M.b - volH;
+    const x = d3.scaleBand().domain(pts.map((p, i) => i)).range([M.l, W() - M.r]).padding(0.25);
+    const y = d3.scaleLinear().domain([d3.min(pts, p => p.l), d3.max(pts, p => p.h)]).nice().range([bottom, M.t]);
+    const fmt = dateFmt(pts), step = Math.max(1, Math.ceil(pts.length / Math.max(2, Math.floor((W() - M.l) / 64))));
+    const gy = s.append("g").attr("transform", `translate(${M.l},0)`).call(d3.axisLeft(y).ticks(4).tickFormat(px).tickSize(-(W() - M.l - M.r)));
+    gy.select(".domain").remove(); gy.selectAll("line").attr("stroke", C.line).attr("stroke-opacity", .55).attr("stroke-dasharray", "2 3"); gy.selectAll("text").attr("class", "lbl").attr("x", -6);
+    const gx = s.append("g").attr("transform", `translate(0,${h - M.b})`).call(d3.axisBottom(x).tickValues(pts.map((p, i) => i).filter(i => i % step === 0)).tickFormat(i => fmt(pts[i].t)).tickSize(4));
+    gx.select(".domain").attr("stroke", C.line); gx.selectAll("line").attr("stroke", C.line); gx.selectAll("text").attr("class", "lbl");
+    s.append("text").attr("class", "axl").attr("x", 2).attr("y", 9).text("Price (₹) · open-high-low-close");
+    s.append("text").attr("class", "axl").attr("x", W() - M.r).attr("y", h - 4).attr("text-anchor", "end").text(volH ? "Date · bars below: volume" : "Date");
+    const col = p => p.c >= p.o ? C.green : C.red, bw = x.bandwidth();
+    const g = s.selectAll("g.k").data(pts).join("g").attr("class", "k").attr("transform", (p, i) => `translate(${x(i)},0)`).style("opacity", 0);
+    g.transition().duration(300).delay((p, i) => i * 12).style("opacity", 1);
+    g.append("line").attr("x1", bw / 2).attr("x2", bw / 2).attr("y1", p => y(p.h)).attr("y2", p => y(p.l)).attr("stroke", col);
+    g.append("rect").attr("width", bw).attr("y", p => y(Math.max(p.o, p.c))).attr("height", p => Math.max(1, Math.abs(y(p.o) - y(p.c)))).attr("fill", col).attr("rx", 1);
+    if (volH) { const v = d3.scaleLinear().domain([0, d3.max(pts, p => p.v)]).range([0, volH - 6]);
+      g.append("rect").attr("width", bw).attr("y", p => h - M.b - v(p.v)).attr("height", p => v(p.v)).attr("fill", col).attr("opacity", .35); }
+    const vol = n => n >= 1e7 ? (n / 1e7).toFixed(1) + " Cr" : n >= 1e5 ? (n / 1e5).toFixed(1) + " L" : Math.round(n).toLocaleString("en-IN");
+    s.append("rect").attr("width", W()).attr("height", h).attr("fill", "transparent").on("pointermove pointerdown", e => {
+      const i = Math.max(0, Math.min(pts.length - 1, Math.floor((d3.pointer(e)[0] - M.l) / x.step()))), p = pts[i];
+      showTip(`${d3.timeFormat("%d %b")(p.t)} · O ${px(p.o)} H ${px(p.h)} L ${px(p.l)} <b>C ${px(p.c)}</b>${p.v ? " · Vol " + vol(p.v) : ""}`, Math.min(x(i), W() - 250), y(p.h));
+    }).on("pointerleave", hideTip);
+  },
+
+  // ---------- horizontal bars with a value axis ----------
   bars(d, h) {
-    const items = d.items || [], s = svg(h); const bh = h / Math.max(1, items.length);
-    const x = d3.scaleLinear().domain([0, d3.max(items, i => i.value) || 1]).range([0, W() - 190]);
-    const g = s.selectAll("g").data(items).join("g").attr("transform", (it, i) => `translate(0,${i * bh})`);
+    const items = d.items || [], s = svg(h), axisH = 20, bh = (h - axisH) / Math.max(1, items.length), L = 104, Rg = 64;
+    const x = d3.scaleLinear().domain([0, d3.max(items, i => i.value) || 1]).nice().range([L, W() - Rg]);
+    const gx = s.append("g").attr("transform", `translate(0,${h - axisH})`).call(d3.axisBottom(x).ticks(2).tickFormat(ax).tickSize(-(h - axisH)));
+    gx.select(".domain").remove(); gx.selectAll("line").attr("stroke", C.line).attr("stroke-opacity", .5).attr("stroke-dasharray", "2 3"); gx.selectAll("text").attr("class", "lbl").attr("dy", 10);
+    const g = s.selectAll("g.r").data(items).join("g").attr("class", "r").attr("transform", (it, i) => `translate(0,${i * bh})`);
     g.append("text").attr("class", "lbl").attr("y", bh / 2 + 4).text(it => it.label);
-    g.append("rect").attr("rx", 5).attr("x", 110).attr("y", bh / 2 - 7).attr("height", 14).attr("width", 0)
+    g.append("rect").attr("rx", 5).attr("x", L).attr("y", bh / 2 - 7).attr("height", 14).attr("width", 0)
       .attr("fill", it => it.color || C.blue).attr("opacity", it => it.highlight ? 1 : 0.8)
-      .transition().duration(T).delay((it, i) => i * 60).attr("width", it => x(it.value));
+      .transition().duration(T).delay((it, i) => i * 60).attr("width", it => Math.max(2, x(it.value) - L));
     g.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", bh / 2 + 4).text(it => short(it.value));
   },
 
   // ---------- calculators ----------
+  // compounding: value by year, nominal vs today's money, both axes labelled
   growth(d, h) {
-    const n = Math.max(1, Math.round(d.years)), pts = d3.range(0, n * 4 + 1).map(i => { const yr = d.years * i / (n * 4); return { t: yr, v: d.start * Math.pow(1 + d.rate / 100, yr), r: d.start * Math.pow(1 + d.rate / 100, yr) / Math.pow(1 + (d.inflation || 0) / 100, yr) }; });
-    const s = svg(h), x = d3.scaleLinear().domain([0, d.years]).range([16, W() - 16]), y = d3.scaleLinear().domain([0, d3.max(pts, p => p.v)]).nice().range([h - 20, 8]);
+    const n = Math.max(1, Math.round(d.years)), steps = Math.min(120, n * 4);
+    const pts = d3.range(0, steps + 1).map(i => { const yr = d.years * i / steps; const v = d.start * Math.pow(1 + d.rate / 100, yr); return { t: yr, v, r: v / Math.pow(1 + (d.inflation || 0) / 100, yr) }; });
+    const s = svg(h), x = d3.scaleLinear().domain([0, d.years]).range([M.l, W() - M.r]), y = d3.scaleLinear().domain([0, d3.max(pts, p => p.v)]).nice().range([h - M.b, M.t + 14]);
+    axes(s, x, y, h, { xTicks: Math.min(6, n), xFmt: v => (Number.isInteger(v) ? v : v.toFixed(1)), yLabel: "Value (₹)", xLabel: "Years from now" });
     const grad = s.append("defs").append("linearGradient").attr("id", "gg").attr("x1", 0).attr("x2", 0).attr("y1", 0).attr("y2", 1);
-    grad.append("stop").attr("offset", 0).attr("stop-color", C.green).attr("stop-opacity", .35); grad.append("stop").attr("offset", 1).attr("stop-color", C.green).attr("stop-opacity", 0);
-    s.append("path").datum(pts).attr("fill", "url(#gg)").attr("d", d3.area().x(p => x(p.t)).y0(h - 20).y1(p => y(p.v)).curve(d3.curveMonotoneX));
-    const draw = (acc, col, dash) => { const p = s.append("path").datum(pts).attr("fill", "none").attr("stroke", col).attr("stroke-width", 2).attr("d", d3.line().x(q => x(q.t)).y(q => y(acc(q))).curve(d3.curveMonotoneX));
-      const L = p.node().getTotalLength(); p.attr("stroke-dasharray", dash ? "4 4" : L).attr("stroke-dashoffset", dash ? 0 : L).transition().duration(1100).attr("stroke-dashoffset", 0); };
-    draw(q => q.v, C.green, false); if (d.inflation) draw(q => q.r, C.muted, true);
-    s.append("g").attr("transform", `translate(0,${h - 16})`).call(d3.axisBottom(x).ticks(Math.min(6, n)).tickFormat(v => "Yr " + v).tickSize(0)).call(g => { g.select(".domain").remove(); g.selectAll("text").attr("class", "lbl"); });
-    s.append("circle").attr("cx", W() - 4).attr("cy", y(pts[pts.length - 1].v)).attr("r", 4).attr("fill", C.green).style("opacity", 0).transition().delay(1100).style("opacity", 1);
+    grad.append("stop").attr("offset", 0).attr("stop-color", C.green).attr("stop-opacity", .3); grad.append("stop").attr("offset", 1).attr("stop-color", C.green).attr("stop-opacity", 0);
+    s.append("path").datum(pts).attr("fill", "url(#gg)").attr("d", d3.area().x(p => x(p.t)).y0(h - M.b).y1(p => y(p.v)).curve(d3.curveMonotoneX));
+    drawLine(s, pts, x, y, q => q.v, C.green, false); if (d.inflation) drawLine(s, pts, x, y, q => q.r, C.muted, true);
+    legend(s, [["Value", C.green, false]].concat(d.inflation ? [["In today's money", C.muted, true]] : []), M.t + 6);
+    const last = pts[pts.length - 1];
+    s.append("circle").attr("cx", x(last.t)).attr("cy", y(last.v)).attr("r", 4).attr("fill", C.green).style("opacity", 0).transition().delay(1000).style("opacity", 1);
+    s.append("text").attr("class", "tag").attr("fill", C.green).attr("x", x(last.t) - 6).attr("y", y(last.v) - 7).attr("text-anchor", "end").text(short(last.v));
+    const dot = s.append("circle").attr("r", 4).attr("fill", C.green).attr("stroke", "#fff").style("opacity", 0);
+    s.append("rect").attr("width", W()).attr("height", h).attr("fill", "transparent").on("pointermove pointerdown", e => {
+      const yr = Math.max(0, Math.min(d.years, x.invert(d3.pointer(e)[0]))), p = pts[Math.round(yr / d.years * steps)];
+      dot.attr("cx", x(p.t)).attr("cy", y(p.v)).style("opacity", 1); showTip(`Year ${p.t.toFixed(1).replace(/\.0$/, "")} · <b>${short(p.v)}</b>${d.inflation ? " · today's money " + short(p.r) : ""}`, x(p.t), y(p.v));
+    }).on("pointerleave", () => { dot.style("opacity", 0); hideTip(); });
   },
+
+  // what-if curve: value of the holding at every price move from −50% to +50%, the asked move marked
+  scenario(d, h) {
+    const s = svg(h), lim = Math.max(30, Math.ceil(Math.abs(d.move) / 10) * 10 + 10);
+    // "today" is the value at 0% when moving from today's price; from the average price, 0% is what was invested
+    const base = d.from_avg ? d.cost : d.today;
+    const pts = d3.range(-lim, lim + 1, 2).map(m => ({ t: m, v: base * (1 + m / 100) }));
+    const x = d3.scaleLinear().domain([-lim, lim]).range([M.l, W() - M.r]);
+    const y = d3.scaleLinear().domain([Math.min(d3.min(pts, p => p.v), d.cost), Math.max(d3.max(pts, p => p.v), d.cost)]).nice().range([h - M.b, M.t]);
+    axes(s, x, y, h, { xTicks: 5, xFmt: v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v) + "%", yLabel: "Value (₹)", xLabel: d.from_avg ? "Price move from your average" : "Price move from today" });
+    const clip = (id, x0, x1) => s.append("defs").append("clipPath").attr("id", id).append("rect").attr("x", x0).attr("y", 0).attr("width", Math.max(0, x1 - x0)).attr("height", h);
+    clip("neg", M.l, x(0)); clip("pos", x(0), W());
+    const line = d3.line().x(p => x(p.t)).y(p => y(p.v));
+    s.append("path").datum(pts).attr("fill", "none").attr("stroke", C.red).attr("stroke-width", 2.5).attr("clip-path", "url(#neg)").attr("d", line);
+    s.append("path").datum(pts).attr("fill", "none").attr("stroke", C.green).attr("stroke-width", 2.5).attr("clip-path", "url(#pos)").attr("d", line);
+    s.append("line").attr("x1", M.l).attr("x2", W() - M.r).attr("y1", y(d.cost)).attr("y2", y(d.cost)).attr("stroke", C.saffron).attr("stroke-dasharray", "4 4");
+    s.append("text").attr("class", "tag").attr("fill", C.saffron).attr("x", W() - M.r).attr("y", y(d.cost) - 5).attr("text-anchor", "end").text("Invested " + short(d.cost));
+    s.append("line").attr("x1", x(0)).attr("x2", x(0)).attr("y1", M.t).attr("y2", h - M.b).attr("stroke", C.line);
+    const col = d.move >= 0 ? C.green : C.red, mx = x(Math.max(-lim, Math.min(lim, d.move))), my = y(d.value);
+    s.append("line").attr("x1", mx).attr("x2", mx).attr("y1", my).attr("y2", h - M.b).attr("stroke", col).attr("stroke-dasharray", "2 3");
+    s.append("circle").attr("cx", mx).attr("cy", my).attr("r", 0).attr("fill", col).attr("stroke", "#fff").attr("stroke-width", 1.5).transition().duration(500).attr("r", 5.5);
+    const left = mx < (M.l + W() - M.r) / 2;     // the line rises to the right, so the free side is below-right or above-left
+    s.append("text").attr("class", "tag").attr("fill", col).attr("x", left ? mx + 10 : mx - 10).attr("y", left ? my + 16 : my - 10).attr("text-anchor", left ? "start" : "end").text(`${d.move > 0 ? "+" : ""}${d.move}% → ${short(d.value)}`);
+    s.append("rect").attr("width", W()).attr("height", h).attr("fill", "transparent").on("pointermove pointerdown", e => {
+      const m = Math.round(Math.max(-lim, Math.min(lim, x.invert(d3.pointer(e)[0])))), v = base * (1 + m / 100);
+      showTip(`${m > 0 ? "+" : ""}${m}% → <b>${short(v)}</b> (${v >= d.cost ? "+" : "−"}${short(Math.abs(v - d.cost)).replace("₹", "₹")} vs invested)`, x(m), y(v));
+    }).on("pointerleave", hideTip);
+  },
+
+  // goal paths: value by year at several yearly returns, with the goal line and where each path crosses it
+  paths(d, h) {
+    const s = svg(h), rates = d.rates || [8, 12, 15, 20], cols = [C.blue, C.green, C.saffron, C.pink];
+    const need = r => Math.log(d.goal / d.now) / Math.log(1 + r / 100);
+    const maxY = Math.min(40, Math.max(3, Math.ceil(need(rates[0]))));
+    const x = d3.scaleLinear().domain([0, maxY]).range([M.l, W() - M.r]), y = d3.scaleLinear().domain([d.now * 0.9, d.goal * 1.12]).range([h - M.b, M.t + 14]).clamp(true);
+    axes(s, x, y, h, { xTicks: Math.min(6, maxY), yLabel: "Value (₹)", xLabel: "Years from now" });
+    s.append("line").attr("x1", M.l).attr("x2", W() - M.r).attr("y1", y(d.goal)).attr("y2", y(d.goal)).attr("stroke", C.text).attr("stroke-dasharray", "4 4").attr("opacity", .7);
+    s.append("text").attr("class", "tag").attr("fill", C.text).attr("x", M.l + 4).attr("y", y(d.goal) - 5).text("Goal " + short(d.goal));
+    rates.forEach((r, i) => { const yrs = need(r), end = Math.min(maxY, yrs);
+      const pts = d3.range(0, 41).map(k => ({ t: end * k / 40, v: d.now * Math.pow(1 + r / 100, end * k / 40) }));
+      drawLine(s, pts, x, y, p => p.v, cols[i % 4], false);
+      if (yrs <= maxY) s.append("circle").attr("cx", x(yrs)).attr("cy", y(d.goal)).attr("r", 3.5).attr("fill", cols[i % 4]).attr("stroke", "#fff"); });
+    legend(s, rates.map((r, i) => [r + "%", cols[i % 4], false]), M.t + 6);
+  },
+
   versus(d, h) { R.bars({ items: d.items.map((it, i) => ({ ...it, color: i === 0 ? C.green : (it.value > d.items[0].value ? C.saffron : C.blue), highlight: i === 0 })) }, h); },
   goal(d, h) {
     const s = svg(h), r = h / 2 - 6, g = s.append("g").attr("transform", `translate(${r + 6},${h / 2})`);
@@ -181,6 +292,145 @@ const R = {
     parts.forEach(([k, v, c], i) => { s.append("circle").attr("cx", 6).attr("cy", 52 + i * 22).attr("r", 5).attr("fill", c);
       s.append("text").attr("class", "lbl").attr("x", 18).attr("y", 56 + i * 22).text(k); s.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", 56 + i * 22).text(inr(v)); });
   },
+
+  // tax waterfall: profit → charges → tax → in hand, each step on a ₹ axis
+  waterfall(d, h) {
+    const s = svg(h), steps = [["Profit", d.gain, 0, C.blue], ["Charges", -d.charges, d.gain, C.saffron], ["Tax", -d.tax, d.gain - d.charges, C.red], ["In hand", d.in_hand, 0, C.green]];
+    const x = d3.scaleBand().domain(steps.map(p => p[0])).range([M.l, W() - M.r]).padding(0.32);
+    const y = d3.scaleLinear().domain([0, Math.max(d.gain, d.in_hand, 1)]).nice().range([h - M.b, M.t + 12]);
+    axes(s, x, y, h, { yLabel: "Amount (₹)", xLabel: "From profit to in hand" });
+    steps.forEach(([k, v, from, c], i) => { const top = Math.max(from, from + v), bot = Math.min(from, from + v);
+      s.append("rect").attr("x", x(k)).attr("width", x.bandwidth()).attr("rx", 4).attr("y", y(bot)).attr("height", 0).attr("fill", c)
+        .transition().duration(T).delay(i * 140).attr("y", y(top)).attr("height", Math.max(2, y(bot) - y(top)));
+      s.append("text").attr("class", "tag").attr("fill", c).attr("x", x(k) + x.bandwidth() / 2).attr("y", y(top) - 5).attr("text-anchor", "middle").text((v < 0 ? "−" : "") + short(Math.abs(v)));
+      if (i < steps.length - 1) { const nx = steps[i + 1], lvl = i === 2 ? d.in_hand : from + v;
+        s.append("line").attr("x1", x(k) + x.bandwidth()).attr("x2", x(nx[0])).attr("y1", y(lvl)).attr("y2", y(lvl)).attr("stroke", C.muted).attr("stroke-dasharray", "2 2"); } });
+  },
+
+  // allocation donut: each holding's share of the portfolio, with a percentage legend
+  allocation(d, h) {
+    const all = (d.items || []).filter(i => i.value > 0).sort((a, b) => b.value - a.value), tot = d3.sum(all, i => i.value) || 1;
+    const items = all.slice(0, 6); if (all.length > 6) items.push({ label: "Others", value: d3.sum(all.slice(6), i => i.value) });
+    const s = svg(h), r = Math.min(h, W() * 0.46) / 2 - 6, g = s.append("g").attr("transform", `translate(${r + 6},${h / 2})`);
+    const cols = [C.blue, C.green, C.saffron, C.violet, C.pink, "#4FC3C8", C.dim];
+    const arc = d3.arc().innerRadius(r * 0.62).outerRadius(r).cornerRadius(4).padAngle(0.02);
+    g.selectAll("path").data(d3.pie().value(i => i.value).sort(null)(items)).join("path").attr("fill", (a, i) => cols[i % cols.length])
+      .on("click", (e, a) => showTip(`<b>${a.data.label}</b> ${short(a.data.value)} · ${(a.data.value / tot * 100).toFixed(1)}%`, e.pageX, e.pageY))
+      .transition().duration(T).attrTween("d", a => { const i = d3.interpolate({ startAngle: 0, endAngle: 0 }, a); return t => arc(i(t)); });
+    g.append("text").attr("class", "big").attr("text-anchor", "middle").attr("y", 2).style("font-size", "16px").text((items[0].value / tot * 100).toFixed(0) + "%");
+    g.append("text").attr("class", "lbl").attr("text-anchor", "middle").attr("y", 18).text("largest");
+    const lx = r * 2 + 24, rh = Math.min(22, (h - 8) / items.length);
+    items.forEach((it, i) => { const yy = (h - rh * items.length) / 2 + i * rh + rh / 2;
+      s.append("circle").attr("cx", lx).attr("cy", yy).attr("r", 4.5).attr("fill", cols[i % cols.length]);
+      s.append("text").attr("class", "lbl").attr("x", lx + 11).attr("y", yy + 4).text((it.label || "").slice(0, 12));
+      s.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", yy + 4).text((it.value / tot * 100).toFixed(1) + "%"); });
+  },
+
+  // company events: a dated timeline with a month axis, a TODAY marker, and upcoming events highlighted
+  calendar(d, h) {
+    const ev = (d.events || []).map(e => ({ ...e, t: new Date(e.date) })).filter(e => !isNaN(e.t)).sort((a, b) => a.t - b.t).slice(-8);
+    const s = svg(h), today = d.today ? new Date(d.today) : new Date();
+    if (!ev.length) { s.append("text").attr("class", "lbl").attr("x", W() / 2).attr("y", h / 2).attr("text-anchor", "middle").text("No dated events found"); return; }
+    const kc = k => /result/i.test(k) ? C.blue : /dividend/i.test(k) ? C.green : /agm/i.test(k) ? C.violet : /bonus|split/i.test(k) ? C.pink : C.saffron;
+    const lo = d3.min([ev[0].t, today]), hi = d3.max([ev[ev.length - 1].t, today]), pad = Math.max(12, (hi - lo) / 864e5 * 0.06) * 864e5;
+    const x = d3.scaleTime().domain([new Date(+lo - pad), new Date(+hi + pad)]).range([10, W() - 10]), ay = 34;
+    const gx = s.append("g").attr("transform", `translate(0,${ay})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(W() / 74))).tickFormat(d3.timeFormat("%b '%y")).tickSize(5));
+    gx.select(".domain").attr("stroke", C.line); gx.selectAll("line").attr("stroke", C.line); gx.selectAll("text").attr("class", "lbl");
+    s.append("text").attr("class", "axl").attr("x", 2).attr("y", 9).text("Timeline · month and year");
+    s.append("line").attr("x1", x(today)).attr("x2", x(today)).attr("y1", 14).attr("y2", ay + 4).attr("stroke", C.text).attr("stroke-dasharray", "2 2");
+    s.append("text").attr("class", "tag").attr("fill", C.text).attr("x", Math.min(Math.max(x(today), 22), W() - 22)).attr("y", 12).attr("text-anchor", "middle").text("TODAY");
+    s.selectAll("circle.e").data(ev).join("circle").attr("class", "e").attr("cx", e => x(e.t)).attr("cy", ay).attr("r", 0).attr("fill", e => kc(e.kind))
+      .attr("stroke", e => e.upcoming ? "#fff" : "none").attr("stroke-width", 1.5).transition().duration(400).delay((e, i) => i * 60).attr("r", e => e.upcoming ? 6 : 4.5);
+    const top = 66, rh = (h - top) / ev.length, f = d3.timeFormat("%d %b %Y");
+    const g = s.selectAll("g.row").data(ev).join("g").attr("class", "row").attr("transform", (e, i) => `translate(0,${top + i * rh})`).style("opacity", 0);
+    g.transition().duration(350).delay((e, i) => 150 + i * 60).style("opacity", e => e.upcoming ? 1 : 0.78);
+    g.append("rect").attr("x", 0).attr("y", 3).attr("width", 3).attr("height", rh - 8).attr("rx", 1.5).attr("fill", e => kc(e.kind));
+    g.append("text").attr("class", "val").attr("x", 12).attr("y", rh / 2 - 3).text(e => f(e.t) + (e.upcoming ? "  ·  upcoming" : ""));
+    g.append("text").attr("class", "lbl").attr("x", 12).attr("y", rh / 2 + 11).text(e => { const t = (e.title || "").toLowerCase().startsWith(e.kind.toLowerCase()) ? e.title : `${e.kind}: ${e.title}`; const max = Math.floor((W() - 44) / 5.6); return t.length > max ? t.slice(0, max - 1) + "…" : t; });
+    g.append("text").attr("class", "tag").attr("fill", C.blue).attr("x", W()).attr("text-anchor", "end").attr("y", rh / 2 + 4).text(e => e.source ? `[${e.source}]` : "");
+  },
+
+  // market agenda: how many events fall on each day, stacked by kind (x: day, y: number of events)
+  agenda(d, h) {
+    const s = svg(h), ev = (d.events || []).map(e => ({ ...e, t: e.date }));
+    const days = []; for (let t = new Date(d.from), end = new Date(d.to); t <= end && days.length < 31; t = new Date(+t + 864e5)) days.push(t.toISOString().slice(0, 10));
+    if (!days.length || !ev.length) { s.append("text").attr("class", "lbl").attr("x", W() / 2).attr("y", h / 2).attr("text-anchor", "middle").text("Nothing scheduled"); return; }
+    const order = ["Results", "Dividend", "Bonus", "Stock split", "Buyback", "Rights issue", "AGM / EGM", "IPO opens", "IPO closes", "New listing", "Market holiday", "Board meeting", "Other"];
+    const kc = k => /result/i.test(k) ? C.blue : /dividend/i.test(k) ? C.green : /agm/i.test(k) ? C.violet : /bonus|split/i.test(k) ? C.pink : /ipo|listing/i.test(k) ? "#4FC3C8" : /holiday/i.test(k) ? C.red : /board|other/i.test(k) ? C.dim : C.saffron;
+    const kinds = order.filter(k => ev.some(e => e.kind === k));
+    const rows = days.map(day => { const r = { day }; kinds.forEach(k => r[k] = ev.filter(e => e.t === day && e.kind === k).length); return r; });
+    const top = 30, x = d3.scaleBand().domain(days).range([M.l - 14, W() - M.r]).padding(days.length > 12 ? 0.15 : 0.3);
+    const y = d3.scaleLinear().domain([0, Math.max(1, d3.max(rows, r => d3.sum(kinds, k => r[k])))]).nice().range([h - M.b, top]);
+    const step = Math.max(1, Math.ceil(days.length / Math.max(3, Math.floor((W() - M.l) / 46))));
+    const gy = s.append("g").attr("transform", `translate(${M.l - 14},0)`).call(d3.axisLeft(y).ticks(3).tickFormat(d3.format("d")).tickSize(-(W() - M.l - M.r + 14)));
+    gy.select(".domain").remove(); gy.selectAll("line").attr("stroke", C.line).attr("stroke-opacity", .55).attr("stroke-dasharray", "2 3"); gy.selectAll("text").attr("class", "lbl").attr("x", -6);
+    const gx = s.append("g").attr("transform", `translate(0,${h - M.b})`).call(d3.axisBottom(x).tickValues(days.filter((dd, i) => i % step === 0)).tickFormat(dd => d3.timeFormat(days.length > 8 ? "%d %b" : "%a %d")(new Date(dd))).tickSize(4));
+    gx.select(".domain").attr("stroke", C.line); gx.selectAll("line").attr("stroke", C.line); gx.selectAll("text").attr("class", "lbl").attr("fill", dd => dd === d.today ? C.text : null).style("font-weight", dd => dd === d.today ? 600 : null);
+    s.append("text").attr("class", "axl").attr("x", 2).attr("y", 9).text("Number of events");
+    s.append("text").attr("class", "axl").attr("x", W() - M.r).attr("y", h - 4).attr("text-anchor", "end").text("Day");
+    const g = s.selectAll("g.k").data(d3.stack().keys(kinds)(rows)).join("g").attr("class", "k").attr("fill", sr => kc(sr.key));
+    g.selectAll("rect").data(sr => sr.map(p => ({ ...p, key: sr.key }))).join("rect").attr("x", p => x(p.data.day)).attr("width", x.bandwidth()).attr("rx", 2)
+      .attr("y", y(0)).attr("height", 0)
+      .on("click", (e, p) => showTip(`${d3.timeFormat("%a %d %b")(new Date(p.data.day))} · <b>${p[1] - p[0]} ${p.key.toLowerCase()}</b>`, e.pageX, e.pageY))
+      .transition().duration(T).delay((p, i) => i * 30).attr("y", p => y(p[1])).attr("height", p => Math.max(0, y(p[0]) - y(p[1])));
+    // legend: the kinds present, most frequent first, as many as fit on one line
+    let lx = 2; kinds.map(k => [k, d3.sum(rows, r => r[k])]).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => {
+      const label = `${k} ${n}`, w = label.length * 5.6 + 18; if (lx + w > W()) return;
+      s.append("circle").attr("cx", lx + 4).attr("cy", 19).attr("r", 4).attr("fill", kc(k)); s.append("text").attr("class", "lbl").attr("x", lx + 11).attr("y", 23).text(label); lx += w; });
+  },
+
+  // IPO bid windows: one bar per issue from open to close on a date axis, with a TODAY marker
+  ipo(d, h) {
+    const s = svg(h), rows = (d.ipos || []).filter(i => i.opens && i.closes).slice(0, 6).map(i => ({ ...i, a: new Date(i.opens), b: new Date(i.closes) }));
+    const today = new Date(d.today);
+    if (!rows.length) { s.append("text").attr("class", "lbl").attr("x", W() / 2).attr("y", h / 2).attr("text-anchor", "middle").text("No bid windows published"); return; }
+    const lo = d3.min([today, ...rows.map(r => r.a)]), hi = d3.max([today, ...rows.map(r => r.b)]);
+    const x = d3.scaleTime().domain([new Date(+lo - 864e5), new Date(+hi + 2 * 864e5)]).range([8, W() - 8]), top = 26, rh = (h - top - M.b) / rows.length;
+    const gx = s.append("g").attr("transform", `translate(0,${h - M.b})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(W() / 62))).tickFormat(d3.timeFormat("%d %b")).tickSize(-(h - M.b - top)));
+    gx.select(".domain").attr("stroke", C.line); gx.selectAll("line").attr("stroke", C.line).attr("stroke-opacity", .5).attr("stroke-dasharray", "2 3"); gx.selectAll("text").attr("class", "lbl").attr("dy", 12);
+    s.append("text").attr("class", "axl").attr("x", 2).attr("y", 9).text("Bid window · open to close");
+    s.append("text").attr("class", "axl").attr("x", W() - 8).attr("y", h - 4).attr("text-anchor", "end").text("Date");
+    const col = st => st === "Open" ? C.green : st === "Forthcoming" ? C.saffron : C.dim;
+    const g = s.selectAll("g.i").data(rows).join("g").attr("class", "i").attr("transform", (r, i) => `translate(0,${top + i * rh})`);
+    g.append("rect").attr("x", r => x(r.a)).attr("y", rh / 2 - 2).attr("height", 12).attr("rx", 6).attr("width", 0).attr("fill", r => col(r.status))
+      .transition().duration(T).delay((r, i) => i * 90).attr("width", r => Math.max(8, x(new Date(+r.b + 864e5)) - x(r.a)));
+    g.append("text").attr("class", "val").attr("x", r => Math.min(x(r.a), W() - 150)).attr("y", rh / 2 - 7).text(r => (r.name || "").replace(/ Limited$| Ltd\.?$/i, "").slice(0, 26));
+    s.append("line").attr("x1", x(today)).attr("x2", x(today)).attr("y1", 14).attr("y2", h - M.b).attr("stroke", C.text).attr("stroke-dasharray", "2 2");
+    s.append("text").attr("class", "tag").attr("fill", C.text).attr("x", Math.min(Math.max(x(today), 22), W() - 22)).attr("y", 20).attr("text-anchor", "middle").text("TODAY");
+  },
+
+  // IPO: issue price against the listing price the grey market implies, with the range the premium has covered
+  listing(d, h) {
+    const s = svg(h), lo = Math.min(d.issue, d.low || d.expected), hi = Math.max(d.issue, d.high || d.expected, d.expected);
+    const pad = Math.max(1, (hi - lo) * 0.3), x = d3.scaleLinear().domain([lo - pad, hi + pad]).range([14, W() - 14]), y0 = 50;
+    const gx = s.append("g").attr("transform", `translate(0,${h - 34})`).call(d3.axisBottom(x).ticks(4).tickFormat(v => "₹" + Math.round(v)).tickSize(4));
+    gx.select(".domain").attr("stroke", C.line); gx.selectAll("line").attr("stroke", C.line); gx.selectAll("text").attr("class", "lbl");
+    s.append("text").attr("class", "axl").attr("x", W() - 14).attr("y", h - 4).attr("text-anchor", "end").text("Price a share (₹)");
+    const band = d.low != null && d.high != null && d.high > d.low;
+    if (band) s.append("rect").attr("x", x(d.low)).attr("width", Math.max(2, x(d.high) - x(d.low))).attr("y", y0 - 6).attr("height", 12).attr("rx", 6).attr("fill", C.line);
+    const up = d.expected >= d.issue, col = up ? C.green : C.red, f = v => "₹" + (+v).toFixed(v % 1 ? 1 : 0);
+    s.append("line").attr("x1", x(d.issue)).attr("x2", x(d.issue)).attr("y1", y0).attr("y2", y0).attr("stroke", col).attr("stroke-width", 3).transition().duration(T).attr("x2", x(d.expected));
+    s.append("circle").attr("cx", x(d.issue)).attr("cy", y0).attr("r", 6).attr("fill", C.text).attr("stroke", "#1E2A38").attr("stroke-width", 2);
+    s.append("circle").attr("cx", x(d.expected)).attr("cy", y0).attr("r", 6).attr("fill", col).attr("stroke", "#1E2A38").attr("stroke-width", 2);
+    // issue label above-left of its dot, implied label below-right of its dot: they can never collide
+    s.append("text").attr("class", "tag").attr("fill", C.text).attr("x", Math.max(4, x(d.issue) - 4)).attr("y", y0 - 14).attr("text-anchor", x(d.issue) > 90 ? "end" : "start").text("Issue " + f(d.issue));
+    s.append("text").attr("class", "tag").attr("fill", col).attr("x", Math.min(W() - 4, x(d.expected) + 4)).attr("y", y0 + 24).attr("text-anchor", x(d.expected) < W() - 130 ? "start" : "end").text("Implied listing " + f(d.expected));
+    if (band) s.append("text").attr("class", "lbl").attr("x", x(d.high)).attr("y", y0 - 14).attr("text-anchor", "middle").text(x(d.high) - x(d.issue) > 120 ? "high so far " + f(d.high) : "");
+  },
+
+  // horizontal bars on a percentage axis (can go negative)
+  percentbars(d, h) {
+    const items = d.items || [], s = svg(h), axisH = 30, bh = (h - axisH) / Math.max(1, items.length), L = 118, Rg = 52;
+    const x = d3.scaleLinear().domain([Math.min(0, d3.min(items, i => i.value)), Math.max(1, d3.max(items, i => i.value))]).nice().range([L, W() - Rg]);
+    const gx = s.append("g").attr("transform", `translate(0,${h - axisH})`).call(d3.axisBottom(x).ticks(3).tickFormat(v => v + "%").tickSize(-(h - axisH)));
+    gx.select(".domain").remove(); gx.selectAll("line").attr("stroke", C.line).attr("stroke-opacity", .5).attr("stroke-dasharray", "2 3"); gx.selectAll("text").attr("class", "lbl").attr("dy", 10);
+    s.append("text").attr("class", "axl").attr("x", W()).attr("y", h - 3).attr("text-anchor", "end").text(d.label || "%");
+    const g = s.selectAll("g.r").data(items).join("g").attr("class", "r").attr("transform", (it, i) => `translate(0,${i * bh})`);
+    g.append("text").attr("class", "lbl").attr("y", bh / 2 + 4).text(it => it.label);
+    g.append("rect").attr("rx", 5).attr("y", bh / 2 - 7).attr("height", 14).attr("x", x(0)).attr("width", 0).attr("fill", it => it.value >= 0 ? C.green : C.red)
+      .transition().duration(T).delay((it, i) => i * 60).attr("x", it => x(Math.min(0, it.value))).attr("width", it => Math.max(2, Math.abs(x(it.value) - x(0))));
+    g.append("text").attr("class", "val").attr("x", W()).attr("text-anchor", "end").attr("y", bh / 2 + 4).text(it => (it.value > 0 ? "+" : "") + it.value.toFixed(1) + "%");
+  },
 };
 
 window.render = function (spec) {
@@ -189,5 +439,31 @@ window.render = function (spec) {
 };
 document.addEventListener("click", e => { if (e.target.tagName !== "rect") hideTip(); });
 </script>
+<!-- plugins -->
+<script src="r_balance.js"></script>
+<script src="r_butterfly.js"></script>
+<script src="r_curve.js"></script>
+<script src="r_divbars.js"></script>
+<script src="r_donut.js"></script>
+<script src="r_gauge.js"></script>
+<script src="r_groupbars.js"></script>
+<script src="r_matrix.js"></script>
+<script src="r_mindmap.js"></script>
+<script src="r_multiline.js"></script>
+<script src="r_netbars.js"></script>
+<script src="r_oscillator.js"></script>
+<script src="r_overlay.js"></script>
+<script src="r_radar.js"></script>
+<script src="r_sankey.js"></script>
+<script src="r_scatter.js"></script>
+<script src="r_sparkgrid.js"></script>
+<script src="r_stackarea.js"></script>
+<script src="r_stream.js"></script>
+<script src="r_sunburst.js"></script>
+<script src="r_timeline.js"></script>
+<script src="r_treemap.js"></script>
+<script src="r_underwater.js"></script>
+<script src="r_yearbars.js"></script>
+<!-- /plugins -->
 </body>
 </html>

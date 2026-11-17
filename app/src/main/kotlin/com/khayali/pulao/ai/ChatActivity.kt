@@ -6,7 +6,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.view.WindowInsets
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import com.khayali.pulao.DemoActivity
@@ -39,9 +38,7 @@ class ChatActivity : Activity() {
 
         // Edge-to-edge + keyboard: pad for system bars and the IME so the input stays visible.
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars())
-            val ime = insets.getInsets(WindowInsets.Type.ime())
-            v.setPadding(0, bars.top, 0, maxOf(bars.bottom, ime.bottom))
+            com.khayali.pulao.Insets.pad(v, insets)
             insets
         }
         setContentView(FrameLayout(this).apply { setBackgroundColor(Pal.BG); addView(root, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)) })
@@ -60,12 +57,14 @@ class ChatActivity : Activity() {
 
     private fun menu() {
         val mm = ModelManager.get(this)
-        val items = arrayOf("Clear chat", "Commands & @mentions", "Delete model (free ${DownloadText.bytes(ModelSpec.SIZE_BYTES)})")
+        val memory = MemoryStore.get(this)
+        val items = arrayOf("New chat", "Commands & @mentions", "Memory (${memory.playbook.bullets.size} notes)", "Delete model (free ${DownloadText.bytes(ModelSpec.SIZE_BYTES)})")
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setItems(items) { _, i ->
             when (i) {
                 0 -> chat.newChat()
                 1 -> chat.showHelp()
-                2 -> AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                2 -> startActivity(Intent(this, MemoryActivity::class.java))
+                3 -> AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
                     .setMessage("Delete the on-device model? You can download it again later.")
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton("Delete") { _, _ -> mm.delete() }.show()
@@ -73,7 +72,7 @@ class ChatActivity : Activity() {
         }.show()
     }
 
-    override fun onResume() { super.onResume(); ModelManager.get(this).refresh(); chat.onResumeFromLogin() }
+    override fun onResume() { super.onResume(); ModelManager.get(this).refresh(); chat.onResume() }
     override fun onDestroy() { chat.release(); super.onDestroy() }
 
     companion object { const val EXTRA_DEMO = "demo" }

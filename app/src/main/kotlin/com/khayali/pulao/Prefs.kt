@@ -39,6 +39,8 @@ class Prefs(ctx: Context) {
     var funOn by bool("funOn", false)
     var personaName by str("persona", "ANALYST")
     var disclaimerSeen by bool("disclaimerSeen", false)
+    /** Opt-in web access for the chat (search + public quotes). Off until the user turns it on. */
+    var webOn by bool("web_on", false)
 
     var fdRate by dbl("fdRate", Rates.FD)
     var savingsRate by dbl("savingsRate", Rates.SAVINGS)

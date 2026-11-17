@@ -162,10 +162,12 @@ class DreamSheet(
 
     // ------------------------------------------------------------ public API
 
-    fun setStock(s: Stock) {
+    /** [fromLive] = a price tick for the stock already shown, not a new tap. */
+    fun setStock(s: Stock, fromLive: Boolean = false) {
         val old = stock
         stock = s
-        if (!s.sameAs(old)) chat?.onStockChanged()
+        if (!s.sameAs(old)) { chat?.onStockChanged(); regretPrice = null }
+        if (settingsOpen && fromLive) return                 // a ticking price must not close Settings mid-edit
         if (settingsOpen) { settingsOpen = false; render(); return }
         if (s.sameAs(old)) {
             if (s != old) { refreshMeta(); tabRefresh(); blink() }
@@ -362,7 +364,7 @@ class DreamSheet(
         val r = k.row()
         qtyInput = k.input(Fmt.qty(prefs.watchInput), "amount") { t ->
             if (mute) return@input
-            val v = t.toDoubleOrNull()?.takeIf { it > 0 } ?: return@input
+            val v = Fmt.parse(t)?.takeIf { it > 0 } ?: return@input
             if (prefs.watchMode == QtyMode.AMOUNT) prefs.watchAmount = v else prefs.watchShares = v
             tabRefresh()
         }
@@ -419,7 +421,7 @@ class DreamSheet(
 
         val target = k.input("", "e.g. 2500") { t ->
             if (mute) return@input
-            val v = t.toDoubleOrNull()?.takeIf { it > 0 } ?: return@input
+            val v = Fmt.parse(t)?.takeIf { it > 0 } ?: return@input
             setMove(Projector.pctForTarget(v, dream(0.0).basePrice), seekFrom = false, fromTarget = true)
         }
 
@@ -598,7 +600,7 @@ class DreamSheet(
         tabBody.addView(k.space(8))
         goalInput = k.input(Fmt.qty(goal), "₹ goal") { t ->
             if (mute) return@input
-            t.toDoubleOrNull()?.takeIf { it > 0 }?.let { goal = it; tabRefresh() }
+            Fmt.parse(t)?.takeIf { it > 0 }?.let { goal = it; tabRefresh() }
         }
         tabBody.addView(goalInput, k.lp(MATCH_PARENT))
         tabBody.addView(k.space(10))
@@ -622,6 +624,7 @@ class DreamSheet(
         }, k.lp(MATCH_PARENT))
 
         tabRefresh = r@{
+            @Suppress("NAME_SHADOWING") val s = stock ?: return@r        // live ticks replace the stock; never use the one captured at build time
             val now = nowValue()
             chipRow.removeAllViews()
             Dreams.goalChips(now).forEachIndexed { i, g ->
@@ -630,8 +633,15 @@ class DreamSheet(
                     goal = g; mute = true; goalInput.setText(Fmt.qty(g)); mute = false; haptic(chipRow); tabRefresh()
                 }.also { k.styleChip(it, abs(g - goal) < 0.5) })
             }
-            headline.text = "To turn ${rupees(now)} into ${rupees(goal)}"
             yearsBox.removeAllViews()
+            if (now <= 0) {
+                headline.text = "Nothing to grow yet"
+                bigPct.text = "—"
+                needLine.text = "That amount can't buy one share at this price. Raise the amount to plan a goal."
+                avgLine.show(null); fun1.show(null); yearsTitle.visibility = View.GONE
+                return@r
+            }
+            headline.text = "To turn ${rupees(now)} into ${rupees(goal)}"
             if (goal <= now) {
                 bigPct.text = "Already there 🎉"
                 needLine.text = "Your pulao is cooked — ${rupees(now - goal)} above this dream."
@@ -778,7 +788,7 @@ class DreamSheet(
         r.addView(k.text("I could have bought at  ₹", 14f, Pal.TEXT), k.lp(0, WRAP_CONTENT, 1f))
         val input = k.input(plain(regretPrice!!), "price") { t ->
             if (mute) return@input
-            t.toDoubleOrNull()?.takeIf { it > 0 }?.let { regretPrice = it; tabRefresh() }
+            Fmt.parse(t)?.takeIf { it > 0 }?.let { regretPrice = it; tabRefresh() }
         }
         r.addView(input, k.lp(k.dp(130)))
         tabBody.addView(r, k.lp(MATCH_PARENT))
@@ -805,6 +815,7 @@ class DreamSheet(
         }, k.lp(MATCH_PARENT))
 
         tabRefresh = r@{
+            @Suppress("NAME_SHADOWING") val s = stock ?: return@r
             val past = regretPrice ?: ref
             val qty = when (s) {
                 is Stock.Holding -> s.qty
@@ -868,6 +879,9 @@ class DreamSheet(
             11f, Pal.DIM).apply { setLineSpacing(0f, 1.3f) })
 
         tabRefresh = r@{
+            @Suppress("NAME_SHADOWING") val s = stock?.takeIf { it !is Stock.Quote } ?: return@r
+            @Suppress("NAME_SHADOWING") val invested = if (s is Stock.Holding) s.invested else (s as Stock.Portfolio).invested
+            @Suppress("NAME_SHADOWING") val current = if (s is Stock.Holding) s.current else (s as Stock.Portfolio).current
             val held = prefs.held(s.name)
             for ((y, c) in chips) k.styleChip(c, held != null && abs(y - held) < 1e-9)
             table.removeAllViews()
@@ -992,7 +1006,7 @@ class DreamSheet(
         val er = k.row()
         er.addView(k.text("My monthly expenses  ₹", 14f, Pal.TEXT), k.lp(0, WRAP_CONTENT, 1f))
         er.addView(k.input(Fmt.qty(prefs.monthlyExpense), "50000") { t ->
-            t.toDoubleOrNull()?.takeIf { it > 0 }?.let { prefs.monthlyExpense = it; tabRefresh() }
+            Fmt.parse(t)?.takeIf { it > 0 }?.let { prefs.monthlyExpense = it; tabRefresh() }
         }, k.lp(k.dp(130)))
         tabBody.addView(er, k.lp(MATCH_PARENT))
 
@@ -1027,7 +1041,7 @@ class DreamSheet(
                     else "Nothing to spend yet. Try Dream profit or a bigger Move %.", "₹0")
                 return@r
             }
-            quip(gain, if (d.cost > 0) gain / d.cost * 100 else 0.0)?.let {
+            (if (isProfit) quip(gain, if (d.cost > 0) gain / d.cost * 100 else 0.0) else null)?.let {
                 idea(if (prefs.tone == Tone.MASALA) "🤭" else "💬", if (prefs.tone == Tone.MASALA) "says the khayali pulao" else "a thought", it, Pal.SAFFRON)
             }
             val m = prefs.monthlyExpense

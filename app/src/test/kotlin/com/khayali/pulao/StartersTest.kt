@@ -16,6 +16,20 @@ class StartersTest {
         assertTrue(a.contains("Why is @CHAICO lagging?"))
         assertTrue(ContextPills.starters(h, Persona.ANALYST, true).contains("What if @INFRA moves +15%?"))
         assertTrue(ContextPills.starters(emptyList(), Persona.ANALYST, false).first().startsWith("Connect Kite"))
+        // with Web on, pills offer things only the web can answer — and never when it is off
+        assertTrue(ContextPills.starters(h, Persona.ANALYST, true, webOn = true).contains("/events INFRA"))
+        assertTrue(ContextPills.starters(emptyList(), Persona.ANALYST, false, webOn = true).contains("/price NIFTY"))
+        assertTrue((ContextPills.starters(h, Persona.ANALYST, true) + ContextPills.starters(emptyList(), Persona.ANALYST, false))
+            .none { it.startsWith("/price") || it.startsWith("/events") || it.startsWith("/news") })
+    }
+
+    @Test fun appResolvesWhichHoldingIsMeant() {
+        val hs = listOf(Stock.Holding("INFRA", 250.0, 1200.0, 300000.0, 1450.0), Stock.Holding("CHAICO", 10.0, 700.0, 7000.0, 658.0))
+        assertEquals("INFRA", ContextPills.pick("What if my biggest holding falls 20%?", hs)!!.second.name)
+        assertEquals("CHAICO", ContextPills.pick("how is my worst stock doing", hs)!!.second.name)
+        assertEquals("INFRA", ContextPills.pick("chart my best performer", hs)!!.second.name)
+        assertEquals(null, ContextPills.pick("what is the biggest risk in markets", hs))      // no holding meant
+        assertEquals(null, ContextPills.pick("my biggest holding", emptyList()))
     }
 
     @Test fun userPercentsAreSigned() {

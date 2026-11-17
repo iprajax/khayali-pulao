@@ -26,15 +26,20 @@ import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.min
 
-/** The on-device promise, shown everywhere. Keep in sync with the manifest (INTERNET only for the model download, no backup). */
+/**
+ * The privacy promise, shown everywhere. Keep in sync with the manifest, PRIVACY.md and
+ * OnDeviceOnlyTest: the portfolio never leaves the phone; every use of the internet is optional
+ * and switched on by the user.
+ */
 object Privacy {
-    const val BADGE = "🔒 Nothing leaves your phone · not advice"
-    const val TITLE = "🔒 Nothing leaves your phone"
+    const val BADGE = "🔒 Your portfolio stays on your phone · not advice"
+    const val TITLE = "🔒 Your portfolio never leaves your phone"
     val POINTS = listOf(
-        "Internet is used only for two optional things: the one-time AI model download (huggingface.co) and, if you tap Connect Kite, Zerodha's official read-only Kite MCP. Nothing you see or ask is ever uploaded.",
-        "The AI chat runs entirely on your phone (Gemma 4, on-device). Your questions and Kite's numbers never leave the device.",
+        "The internet is used for three optional things, each off until you choose it: the one-time AI model download (huggingface.co); Zerodha's official read-only Kite MCP, if you tap Connect Kite; and web lookups, if you switch Web on.",
+        "With Web on, only a company name or your search words go out — to DuckDuckGo for search and Yahoo Finance for prices. Amounts, quantities and identifiers are stripped from every query in code. Your holdings are never sent.",
+        "The AI chat runs entirely on your phone (Gemma 4, on-device). Your questions and Kite's numbers are never uploaded to any AI service.",
         "Reads Kite's screen only while Kite is open, and only to do the maths. All calculations run on this phone (edge, not cloud).",
-        "Keeps no copy of your holdings. Stores only your own settings and the hold periods you type in — on this phone, excluded from cloud backup and phone-to-phone transfer.",
+        "Stored on this phone only: your settings, the hold periods you type in, the current chat thread and the chat's memory notes. Private files, excluded from cloud backup and phone-to-phone transfer. New chat clears the thread; Memory → Erase clears the notes.",
         "No login, no account, no analytics, no ads, no trackers.",
         "Never taps Buy/Sell, never places orders. Only Kite's navigation tabs pass through.",
         "Uninstall = everything gone.",

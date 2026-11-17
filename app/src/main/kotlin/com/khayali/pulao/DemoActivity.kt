@@ -87,8 +87,7 @@ class DemoActivity : Activity() {
         })
         // Edge-to-edge (targetSdk 35): keep content clear of the status and navigation bars.
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars())
-            v.setPadding(0, bars.top, 0, bars.bottom)
+            com.khayali.pulao.Insets.pad(v, insets)
             insets
         }
         setContentView(root)
@@ -145,6 +144,8 @@ class DemoActivity : Activity() {
         else onBackInvokedDispatcher.unregisterOnBackInvokedCallback(cb)
     }
 
+    // Android 13+ gets Back through the OnBackInvokedCallback registered above; this serves Android 9–12.
+    @android.annotation.SuppressLint("GestureBackNavigation")
     @Deprecated("Legacy back for Android 12 and below")
     override fun onBackPressed() {
         if (sheet != null) close() else super.onBackPressed()

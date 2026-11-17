@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 class KiteCallbackActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val uri = intent?.data
+        val uri = intent?.data?.takeIf { it.isHierarchical }     // an opaque URI (mailto:x) would throw on getQueryParameter
         val kite = KiteMcpClient.get(this)
         CoroutineScope(Dispatchers.Main).launch {
             kite.complete(uri?.getQueryParameter("code"), uri?.getQueryParameter("state"),

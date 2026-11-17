@@ -1,25 +1,29 @@
 # Privacy policy
 
-**Short version: nothing leaves your phone.** Optional network use: the AI model download (Hugging Face) and, if you choose, a read-only Kite connection (Zerodha's MCP).
+**Short version: your portfolio never leaves your phone.** The internet is used only for things you switch on yourself: the AI model download (Hugging Face), a read-only Kite connection (Zerodha's MCP), and web lookups (DuckDuckGo search, Yahoo Finance prices) that send search words only.
 
-Khayali Pulao is a calculator. It runs entirely on your Android device ("on the edge"), and it is built so that it *cannot* send your data anywhere.
+Khayali Pulao is a calculator. It runs on your Android device ("on the edge"). There is no Khayali Pulao server: the developer receives nothing.
 
 ## What the app can access
 
 | Access | Why | Limits |
 |---|---|---|
 | Android **Accessibility service** | To read the numbers Kite already shows on screen (quantity, average price, LTP, invested / current) when you tap a row, and to draw the floating bubble. | Acts only while Zerodha Kite (`com.zerodha.kite3`) is the app in front. It never types, never taps Buy/Sell and never places orders. The only action it ever sends to Kite is a scroll, and a click on Kite's own **navigation tabs** (bottom bar, Holdings/Positions, watchlist groups). |
-| Internet | To download the optional AI model **once** (Gemma 4 E2B, ~2.6 GB) from `huggingface.co` via Android's DownloadManager. | That is the only network use. Nothing is ever uploaded. The file is checked against a pinned SHA-256 before use. A unit test fails if any other network code or address appears. |
+| Internet: model download | To download the optional AI model **once** (Gemma 4 E2B, ~2.6 GB) from `huggingface.co` via Android's DownloadManager. | Nothing is uploaded. The file is checked against a pinned SHA-256 before use. |
+| Internet: web lookups (optional, off by default) | Only after you tap **Allow web access** in the chat: search `html.duckduckgo.com` for news, results and dates, and read prices from `query1.finance.yahoo.com`. | Only the company name or your search words are sent. Rupee amounts, quantities, e-mail addresses and long digit runs are removed from every query in code, so holdings are never sent. No cookies; a generic user agent with no device model; the search view may load the results page and nothing else. These services see your IP address and the search words, as with any web search. Links open in your browser only when you tap them. Switch it off in Settings → AI chat. |
 | Kite connection (optional) | Only if you tap **Connect Kite**: reads your holdings, positions, margins and orders via Zerodha's official Kite MCP (`mcp.kite.trade`) so the chat can use real numbers. | You log in on Zerodha's page; the app never sees your password. Read-only: every order/GTT tool is blocked in code. Your profile's email, phone and PAN are never passed to the model. Session expires daily; Disconnect clears it. |
-| AI chat | Answers your questions on-device with the app's own calculators. | Runs entirely on the phone (LiteRT-LM). Questions, answers and Kite's numbers are never sent anywhere or saved. |
+| AI chat | Answers your questions on-device with the app's own calculators. | Runs entirely on the phone (LiteRT-LM). Questions, answers and Kite's numbers are never sent to any AI service. |
 
 ## What the app stores
 
 - Your own settings (FD rate, inflation, ladder steps, tone, bubble size, your custom dream unit…).
 - The holding periods **you type in**, keyed by the stock's name, so "vs FD" and LTCG/STCG work.
+- The **current chat thread** (your questions, the answers and their cards — which can include your holdings if Kite is connected), so it is still there when you come back. **New chat** deletes it.
+- The chat's **memory notes**: short notes about your goals and preferences, and lessons from its own mistakes. Secrets, ID numbers and buy/sell instructions are refused. Read, delete or erase them under **Memory**, or switch memory off.
+- If you connect Kite: the login token and your tickers (for @mentions). **Disconnect** deletes them.
 
-It does **not** store your holdings, balances, account ID or anything else read from Kite.
-Stored settings live in the app's private storage on your phone and are **excluded from Android cloud backup and phone-to-phone transfer** (`allowBackup="false"` + data-extraction rules).
+The overlay on Kite itself stores nothing it reads from the screen.
+All of the above lives in the app's private storage on your phone and is **excluded from Android cloud backup and phone-to-phone transfer** (`allowBackup="false"` + data-extraction rules).
 
 ## What the app does not do
 

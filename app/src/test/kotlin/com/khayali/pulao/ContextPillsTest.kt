@@ -32,5 +32,7 @@ class ContextPillsTest {
     @Test fun parsesModelSuggestions() {
         val p = ContextPills.parseModel("1. What if INFRA doubles?\n- Compare with FD\n• Here are some suggestions:\nShow my tax")
         assertEquals(listOf("What if INFRA doubles?", "Compare with FD", "Show my tax"), p)
+        // a suggestion that starts with a number keeps it (only list markers are stripped)
+        assertEquals(listOf("12% for 10 years?", "3 year FD vs Nifty?"), ContextPills.parseModel("12% for 10 years?\n2) 3 year FD vs Nifty?"))
     }
 }

@@ -97,6 +97,14 @@ class KhayaliService : AccessibilityService() {
 
     override fun onInterrupt() = Unit
 
+    /** Fold, unfold or rotate: every overlay was laid out for the old screen, so rebuild them. */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (bubble == null && sheet == null) return
+        hideAll()
+        main.removeCallbacks(foregroundCheck); main.postDelayed(foregroundCheck, 200)
+    }
+
     override fun onDestroy() {
         if (::prefs.isInitialized) prefs.sp.unregisterOnSharedPreferenceChangeListener(prefListener)
         hideAll()
@@ -119,7 +127,8 @@ class KhayaliService : AccessibilityService() {
 
     private fun hideAll() {
         stopLive()
-        sheet?.let { safeRemove(it.view) }; sheet = null
+        sheet?.let { it.release(); safeRemove(it.view) }; sheet = null      // release() frees the chat's model session
+        bubbleParams = null                                                // next time, start from the saved spot, not the parked one
         safeRemove(catcher); catcher = null
         safeRemove(pill); pill = null
         removeBubble()
@@ -531,7 +540,7 @@ class KhayaliService : AccessibilityService() {
         override fun run() {
             val s = sheet ?: return
             val cur = s.stock
-            if (prefs.live && cur != null) findStock(cur)?.let { if (it != cur) s.setStock(it) }
+            if (prefs.live && cur != null) findStock(cur)?.let { if (it != cur) s.setStock(it, fromLive = true) }
             main.postDelayed(this, 1500)
         }
     }

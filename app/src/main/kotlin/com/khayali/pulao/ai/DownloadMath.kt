@@ -28,7 +28,7 @@ class SpeedMeter(private val alpha: Double = 0.25) {
 
 object DownloadText {
     fun bytes(b: Long): String = when {
-        b >= 1_000_000_000 -> String.format(Locale.US, "%.2f GB", b / 1e9)
+        b >= 999_500_000 -> String.format(Locale.US, "%.2f GB", b / 1e9)
         b >= 1_000_000 -> String.format(Locale.US, "%.0f MB", b / 1e6)
         b >= 1_000 -> String.format(Locale.US, "%.0f KB", b / 1e3)
         else -> "$b B"

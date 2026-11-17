@@ -37,7 +37,8 @@ sealed class Stock {
     }
 
     /** Same instrument (ignoring price changes)? */
-    fun sameAs(other: Stock?) = other != null && other::class == this::class && other.name == name
+    fun sameAs(other: Stock?) = other != null && other::class == this::class && other.name == name &&
+        (this !is Quote || (other as Quote).exchange == exchange)     // the same symbol on NSE and BSE are two rows
 }
 
 /** Parses Kite's accessibility descriptions (content-desc) into [Stock]s. */
@@ -109,23 +110,28 @@ object Fmt {
         return (if (v < 0 && s.any { it in '1'..'9' }) "-" else "") + group(int) + frac
     }
 
-    private fun sign(v: Double) = if (v < 0) "−" else "+"
+    /** "−" only when the rounded figure is not zero, so a tiny loss never prints as "−0". */
+    private fun sign(v: Double, body: String) = if (v < 0 && body.any { it in '1'..'9' }) "−" else "+"
+
+    /** Reads a number the way this app prints it: "50,000", "₹1,23,456.5". */
+    fun parse(text: String?): Double? = text?.replace(",", "")?.replace("₹", "")?.trim()?.toDoubleOrNull()
 
     fun price(v: Double): String = format(v, 2)
     fun amount(v: Double): String = format(v, 0)
-    fun signed(v: Double): String = sign(v) + format(abs(v), 0)
-    fun signedPrice(v: Double): String = sign(v) + format(abs(v), 2)
+    fun signed(v: Double): String = format(abs(v), 0).let { sign(v, it) + it }
+    fun signedPrice(v: Double): String = format(abs(v), 2).let { sign(v, it) + it }
 
     /** Full (1,23,45,678) or short (1.23 Cr / 5.12 L) rupee amount. */
     fun money(v: Double, compact: Boolean): String {
         val a = abs(v)
         if (!compact || a < 1e5) return format(v, 0)
-        val s = (if (a >= 1e7) String.format(Locale.US, "%.2f Cr", a / 1e7)
+        // 99.995 L and up would print as "100 L": that is a crore.
+        val s = (if (a >= 1e7 || a / 1e5 >= 99.995) String.format(Locale.US, "%.2f Cr", a / 1e7)
         else String.format(Locale.US, "%.2f L", a / 1e5)).replace(".00 ", " ")  // "5 L", not "5.00 L"
         return (if (v < 0) "-" else "") + s
     }
 
-    fun signedMoney(v: Double, compact: Boolean) = sign(v) + money(abs(v), compact)
+    fun signedMoney(v: Double, compact: Boolean) = money(abs(v), compact).let { sign(v, it) + it }
 
     /** "+10%", "−2.5%", "0%". */
     fun pct(p: Double): String {
@@ -135,7 +141,7 @@ object Fmt {
     }
 
     /** Always one decimal: "+16.2%". */
-    fun pct1(p: Double) = sign(p) + String.format(Locale.US, "%.1f", abs(p)) + "%"
+    fun pct1(p: Double) = String.format(Locale.US, "%.1f", abs(p)).let { sign(p, it) + it + "%" }
 
     fun qty(v: Double): String =
         if (v % 1.0 == 0.0) format(v, 0)

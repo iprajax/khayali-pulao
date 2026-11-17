@@ -101,7 +101,7 @@ object KiteData {
                 }.sortedByDescending { it["current"] as Double }
                 val inv = items.sumOf { it["invested"] as Double }; val cur = items.sumOf { it["current"] as Double }
                 gson.toJson(mapOf(
-                    "summary" to "${items.size} holdings: invested ${inr(inv)}, now ${inr(cur)}, P&L ${if (cur >= inv) "+" else "−"}${inr(kotlin.math.abs(cur - inv))}.",
+                    "summary" to "${items.size} ${if (items.size == 1) "holding" else "holdings"}: invested ${inr(inv)}, now ${inr(cur)}, P&L ${if (cur >= inv) "+" else "−"}${inr(kotlin.math.abs(cur - inv))}.",
                     "count" to items.size, "invested" to r(inv), "current" to r(cur), "pnl" to r(cur - inv),
                     "pnl_percent" to if (inv > 0) Math.round((cur - inv) / inv * 1000) / 10.0 else 0.0,
                     "largest_weight_percent" to if (cur > 0 && items.isNotEmpty()) Math.round((items[0]["current"] as Double) / cur * 1000) / 10.0 else 0.0,
@@ -149,7 +149,7 @@ object KiteData {
             }
             "history" -> {
                 val rows = (arrayIn(el) ?: JsonArray()).map { it.asJsonObject }
-                val pts = rows.map { mapOf("t" to it.s("date"), "c" to it.d("close")) }
+                val pts = rows.map { mapOf("t" to it.s("date"), "o" to it.d("open"), "h" to it.d("high"), "l" to it.d("low"), "c" to it.d("close"), "v" to it.d("volume")) }
                 val first = rows.firstOrNull()?.d("close") ?: 0.0; val last = rows.lastOrNull()?.d("close") ?: 0.0
                 val hi = rows.maxOfOrNull { it.d("high") } ?: 0.0; val lo = rows.minOfOrNull { it.d("low") } ?: 0.0
                 val chg = if (first > 0) Math.round((last - first) / first * 1000) / 10.0 else 0.0

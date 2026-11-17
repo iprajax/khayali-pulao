@@ -32,19 +32,26 @@ import com.khayali.pulao.Pal
 import com.khayali.pulao.Prefs
 import com.khayali.pulao.R
 import com.khayali.pulao.Stock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.khayali.pulao.ai.ChatFlow.busy
+import com.khayali.pulao.ai.ChatFlow.canStop
 
 /**
  * Gemini-style on-device chat. Used full-screen (ChatActivity) and inside the Kite
  * overlay sheet (where it already knows the tapped stock).
  *
- * Lifecycle: model card (download → verify) → warm-up → greeting + suggestion pills
- * → streaming answers with tool chips → follow-up pills.
+ * The view renders one [ChatFlow.Phase] and executes [ChatFlow.Action]s: every way in — typing,
+ * pills, /commands, @mentions, retries, the Kite and Web switches — goes through [submit] and the
+ * same state machine. Commands need no model; free-form questions use the on-device model.
  */
 class ChatView(
     ctx: Context,
@@ -66,8 +73,23 @@ class ChatView(
     private var lastPills: List<String> = emptyList()
     private var lastCall: ToolEvent? = null
     private val directTools by lazy { AppTools(host) }
-    private val session = ChatSession(ctx.applicationContext, { prefs.personaName }, host, { prefs.tone }, scope)
+    private val memoryStore = MemoryStore.get(ctx)
+    private val web by lazy { WebClient.get(context) }
+    private val session = ChatSession(ctx.applicationContext, { prefs.personaName }, host, { prefs.tone }, scope,
+        webOn = { prefs.webOn }, memory = { q -> memoryStore.select(q) })
     private val persona get() = Persona.of(prefs.personaName)
+
+    /** Where the chat is right now; the only source of truth for "busy". */
+    private var phase = ChatFlow.Phase.IDLE
+    private var turnJob: Job? = null
+    /** A command waiting for Kite to connect or Web to be switched on; re-run automatically afterwards. */
+    private var pending: String? = null
+    private var lastKiteLink: ChatFlow.Kite? = null
+    /** The saved thread (full-screen chat only); survives the app being closed or killed. */
+    private val store = if (compact) null else ChatStore(ctx)
+    private val transcript = mutableListOf<ChatStore.Entry>()
+    /** Memory bullets behind the previous answer, waiting to hear whether the user accepted it. */
+    private var awaitingFeedback: Set<Int> = emptySet()
 
     private val list = k.column().apply { setPadding(k.dp(16), k.dp(12), k.dp(16), k.dp(24)) }
     private val scroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(list) }
@@ -85,8 +107,15 @@ class ChatView(
     private var shownState: String? = null
 
     private val kite by lazy { KiteMcpClient.get(context) }
-    private val kitePill by lazy { k.text("", 12f, Pal.MUTED, 500).apply { setPadding(k.dp(12), k.dp(6), k.dp(12), k.dp(6)) } }
-    private val kitePillRow by lazy { k.row(Gravity.CENTER).apply { setPadding(0, k.dp(6), 0, 0); addView(kitePill) } }
+    private fun topPill() = k.text("", 12f, Pal.MUTED, 500).apply { setPadding(k.dp(12), k.dp(6), k.dp(12), k.dp(6)); maxLines = 1 }
+    private val kitePill by lazy { topPill() }
+    private val webPill by lazy { topPill() }
+    private val kitePillRow by lazy {
+        k.row(Gravity.CENTER).apply {
+            setPadding(k.dp(12), k.dp(6), k.dp(12), 0)
+            addView(kitePill); addView(webPill, k.lp(WRAP_CONTENT).apply { marginStart = k.dp(8) })
+        }
+    }
 
     init {
         background = android.graphics.drawable.LayerDrawable(arrayOf(
@@ -95,88 +124,218 @@ class ChatView(
                 intArrayOf(Pal.alpha(Pal.BLUE, 0.28f), Pal.alpha(Gem.VIOLET, 0.08f), 0x00000000)),
         ))
         val col = k.column()
-        col.addView(kitePillRow, k.lp(MATCH_PARENT))
+        col.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; isFillViewport = true; addView(kitePillRow) }, k.lp(MATCH_PARENT))
         col.addView(scroll, k.lp(MATCH_PARENT, 0, 1f))
         col.addView(pills, k.lp(MATCH_PARENT))
         col.addView(buildInputBar(), k.lp(MATCH_PARENT))
         addView(col, LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
+        restore()
+        renderWebPill()
         scope.launch {
             mm.state.combine(AiEngine.state) { m, e -> m to e }.collect { (m, e) -> onState(m, e) }
         }
-        scope.launch { kite.state.collect { renderKitePill(it); preloadKite() } }
+        scope.launch { kite.state.collect { onKiteState(it) } }
         mm.refresh()
     }
 
+    // ------------------------------------------------------------ state machine
+
+    private fun dispatch(e: ChatFlow.Ev) {
+        val before = phase
+        phase = ChatFlow.next(phase, e)
+        if (phase == before) return
+        if (phase.busy != before.busy) setWorking(phase.busy)
+        input.hint = hint()
+    }
+
+    private fun hint() = when {
+        phase == ChatFlow.Phase.NEEDS_MODEL -> "Type / for commands"
+        else -> "Ask Khayali Pulao"
+    }
+
+    private fun env() = ChatFlow.Env(mm.isReady(), kite.link, prefs.webOn)
+
+    /** A turn ended (answer, error or stop): settle the phase and bring the pills back. */
+    private fun finishTurn(ev: ChatFlow.Ev = ChatFlow.Ev.Finished) {
+        dispatch(ev)
+        if (!mm.isReady()) dispatch(ChatFlow.Ev.ModelMissing)
+    }
+
+    /** Called by the host when the screen comes back: a Kite login may have lapsed while away. */
+    fun onResume() {
+        kite.checkFresh()
+        renderWebPill()
+    }
+
     // ---------------------------------------------------- Kite (MCP) pill
+
+    private fun onKiteState(s: KiteMcpClient.State) {
+        renderKitePill(s)
+        val link = kite.link
+        val changed = lastKiteLink != null && lastKiteLink != link
+        lastKiteLink = link
+        if (changed) session.invalidate()                    // tools and prompt differ; the thread itself is kept
+        if (s is KiteMcpClient.State.Connected) {
+            preloadKite()
+            val p = pending
+            if (p != null && ChatFlow.route(p, env()) !is ChatFlow.Action.EnableWeb) { pending = null; post { submit(p) } }
+            else if (messageCount == 0) { shownState = null; onState(mm.state.value, AiEngine.state.value) }
+        } else if (changed && messageCount == 0) { shownState = null; onState(mm.state.value, AiEngine.state.value) }
+    }
+
+    private fun stylePill(pill: TextView, label: String, color: Int, onTap: () -> Unit) {
+        pill.text = label; pill.setTextColor(color)
+        pill.background = k.press(k.rounded(Pal.alpha(color, 0.12f), 999f, Pal.alpha(color, 0.5f)), 999f)
+        pill.setOnClickListener { onTap() }
+    }
 
     private fun renderKitePill(s: KiteMcpClient.State) {
         val (label, color) = when (s) {
             is KiteMcpClient.State.Connected -> "●  Kite connected" + (s.name?.let { " · $it" } ?: "") to Pal.GREEN
             KiteMcpClient.State.Connecting -> "Connecting to Kite…" to Pal.MUTED
             is KiteMcpClient.State.WaitingForBrowser -> "Finish login on Zerodha's page · tap to reopen" to Pal.SAFFRON
-            is KiteMcpClient.State.Failed -> "Kite: ${s.message} · tap to retry" to Pal.RED
+            is KiteMcpClient.State.Failed -> "Kite: ${s.message.take(48)} · tap to retry" to Pal.RED
+            KiteMcpClient.State.Expired -> "↻  Kite login expired · reconnect" to Pal.SAFFRON
             KiteMcpClient.State.Off -> "＋  Connect Kite (read-only)" to Pal.BLUE
         }
-        kitePill.text = label; kitePill.setTextColor(color)
-        kitePill.background = k.press(k.rounded(Pal.alpha(color, 0.12f), 999f, Pal.alpha(color, 0.5f)), 999f)
-        kitePill.setOnClickListener { onKitePill(s) }
+        stylePill(kitePill, label, color) { onKitePill(kite.state.value) }
         kitePill.alpha = 0f; kitePill.animate().alpha(1f).setDuration(250).start()
-        if (s is KiteMcpClient.State.Connected) { session.reset(); if (messageCount == 0) { shownState = null; onState(mm.state.value, AiEngine.state.value) } }
+    }
+
+    private fun renderWebPill() {
+        if (prefs.webOn) stylePill(webPill, "🌐  Web on", Pal.GREEN) { onWebPill() }
+        else stylePill(webPill, "🌐  Web off", Pal.MUTED) { onWebPill() }
+    }
+
+    private fun dialog() = android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
+
+    /**
+     * Web access is asked for once, in the chat itself — like any permission. After "Allow" it is
+     * never asked again; the switch lives in Settings.
+     */
+    private fun onWebPill() {
+        if (prefs.webOn) openSettings() else askWeb(null)
+    }
+
+    private fun openSettings() {
+        runCatching { context.startActivity(android.content.Intent(context, com.khayali.pulao.SettingsActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    private fun askWeb(question: String?) {
+        if (phase.busy) return
+        startThread(); setPills(emptyList())
+        if (question != null) addUser(question)
+        newBot().done((if (question != null) "**$question** needs web access.\n\n" else "") + WEB_EXPLAINER, null, null, chips = listOf(
+            "Allow web access" to { setWeb(true) },
+            "Not now" to { pending = null; setPills(lastPills, remember = false) }))
+        scrollToEnd()
+    }
+
+    private fun setWeb(on: Boolean) {
+        prefs.webOn = on
+        session.invalidate()
+        renderWebPill()
+        val p = pending
+        if (on && p != null) { pending = null; submit(p) }
+        else if (on) say("", "Web access is on. You can switch it off any time in **Settings → AI chat**.", listOf("Open Settings" to { openSettings() }))
+        if (messageCount == 0) { shownState = null; onState(mm.state.value, AiEngine.state.value) }
     }
 
     private fun onKitePill(s: KiteMcpClient.State) {
         when (s) {
-            is KiteMcpClient.State.Connected -> android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
+            is KiteMcpClient.State.Connected -> dialog()
                 .setTitle("Kite connected (read-only)")
                 .setMessage("The chat can read your holdings, positions, margins and orders to daydream on real numbers. It can never place, modify or cancel orders.")
                 .setNegativeButton("Keep", null)
-                .setPositiveButton("Disconnect") { _, _ -> kite.disconnect(); session.reset() }.show()
+                .setPositiveButton("Disconnect") { _, _ -> kite.disconnect(); kitePortfolio = null; kiteRows = emptyList() }.show()
             is KiteMcpClient.State.WaitingForBrowser -> openUrl(s.url)
             KiteMcpClient.State.Connecting -> Unit
-            else -> android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
+            KiteMcpClient.State.Expired -> scope.launch { kite.connect(::openUrl) }      // already agreed once: straight to Zerodha's page
+            else -> dialog()
                 .setTitle("Connect Zerodha Kite?")
-                .setMessage("Uses Zerodha's official Kite MCP (mcp.kite.trade). You sign in on Zerodha's own page in your browser — if you're already logged in to Kite there, it's one tap. The app never sees your password.\n\n• Read-only: holdings, positions, margins, orders\n• Every order/GTT tool is blocked in code\n• Data comes from Zerodha to this phone and is used only by the on-device AI\n• Expires daily; disconnect anytime")
-                .setNegativeButton("Not now", null)
+                .setMessage("Uses Zerodha's official Kite MCP (mcp.kite.trade). You sign in on Zerodha's own page in your browser — if you're already logged in to Kite there, it's one tap. The app never sees your password.\n\n• Read-only: holdings, positions, margins, orders\n• Every order/GTT tool is blocked in code\n• Data comes from Zerodha to this phone and is used only by the on-device AI\n• Expires daily; reconnect is one tap")
+                .setNegativeButton("Not now") { _, _ -> pending = null }
                 .setPositiveButton("Connect") { _, _ -> scope.launch { kite.connect(::openUrl) } }.show()
         }
     }
 
     private fun openUrl(url: String) {
-        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        runCatching {
+            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
-    fun onResumeFromLogin() = Unit
-
-    /** The tapped stock changed (overlay): start a fresh thread with the new context. */
+    /** The tapped stock changed (overlay) or the user asked for a new chat: fresh thread. */
     fun onStockChanged() {
-        session.reset(); messageCount = 0; shownState = null
+        turnJob?.cancel(); pillJobCancel()
+        session.reset(); messageCount = 0; shownState = null; pending = null
+        lastCall = null; lastShown = null; lastQuestion = null; awaitingFeedback = emptySet()
+        transcript.clear(); store?.clear()
+        dispatch(ChatFlow.Ev.Reset)
         onState(mm.state.value, AiEngine.state.value)
     }
 
     fun newChat() = onStockChanged()
 
-    fun release() { session.stop(); scope.cancel() }
+    fun release() { turnJob?.cancel(); session.close(); glowAnim?.cancel(); scope.cancel() }
 
     // ================================================================ states
 
     private fun onState(m: ModelManager.State, e: AiEngine.State) {
         if (m !is ModelManager.State.Ready) {
-            setInputEnabled(false, "Download the model to chat")
-            showModelCard(m); return
+            dispatch(ChatFlow.Ev.ModelMissing)
+            // Commands work without the model, so the input stays usable; an existing thread is never wiped.
+            if (messageCount == 0) showModelCard(m) else updateModelCard(m)
+            return
         }
-        if (e is AiEngine.State.Failed && messageCount == 0) {
-            setInputEnabled(true, "Ask Khayali Pulao"); showOnce("failed") { greeting(error = e.message) }; return
-        }
-        setInputEnabled(true, "Ask Khayali Pulao")
-        if (messageCount == 0) showOnce("greeting") { greeting(null) }
+        dispatch(ChatFlow.Ev.ModelReady)
+        if (messageCount > 0) return
+        if (e is AiEngine.State.Failed) showOnce("failed") { greeting(error = e.message) }
+        else showOnce("greeting") { greeting(null) }
     }
 
     private fun showOnce(key: String, build: () -> Unit) {
         if (shownState == key) return
         shownState = key
         list.removeAllViews(); build()
+    }
+
+    /** First message of a thread: clear the greeting / model card. */
+    private fun startThread() {
+        if (messageCount == 0) { list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY; shownState = "chat" }
+        messageCount++
+    }
+
+    private fun newBot() = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); it.appear() }
+
+    /** Bring back the saved thread, with its cards, exactly as it was. */
+    private fun restore() {
+        val saved = store?.load().orEmpty()
+        if (saved.isEmpty()) return
+        list.gravity = Gravity.NO_GRAVITY; shownState = "chat"
+        for (e in saved) {
+            messageCount++
+            addUser(e.question, animate = false)
+            val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
+            val ev = if (e.tool != null && e.json != null) ToolEvent(e.tool, "", true, e.json) else null
+            ev?.let { bot.card(it) }
+            bot.done(e.answer, null, null, question = e.question, restored = true)
+            session.record(e.question, e.answer, seenByModel = true)
+            if (ev != null) { lastShown = ev; if (ev.name == "kite_account") rememberKite(if (e.json!!.contains("\"holdings\"")) "holdings" else "", e.json) }
+            lastQuestion = e.question
+        }
+        transcript += saved
+        post { showFollowUps(useModel = false); scroll.post { scroll.scrollTo(0, list.bottom) } }
+    }
+
+    /** One finished exchange: tell the session (so the model knows) and save it. */
+    private fun remember(question: String, answer: String, event: ToolEvent?, seenByModel: Boolean) {
+        session.record(question, answer, seenByModel)
+        transcript += ChatStore.Entry(question, answer, event?.takeIf { it.ok }?.name, event?.takeIf { it.ok }?.resultJson)
+        while (transcript.size > ChatStore.MAX) transcript.removeAt(0)
+        store?.save(transcript)
     }
 
     // --------------------------------------------------------------- greeting
@@ -193,7 +352,11 @@ class ChatView(
         }
         list.addView(hi, k.lp(MATCH_PARENT).apply { topMargin = k.dp(16) })
         val sub = when (s) {
-            null -> if (kite.connected) "Ask about your portfolio, any stock, or a what-if." else "Ask any what-if — or connect Kite to use your real portfolio."
+            null -> when {
+                kite.connected -> "Ask about your portfolio, any stock, or a what-if."
+                kite.link == ChatFlow.Kite.EXPIRED -> "Your Kite login expired overnight — reconnect to use your real portfolio."
+                else -> "Ask any what-if — or connect Kite to use your real portfolio."
+            }
             is Stock.Portfolio -> "Ask anything about your portfolio."
             else -> "Ask anything about ${s.name}."
         }
@@ -213,7 +376,8 @@ class ChatView(
         }
         list.addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false; addView(pr) }, k.lp(WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
         list.addView(k.text(persona.tagline, 12f, Pal.DIM).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(6), 0, 0) }, k.lp(MATCH_PARENT))
-        list.addView(k.text("🔒 ${ModelSpec.DISPLAY_NAME} · runs on your phone\n${Persona.DISCLAIMER}", 11f, Pal.DIM).apply {
+        val mem = memoryStore.playbook.bullets.size
+        list.addView(k.text("🔒 ${ModelSpec.DISPLAY_NAME} · runs on your phone" + (if (memoryStore.enabled && mem > 0) " · 🧠 $mem remembered" else "") + "\n${Persona.DISCLAIMER}", 11f, Pal.DIM).apply {
             gravity = Gravity.CENTER; setPadding(k.dp(8), k.dp(20), k.dp(8), 0); setLineSpacing(0f, 1.3f)
         }, k.lp(MATCH_PARENT))
         for ((n, v) in listOf(hi, list.getChildAt(list.childCount - 2), list.getChildAt(list.childCount - 1)).withIndex()) {
@@ -224,7 +388,7 @@ class ChatView(
     }
 
     private fun choosePersona(p: Persona) {
-        val apply = { prefs.personaName = p.name; prefs.disclaimerSeen = true; session.reset(); shownState = null; onState(mm.state.value, AiEngine.state.value) }
+        val apply = { prefs.personaName = p.name; prefs.disclaimerSeen = true; session.invalidate(); shownState = null; onState(mm.state.value, AiEngine.state.value) }
         if (p != Persona.ANALYST && !prefs.disclaimerSeen) android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("${p.icon}  ${p.title}").setMessage(p.tagline + "\n\n" + Persona.DISCLAIMER + "\n\nIt will never tell you to buy, sell or hold a security.")
             .setNegativeButton("Cancel", null).setPositiveButton("I understand") { _, _ -> apply() }.show()
@@ -268,26 +432,22 @@ class ChatView(
         )
     }
 
-    private fun followUps(): List<String> = when (stockProvider()) {
-        is Stock.Holding -> listOf("And at −10%?", "Compare with FD", "Tax if I sell?", "Say it in pulao maths")
-        is Stock.Quote -> listOf("What about ₹1 lakh?", "Over 5 years at 12%?", "If it falls 10%?")
-        is Stock.Portfolio -> listOf("And +30%?", "Beat an FD over 5 years?", "Goal ₹2 crore?")
-        null -> listOf("At 15% instead?", "In today's money?", "Explain simply")
-    }
-
     // ------------------------------------------------------------ model card
 
     private fun showModelCard(m: ModelManager.State) {
         val key = "model:" + m::class.simpleName
         if (shownState != key) {
             shownState = key
-            list.removeAllViews(); messageCount = 0
+            list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY
             list.addView(k.space(if (compact) 8 else 32))
             list.addView(FlowingGradientText(context).apply { k.style(this, "Meet your pulao AI", if (compact) 24f else 30f, Pal.TEXT, 600) })
-            list.addView(k.text("A small Google model that runs entirely on your phone. It uses the app's own calculators, so the numbers are exact — and nothing you ask leaves your phone.",
+            list.addView(k.text("A small Google model that runs entirely on your phone. It uses the app's own calculators, so the numbers are exact — and your questions are answered on the phone, not by a cloud AI.",
                 14f, Pal.MUTED).apply { setLineSpacing(0f, 1.35f); setPadding(0, k.dp(8), 0, k.dp(18)) })
+            (modelCard.parent as? android.view.ViewGroup)?.removeView(modelCard)
             list.addView(modelCard, k.lp(MATCH_PARENT))
-            setPills(emptyList())
+            list.addView(k.text("No model yet? Commands still work: type / for holdings, charts, FD comparison, goals and tax.", 12f, Pal.DIM).apply {
+                setPadding(k.dp(4), k.dp(14), k.dp(4), 0); setLineSpacing(0f, 1.3f) })
+            setPills(startersNow().filter { it.startsWith("/") || it.startsWith("Connect") })
         }
         updateModelCard(m)
     }
@@ -318,7 +478,7 @@ class ChatView(
         when (m) {
             is ModelManager.State.Absent -> {
                 mcTitle.text = "Download the model once"
-                mcSub.text = "One-time download from huggingface.co (about ${DownloadText.bytes(ModelSpec.SIZE_BYTES)}). After that, chat works offline. The download is the only time this app uses the internet."
+                mcSub.text = "One-time download from huggingface.co (about ${DownloadText.bytes(ModelSpec.SIZE_BYTES)}). After that, chat works offline."
                 mcPrimary.text = "Download on Wi-Fi"; mcPrimary.setOnClickListener { mm.start(wifiOnly = true) }
                 mcSecondary.visibility = VISIBLE; mcSecondary.text = "Download now (mobile data OK)"
                 mcSecondary.setOnClickListener { mm.start(wifiOnly = false) }
@@ -371,7 +531,7 @@ class ChatView(
             setOnEditorActionListener { _, id, ev ->
                 if (id == EditorInfo.IME_ACTION_SEND || (ev?.keyCode == KeyEvent.KEYCODE_ENTER && ev.action == KeyEvent.ACTION_DOWN)) { submit(text.toString()); true } else false
             }
-            setOnFocusChangeListener { _, f -> if (!session.busy) glow.glow = if (f) 0.35f else 0f }
+            setOnFocusChangeListener { _, f -> if (!phase.busy) glow.glow = if (f) 0.35f else 0f }
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
@@ -381,7 +541,7 @@ class ChatView(
         send.apply {
             gravity = Gravity.CENTER; textSize = 18f; setTextColor(0xFFFFFFFF.toInt())
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Pal.BLUE) }
-            setOnClickListener { if (session.busy) stopGenerating() else submit(input.text.toString()) }
+            setOnClickListener { if (phase.canStop) stopGenerating() else submit(input.text.toString()) }
         }
         setSendIcon(false)
         inputBar.addView(input, k.lp(0, WRAP_CONTENT, 1f))
@@ -397,11 +557,6 @@ class ChatView(
         send.animate().scaleX(0.8f).scaleY(0.8f).setDuration(80).withEndAction {
             send.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator(3f)).start()
         }.start()
-    }
-
-    private fun setInputEnabled(on: Boolean, hint: String) {
-        input.isEnabled = on; send.isEnabled = on; input.hint = hint
-        inputBar.alpha = if (on) 1f else 0.5f
     }
 
     private fun setWorking(on: Boolean) {
@@ -457,40 +612,20 @@ class ChatView(
     }
 
     fun showHelp() {
-        if (messageCount == 0) { list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY; shownState = "chat" }
-        messageCount++
-        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
-        bot.appear()
-        bot.done("**Commands**\n" + Commands.ALL.joinToString("\n") { "- **${it.usage}** — ${it.help}" } +
+        startThread()
+        val bot = newBot()
+        val terminal = com.khayali.pulao.ai.term.Group.entries.mapNotNull { g ->
+            com.khayali.pulao.ai.term.Terminal.FEATURES.filter { it.group == g }.takeIf { it.isNotEmpty() }
+                ?.let { fs -> "**${g.title}**\n" + fs.joinToString("\n") { "- **${it.usage}** — ${it.help}" } }
+        }.joinToString("\n\n")
+        bot.done("**Commands** (these work even without the AI model)\n" + Commands.ALL.joinToString("\n") { "- **${it.usage}** — ${it.help}" } +
+            (if (terminal.isNotEmpty()) "\n\n$terminal" else "") +
             "\n\n**@mentions** — type **@** to pick one of your Kite holdings, e.g. *What if @INFY goes up 20%?*", null, null)
         scrollToEnd()
     }
 
-    /** /holdings, /positions… — read Kite directly and show the card; no model needed. */
-    private fun runKite(section: String, label: String) {
-        if (messageCount == 0) { list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY; shownState = "chat" }
-        messageCount++
-        setPills(emptyList())
-        addUser(label)
-        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
-        bot.appear(); bot.thinking(false); scrollToEnd()
-        if (!kite.connected) { bot.done("Connect Kite first — tap the **Connect Kite** pill at the top.", null, null); lastShown = null; showFollowUps(useModel = false); return }
-        scope.launch {
-            val t0 = System.nanoTime()
-            val json = kite.account(section)
-            val ok = !json.contains("\"error\"")
-            rememberKite(section, json)
-            bot.tool(ToolEvent("kite_account", "Read Kite $section", ok, json, """{"section":"$section"}""", (System.nanoTime() - t0) / 1_000_000))
-            val summary = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["summary"]?.asString }.getOrNull()
-            val err = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["error"]?.asString }.getOrNull()
-            bot.done(err?.let { "⚠️ $it" } ?: summary ?: "Here it is.", null, null, question = label)
-            lastShown = ToolEvent("kite_account", "", ok, json); lastQuestion = label; lastCall = null
-            showFollowUps(useModel = false); scrollToEnd()
-        }
-    }
-
     private fun startersNow() = ContextPills.starters(
-        kiteHoldings().map { ContextPills.H(it.name, it.current, it.pnlPct) }, persona, kite.connected)
+        kiteHoldings().map { ContextPills.H(it.name, it.current, it.pnlPct) }, persona, kite.connected, prefs.webOn)
 
     private fun kiteHoldings(): List<Stock.Holding> = kiteRows.mapNotNull { r ->
         runCatching { val q = r["qty"].asDouble; val a = r["avg_price"].asDouble; Stock.Holding(r["symbol"].asString, q, a, q * a, r["ltp"].asDouble) }.getOrNull()
@@ -500,7 +635,7 @@ class ChatView(
     private fun preloadKite() {
         if (kite.connected && kiteRows.isEmpty()) scope.launch {
             rememberKite("holdings", kite.account("holdings"))
-            if (messageCount == 0 && stockProvider() == null) setPills(startersNow())   // refresh with live holdings
+            if (messageCount == 0 && stockProvider() == null && mm.isReady()) setPills(startersNow())   // refresh with live holdings
         }
     }
 
@@ -514,111 +649,378 @@ class ChatView(
         }
     }
 
+    /** What one app-only turn produced. */
+    private class Outcome(val text: String, val event: ToolEvent? = null, val chips: List<Pair<String, () -> Unit>> = emptyList())
+
+    private val watch by lazy { WatchStore.get(context) }
+
+    /** The single entry point for everything the user can send. */
     private fun submit(raw: String) {
-        var text = raw.trim()
-        if (text.isEmpty() || session.busy) return
-        if (text.startsWith("Connect Kite")) { onKitePill(kite.state.value); return }
-        if (Commands.isCommand(text)) {
-            input.setText("")
-            when (val c = Commands.parse(text)) {
-                Commands.Parsed.Clear -> { newChat(); return }
-                Commands.Parsed.Help -> { showHelp(); return }
-                is Commands.Parsed.Kite -> { runKite(c.section, text); return }
-                is Commands.Parsed.Chart -> { runChart(c.symbol, c.period, text); return }
-                is Commands.Parsed.Unknown -> { showHelp(); return }
-                is Commands.Parsed.Prompt -> { sendToModel(display = text, prompt = c.text); return }
+        if (phase.busy) return
+        val text = raw.trim()
+        WatchStore.symbolsIn(text).forEach { watch.add(it) }
+        when (val a = ChatFlow.route(text, env())) {
+            ChatFlow.Action.Ignore -> return
+            ChatFlow.Action.Clear -> { input.setText(""); newChat() }
+            ChatFlow.Action.Help -> { input.setText(""); showHelp() }
+            is ChatFlow.Action.Unknown -> { input.setText(""); showHelp() }
+            is ChatFlow.Action.ConnectKite -> {
+                if (a.pending == null) { onKitePill(kite.state.value); return }
+                input.setText(""); pending = a.pending
+                say(text, if (a.expired) KiteMcpClient.EXPIRED_MESSAGE + " I'll run **${a.pending}** as soon as you're back."
+                    else "**${a.pending}** reads your Zerodha account, so Kite needs to be connected first. It's read-only and takes one tap if you're signed in to Kite in your browser — I'll run it as soon as you're connected.",
+                    listOf((if (a.expired) "Reconnect Kite" else "Connect Kite") to { onKitePill(kite.state.value) }))
             }
+            is ChatFlow.Action.EnableWeb -> {
+                input.setText(""); pending = a.pending
+                askWeb(text)
+            }
+            is ChatFlow.Action.KiteRead -> { input.setText(""); runKite(a.section, text) }
+            is ChatFlow.Action.Chart -> { input.setText(""); runChart(a.symbol, a.period, a.source, text) }
+            is ChatFlow.Action.Tool -> { input.setText(""); runTool(a.name, a.args, text) }
+            is ChatFlow.Action.Web -> { input.setText(""); runWeb(a.kind, a.query, text) }
+            is ChatFlow.Action.Remember -> {
+                input.setText("")
+                val added = if (Ace.acceptable(a.text)) { memoryStore.enabled = true; memoryStore.learn(listOf(Ace.Delta(Ace.Section.FACT, a.text))); true } else false
+                say(text, if (added) "Saved to memory: *${a.text}*. It stays on this phone — see or delete it with **/memory**."
+                    else "I won't store that — it looks like a secret, an ID number or a buy/sell instruction. Memory is for goals, horizon and preferences.",
+                    listOf("Open memory" to { openMemory() }))
+            }
+            ChatFlow.Action.ShowMemory -> { input.setText(""); showMemory(text) }
+            ChatFlow.Action.Compact -> { input.setText(""); compactNow(text) }
+            is ChatFlow.Action.Term -> { input.setText(""); runTerm(a.id, a.arg, text) }
+            ChatFlow.Action.ForgetAll -> {
+                input.setText("")
+                dialog().setTitle("Erase memory?").setMessage("Deletes everything the chat has remembered about you and the lessons it learned. This can't be undone.")
+                    .setNegativeButton("Cancel", null).setPositiveButton("Erase") { _, _ -> memoryStore.clear(); session.invalidate(); say("/forget", "Memory erased.") }.show()
+            }
+            ChatFlow.Action.NeedModel -> {
+                if (messageCount == 0) { performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS); scroll.smoothScrollTo(0, 0); return }
+                input.setText("")
+                say(text, "Free-form questions need the on-device AI model, which isn't downloaded. Commands work without it — type **/** to see them.",
+                    listOf("Download the model" to { newChat() }, "Show commands" to { showHelp() }))
+            }
+            is ChatFlow.Action.Model -> sendToModel(display = text, prompt = a.prompt)
         }
-        if (!mm.isReady()) { showOnce("model:" + mm.state.value::class.simpleName) {}; return }
-        sendToModel(display = text, prompt = text)
     }
 
-    private fun runChart(symbol: String, period: String?, label: String) {
-        if (messageCount == 0) { list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY; shownState = "chat" }
-        messageCount++
-        setPills(emptyList()); addUser(label)
-        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
-        bot.appear(); bot.thinking(false); scrollToEnd()
-        if (!kite.connected) { bot.done("Connect Kite first — tap **Connect Kite** at the top.", null, null); lastShown = null; showFollowUps(useModel = false); return }
-        scope.launch {
+    /** /memory — what the chat remembers, shown in the thread itself; the full editor is one tap away. */
+    private fun showMemory(question: String) {
+        val notes = memoryStore.playbook.bullets
+        val body = if (notes.isEmpty()) "Nothing remembered yet. Tell me something about your goals, or add a note with **/remember**, for example */remember I invest for 10+ years*."
+            else Ace.Section.entries.mapNotNull { sec ->
+                notes.filter { it.section == sec }.sortedByDescending { it.score }.takeIf { it.isNotEmpty() }
+                    ?.let { rows -> "**${sec.title}**\n" + rows.joinToString("\n") { "- ${it.text}" } }
+            }.joinToString("\n\n") + (if (!memoryStore.enabled) "\n\n> Memory is switched off, so these notes are not being used." else "") +
+                "\n\nAdd a note with **/remember …**. Notes stay on this phone."
+        say(question, body, listOf("Edit memory" to { openMemory() }))
+    }
+
+    /** /compact, and automatically when the model's context is nearly full. */
+    private fun compactNow(question: String?) {
+        val summary = session.compact()
+        if (question == null) { if (summary != null) notice("Earlier messages were summarised to keep the model fast. Nothing was deleted from this screen."); return }
+        say(question, if (summary == null) "Nothing to compact yet — the chat is still short."
+            else "Compacted. The model now carries this summary instead of the full thread (your messages stay on screen):\n\n$summary")
+    }
+
+    /** A quiet centred line in the thread, for things the app did on its own. */
+    private fun notice(text: String) {
+        list.addView(k.text(text, 11.5f, Pal.DIM).apply { gravity = Gravity.CENTER; setPadding(k.dp(24), k.dp(14), k.dp(24), 0); setLineSpacing(0f, 1.3f) }, k.lp(MATCH_PARENT))
+    }
+
+    private fun openMemory() {
+        runCatching { context.startActivity(android.content.Intent(context, MemoryActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    /** An instant app reply (no model, no network). */
+    private fun say(question: String, answer: String, chips: List<Pair<String, () -> Unit>> = emptyList()) {
+        startThread(); setPills(emptyList()); if (question.isNotBlank()) addUser(question)
+        newBot().done(answer, null, null, chips = chips)
+        scrollToEnd()
+    }
+
+    /**
+     * Runs app-only work (Kite read, web lookup, calculator) as a turn: FETCHING while it runs,
+     * a card + exact summary when it lands, recovery chips when it fails, Stop to cancel.
+     */
+    private fun appTurn(label: String, status: String, work: suspend () -> Outcome) {
+        startThread(); setPills(emptyList()); addUser(label)
+        val bot = newBot(); bot.status(status); scrollToEnd()
+        pillJobCancel()
+        dispatch(ChatFlow.Ev.StartApp)
+        turnJob = scope.launch {
+            try {
+                val out = try { work() } catch (c: CancellationException) { throw c }
+                    catch (t: Throwable) { Outcome("⚠️ " + Net.friendly(t, "the service"), chips = listOf("Try again" to { submit(label) })) }
+                out.event?.let { e ->
+                    bot.tool(e); lastShown = e
+                    lastCall = e.takeIf { it.ok && FollowUps.from(it.name, it.argsJson).isNotEmpty() }
+                }
+                bot.done(out.text, null, null, question = label, chips = out.chips)
+                lastQuestion = label
+                if (out.event?.ok == true) remember(label, out.text, out.event, seenByModel = false)
+                finishTurn()
+                showFollowUps(useModel = false); scrollToEnd()
+            } catch (c: CancellationException) {
+                withContext(NonCancellable) { bot.done("(stopped)", null, null); finishTurn(ChatFlow.Ev.Stopped); setPills(lastPills, remember = false) }
+            }
+        }
+    }
+
+    private fun failure(json: String, label: String): Outcome {
+        val message = ToolJson.error(json) ?: "That didn't work."
+        val expired = json.contains("\"expired\":true")
+        if (expired) pending = label
+        return Outcome("⚠️ $message", chips = if (expired) listOf("Reconnect Kite" to { onKitePill(kite.state.value) }) else listOf("Try again" to { submit(label) }))
+    }
+
+    /** /holdings, /positions… — read Kite directly and show the card; no model needed. */
+    private fun runKite(section: String, label: String) = appTurn(label, "Reading your Kite $section…") {
+        val t0 = System.nanoTime()
+        val json = kite.account(section)
+        if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+        rememberKite(section, json)
+        Outcome(ToolJson.summary(json) ?: "Here it is.",
+            ToolEvent("kite_account", "Read Kite $section", true, json, """{"section":"$section"}""", (System.nanoTime() - t0) / 1_000_000))
+    }
+
+    private fun runChart(symbol: String, period: String?, source: ChatFlow.Source, label: String) = appTurn(label, "Charting $symbol…") {
+        val t0 = System.nanoTime()
+        val args = """{"symbol":"$symbol","period":"${period ?: "6m"}"}"""
+        var json = if (source == ChatFlow.Source.KITE) kite.history(symbol, period) else web.quote(symbol, period)
+        var tool = if (source == ChatFlow.Source.KITE) "kite_chart" else "web_quote"
+        // Kite can't chart everything (indices, unlisted symbols): try the web feed when it's allowed.
+        if (!ToolJson.ok(json) && source == ChatFlow.Source.KITE && prefs.webOn && !json.contains("\"expired\":true")) {
+            web.quote(symbol, period).takeIf { ToolJson.ok(it) }?.let { json = it; tool = "web_quote" }
+        }
+        if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+        Outcome(ToolJson.summary(json).orEmpty(), ToolEvent(tool, "Charted $symbol", true, json, args, (System.nanoTime() - t0) / 1_000_000))
+    }
+
+    /** /fd, /goal, /grow, /move, /tax — the calculator itself, on the real portfolio when Kite is connected. */
+    private fun runTool(name: String, args: String, label: String) = appTurn(label, "Running the numbers…") {
+        if (kite.connected && kiteRows.isEmpty() && stockProvider() == null) rememberKite("holdings", kite.account("holdings"))
+        turnStock = null
+        val t0 = System.nanoTime()
+        val json = directTools.execute(name, args)
+        val ev = ToolEvent(name, directTools.defs.firstOrNull { it.name == name }?.label ?: name, ToolJson.ok(json), json, args, (System.nanoTime() - t0) / 1_000_000)
+        if (!ev.ok) {
+            val needsPortfolio = host.stock == null
+            return@appTurn Outcome("⚠️ " + (if (needsPortfolio) "This works on a portfolio or a stock, and none is loaded." else ToolJson.error(json) ?: "Couldn't calculate that."),
+                chips = when {
+                    needsPortfolio && kite.link != ChatFlow.Kite.CONNECTED -> { pending = label; listOf((if (kite.link == ChatFlow.Kite.EXPIRED) "Reconnect Kite" else "Connect Kite") to { onKitePill(kite.state.value) }) }
+                    else -> listOf("Try again" to { submit(label) })
+                })
+        }
+        Outcome(ToolJson.summary(json) ?: "Done.", ev)
+    }
+
+    /** A terminal feature: fetch, build its card, show it. Same turn life cycle as every other app-only command. */
+    private fun runTerm(id: String, arg: String, label: String) {
+        val feature = com.khayali.pulao.ai.term.Terminal.find(id) ?: return showHelp()
+        appTurn(label, "${feature.help.substringBefore(':').substringBefore(" — ").take(40)}…") {
+            if (kite.connected && kiteRows.isEmpty()) rememberKite("holdings", kite.account("holdings"))
             val t0 = System.nanoTime()
-            val json = kite.history(symbol, period)
-            val ok = !json.contains("\"error\"")
-            bot.tool(ToolEvent("kite_chart", "Charted $symbol", ok, json, """{"symbol":"$symbol","period":"${period ?: "6m"}"}""", (System.nanoTime() - t0) / 1_000_000))
-            val o = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject }.getOrNull()
-            bot.done(o?.get("error")?.asString?.let { "⚠️ $it" } ?: o?.get("summary")?.asString ?: "", null, null, question = label)
-            lastShown = ToolEvent("kite_chart", "", ok, json); lastQuestion = label; lastCall = null
-            showFollowUps(useModel = false); scrollToEnd()
+            val json = web.term(feature, arg, kiteHoldings(), watch.symbols)
+            if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+            Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("term_$id", feature.help.take(28), true, json,
+                com.google.gson.JsonObject().apply { addProperty("command", "/$id $arg".trim()) }.toString(), (System.nanoTime() - t0) / 1_000_000))
+        }
+    }
+
+    private fun runWeb(kind: ChatFlow.WebKind, query: String, label: String) = appTurn(label, when (kind) {
+        ChatFlow.WebKind.SEARCH -> "Searching the web…"; ChatFlow.WebKind.PRICE -> "Getting the latest price…"; ChatFlow.WebKind.EVENTS -> "Looking up company events…"
+        ChatFlow.WebKind.CALENDAR -> "Reading the market calendar…"; ChatFlow.WebKind.IPO -> "Checking IPOs…"; ChatFlow.WebKind.GMP -> "Reading the grey-market premium…"
+    }) {
+        val t0 = System.nanoTime()
+        val args = com.google.gson.JsonObject().apply { addProperty("query", query) }.toString()
+        fun ms() = (System.nanoTime() - t0) / 1_000_000
+        when (kind) {
+            ChatFlow.WebKind.SEARCH -> {
+                val json = web.search(query).second
+                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                Outcome("From the web, with sources:\n" + WebData.extract(WebData.resultsOf(json)), ToolEvent("web_search", "Searched the web", true, json, args, ms()))
+            }
+            ChatFlow.WebKind.PRICE -> {
+                val json = web.quote(query, "6m")
+                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_quote", "Got the price", true, json, args, ms()))
+            }
+            ChatFlow.WebKind.CALENDAR -> {
+                if (kite.connected && kiteRows.isEmpty()) rememberKite("holdings", kite.account("holdings"))      // so your own stocks can be marked
+                val json = web.calendar(query, (kiteHoldings().map { it.name } + kite.knownSymbols).map { it.uppercase() }.toSet())
+                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_calendar", "Read the calendar", true, json, args, ms()))
+            }
+            ChatFlow.WebKind.GMP -> {
+                val json = web.gmp(query)
+                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_gmp", "Read the grey market", true, json, args, ms()))
+            }
+            ChatFlow.WebKind.IPO -> {
+                val json = web.ipo()
+                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_ipo", "Checked IPOs", true, json, args, ms()))
+            }
+            ChatFlow.WebKind.EVENTS -> {
+                val json = web.events(query)
+                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_events", "Found events", true, json, args, ms()))
+            }
         }
     }
 
     private fun sendToModel(display: String, prompt: String) {
+        if (phase.busy) return
         val sym = Commands.mentions(display).firstOrNull()
         if (sym != null && kite.connected && kiteRows.none { it["symbol"].asString.equals(sym, true) } && sym in kite.knownSymbols) {
             // Holding details aren't loaded in this session yet: read them first, then continue.
-            scope.launch { rememberKite("holdings", kite.account("holdings")); sendToModelNow(display, prompt) }
+            dispatch(ChatFlow.Ev.StartApp)
+            turnJob = scope.launch {
+                try { rememberKite("holdings", kite.account("holdings")) } finally { dispatch(ChatFlow.Ev.Finished) }
+                sendToModelNow(display, prompt)
+            }
             return
         }
         sendToModelNow(display, prompt)
     }
 
     private fun sendToModelNow(display: String, prompt: String) {
+        if (phase.busy || !mm.isReady()) return
+        if (session.needsCompaction) compactNow(null)          // the context is nearly full: fold the thread before this turn
         var text = prompt
-        lastQuestion = display; lastShown = null; pillJob?.cancel()
+        // The user moved on without asking for a redo, so the memory behind the last answer helped.
+        if (awaitingFeedback.isNotEmpty()) { memoryStore.feedback(awaitingFeedback, good = true); awaitingFeedback = emptySet() }
+        lastQuestion = display; lastShown = null; pillJobCancel()
         // @mentions: point the tools at that holding, or tell the model which symbol to quote.
         turnStock = null
-        val mentioned = Commands.mentions(display)
-        mentioned.firstOrNull()?.let { sym ->
+        Commands.mentions(display).firstOrNull()?.let { sym ->
             kiteRows.firstOrNull { it["symbol"].asString.equals(sym, true) }?.let { r ->
                 val qty = r["qty"].asDouble; val avg = r["avg_price"].asDouble
                 turnStock = Stock.Holding(sym, qty, avg, qty * avg, r["ltp"].asDouble)
             }
-            text += if (turnStock != null) "\n(@$sym is one of my holdings — call get_current_stock, then the calculators on it.)"
-                else "\n(@$sym = ${kite.exchangeOf(sym) ?: "NSE"}:$sym. ${if (kite.connected) "Use kite_quote for its price." else "Kite isn't connected, so ask me for its price."})"
+            text += when {
+                turnStock != null -> "\n(@$sym is one of my holdings — call get_current_stock, then the calculators on it.)"
+                kite.connected -> "\n(@$sym = ${kite.exchangeOf(sym) ?: "NSE"}:$sym. Use kite_quote for its price.)"
+                prefs.webOn -> "\n(@$sym is an NSE symbol. Use web with action=price for its price.)"
+                else -> "\n(@$sym is an NSE symbol. You have no live price for it, so ask me for the price.)"
+            }
         }
-        if (session.busy || !mm.isReady()) return
+        // "my biggest / best / worst holding" is resolved by the app, not guessed by the model.
+        if (turnStock == null && stockProvider() == null) ContextPills.pick(display, kiteHoldings())?.let { (what, h) ->
+            turnStock = h
+            text += "\n(My $what holding is ${h.name}; it is the current stock. Call the calculator without a symbol.)"
+        }
         performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         input.setText("")
-        if (messageCount == 0) { list.removeAllViews(); list.gravity = Gravity.NO_GRAVITY; shownState = "chat" }
-        messageCount++
+        startThread()
         setPills(emptyList())
         addUser(display)
-        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
-        bot.appear()
+        val bot = newBot()
         scrollToEnd()
-        setWorking(true)
+        dispatch(ChatFlow.Ev.StartModel(AiEngine.state.value is AiEngine.State.Ready))
         session.send(text, object : ChatSession.Listener {
-            override fun onThinking() = bot.thinking(AiEngine.state.value !is AiEngine.State.Ready)
+            override fun onThinking(warming: Boolean) = bot.thinking(warming)
+            override fun onEngineReady() { dispatch(ChatFlow.Ev.EngineReady); bot.thinking(false) }
+            override fun onToolStart(label: String) { dispatch(ChatFlow.Ev.ToolCall); bot.status(label) }
             override fun onTool(e: ToolEvent) {
+                dispatch(ChatFlow.Ev.ToolCall); dispatch(ChatFlow.Ev.ToolResult)
                 if (e.ok && FollowUps.from(e.name, e.argsJson).isNotEmpty()) lastCall = e
                 lastShown = e
                 if (e.name == "kite_account") rememberKite(if (e.resultJson.contains("\"holdings\"")) "holdings" else "", e.resultJson)
                 bot.tool(e); scrollToEnd()
             }
-            override fun onText(full: String) { bot.text(full); scrollToEnd() }
-            override fun onDone(full: String, stats: TurnStats) {
-                val sums = stats.tools.filter { it.ok }.mapNotNull { runCatching { com.google.gson.JsonParser.parseString(it.resultJson).asJsonObject["summary"]?.asString }.getOrNull() }
-                bot.done(NumberGuard.compose(full, sums), stats, { submit(display) }, question = display); setWorking(false)
-                showFollowUps(); scrollToEnd()
+            override fun onText(full: String) {
+                dispatch(ChatFlow.Ev.Token)
+                // With a data card on screen, raw streaming text could show a figure before it is checked: wait for the final, checked answer.
+                if (bot.hasDataCard) bot.status("Writing the takeaway…") else bot.text(full)
+                scrollToEnd()
             }
-            override fun onError(message: String) { bot.error(message) { submit(display) }; setWorking(false) }
+            override fun onDone(full: String, stats: TurnStats) {
+                val answer = composeAnswer(display, full, stats.tools)
+                val redo = { memoryStore.feedback(session.lastMemoryIds, good = false); awaitingFeedback = emptySet(); submit(display) }
+                bot.done(answer.text, stats, redo, question = display, chips = answer.chips)
+                awaitingFeedback = session.lastMemoryIds
+                reflect(display, full, stats.tools, answer.ungrounded, bot)
+                if (answer.text.isNotBlank()) remember(display, answer.text, stats.tools.lastOrNull { it.ok && ResultCards.hasCard(it.name) }, seenByModel = true)
+                finishTurn()
+                showFollowUps(reflectOn = display, bot = bot); scrollToEnd()
+            }
+            override fun onError(message: String) {
+                bot.error(message) { submit(display) }
+                finishTurn(ChatFlow.Ev.Failed); setPills(lastPills, remember = false)
+            }
         })
     }
 
-    private fun stopGenerating() { session.stop() }
+    private class Answer(val text: String, val ungrounded: Boolean, val chips: List<Pair<String, () -> Unit>>)
+
+    /**
+     * What the user reads. Calculator turns: the tools' exact summaries plus number-free insight from
+     * the model. Web turns: the model's sentences, minus any whose figures aren't in the sources —
+     * and, if nothing survives, the snippets themselves with citations.
+     */
+    private fun composeAnswer(question: String, full: String, tools: List<ToolEvent>): Answer {
+        val search = tools.lastOrNull { it.name == "web_search" && it.ok }
+        // Terminal cards show their own summary as the takeaway, so it is not repeated in the text.
+        val sums = tools.filter { it.ok && it.name != "web_search" && !it.name.startsWith("term_") }.mapNotNull { ToolJson.summary(it.resultJson) }
+        val chips = mutableListOf<Pair<String, () -> Unit>>()
+        tools.lastOrNull { !it.ok }?.let { failed ->
+            if (failed.resultJson.contains("\"expired\":true")) { pending = question; chips += "Reconnect Kite" to { onKitePill(kite.state.value) } }
+        }
+        if (search != null) {
+            val (kept, dropped) = NumberGuard.grounded(full, tools.joinToString(" ") { it.resultJson })
+            val body = kept.ifBlank { WebData.extract(WebData.resultsOf(search.resultJson)) }
+            return Answer((sums.distinct() + body).joinToString("\n\n").trim(), dropped, chips)
+        }
+        if (sums.isEmpty() && tools.any { it.ok && it.name.startsWith("term_") }) return Answer(NumberGuard.compose(full, listOf("")).trim(), false, chips)
+        var text = NumberGuard.compose(full, sums)
+        if (text.isBlank()) text = tools.lastOrNull { !it.ok }?.let { ToolJson.error(it.resultJson) }?.let { "⚠️ $it" }.orEmpty()
+        // Figures with no calculator behind them are the model's own arithmetic: say so plainly.
+        if (tools.isEmpty() && ownFigures(question, full)) text += "\n\n> These figures were not checked by a calculator. Ask again with the amounts and I'll run the exact maths."
+        return Answer(text, false, chips)
+    }
+
+    private val AMOUNT = Regex("""₹\s?[\d,]{3,}""")
+    private fun ownFigures(question: String, answer: String): Boolean {
+        val asked = AMOUNT.findAll(question).map { it.value.filter(Char::isDigit) }.toSet()
+        return AMOUNT.findAll(answer).any { it.value.filter(Char::isDigit) !in asked }
+    }
+
+    /** Reflect → curate: turn what just happened into playbook deltas (rules now; the model's pass follows the pills). */
+    private fun reflect(question: String, full: String, tools: List<ToolEvent>, ungrounded: Boolean, bot: BotMessage) {
+        if (!memoryStore.enabled) return
+        val signals = Ace.Signals(
+            percentCorrected = session.percentCorrected,
+            toolErrors = tools.filter { !it.ok }.mapNotNull { ToolJson.error(it.resultJson) },
+            numbersWithoutTool = tools.isEmpty() && ownFigures(question, full),
+            ungroundedWebNumbers = ungrounded,
+            askedForFetchableData = tools.isEmpty() && kite.connected &&
+                Regex("""(?i)(which stock|which holding|how many shares|what(?:'s| is) (?:the|your) (?:price|quantity|average)|please (?:provide|share|tell))""").containsMatchIn(full),
+        )
+        memoryStore.learn(Ace.lessons(signals))
+        val facts = Ace.reflectRules(question)
+        if (memoryStore.learn(facts) > 0) bot.note("🧠 Remembered: " + facts.joinToString(" ") { it.text })
+    }
+
+    private fun stopGenerating() {
+        if (session.busy) session.stop() else turnJob?.cancel()
+    }
 
     private var lastShown: ToolEvent? = null
     private var lastQuestion: String? = null
-    private var pillJob: kotlinx.coroutines.Job? = null
+    private fun pillJobCancel() { /* background pill + reflection work is owned by the session and cancelled by the next send */ }
 
     /**
      * Pills after an answer, curated from context in three layers:
      * exact re-runs of the last calculation → context pills (real holdings, last result) →
      * model-generated follow-ups that slide in when ready.
      */
-    private fun showFollowUps(useModel: Boolean = true) {
+    private fun showFollowUps(useModel: Boolean = true, reflectOn: String? = null, bot: BotMessage? = null) {
         val exact = lastCall?.let { c -> FollowUps.from(c.name, c.argsJson).filter { it.args != c.argsJson && it.label != lastQuestion } }.orEmpty()
-        val ctx = ContextPills.build(ContextPills.Ctx(kite.connected, kite.knownSymbols, lastShown?.name, lastShown?.resultJson, lastQuestion))
+        val goal = memoryStore.takeIf { it.enabled }?.playbook?.bullets?.firstOrNull { it.text.startsWith("Goal:") }?.text?.removePrefix("Goal:")?.trim()?.trimEnd('.')
+        val ctx = ContextPills.build(ContextPills.Ctx(kite.connected, kite.knownSymbols, lastShown?.name, lastShown?.resultJson, lastQuestion, prefs.webOn, goal))
         val base = exact.map { "↻  " + it.label } + ctx
         fun render(extra: List<String>) = setPills((base + extra.map { "✨  $it" }).distinct().take(8), remember = true) { label ->
             when {
@@ -630,32 +1032,18 @@ class ChatView(
         }
         render(emptyList())
         if (!useModel || !mm.isReady()) return
-        pillJob?.cancel()
-        pillJob = scope.launch {
-            val ai = session.suggest()
-            if (ai.isNotEmpty() && !session.busy) render(ai)
-        }
+        session.afterTurn(reflectOn.orEmpty(),
+            onPills = { ai -> if (!phase.busy) render(ai) },
+            onReflection = { deltas -> if (memoryStore.learn(deltas) > 0) bot?.note("🧠 Remembered: " + deltas.joinToString(" ") { it.text }) },
+            reflect = reflectOn != null && memoryStore.enabled)
     }
 
     private fun runExact(p: FollowUps.Pill) {
-        if (session.busy) return
-        messageCount++
-        setPills(emptyList())
-        addUser(p.label)
-        val bot = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }) }
-        bot.appear()
-        val t0 = System.nanoTime()
-        val json = directTools.execute(p.tool, p.args)
-        val ev = ToolEvent(p.tool, directTools.defs.firstOrNull { it.name == p.tool }?.label ?: p.tool, !json.contains("\"error\""), json, p.args, (System.nanoTime() - t0) / 1_000_000)
-        bot.tool(ev)
-        lastShown = ev
-        if (ev.ok) lastCall = ev
-        val summary = runCatching { com.google.gson.JsonParser.parseString(json).asJsonObject["summary"]?.asString }.getOrNull()
-        bot.done(summary ?: "Done.", null, null, question = p.label)
-        showFollowUps(useModel = false); scrollToEnd()
+        if (phase.busy) return
+        runTool(p.tool, p.args, p.label)
     }
 
-    private fun addUser(text: String) {
+    private fun addUser(text: String, animate: Boolean = true) {
         val b = k.text(text, 15.5f, Pal.TEXT).apply {
             background = GradientDrawable().apply {
                 setColor(Pal.SURFACE); val r = k.dpf(22); cornerRadii = floatArrayOf(r, r, k.dpf(6), k.dpf(6), r, r, r, r)
@@ -665,6 +1053,7 @@ class ChatView(
         }
         val row = k.row(Gravity.END).apply { addView(b) }
         list.addView(row, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) })
+        if (!animate) return
         b.alpha = 0f; b.scaleX = 0.92f; b.scaleY = 0.92f; b.pivotX = 1000f
         b.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(260).setInterpolator(OvershootInterpolator(1.4f)).start()
     }
@@ -686,15 +1075,23 @@ class ChatView(
         private var spin: ValueAnimator? = null
 
         init {
-            root.addView(avatar, k.lp(k.dp(30), k.dp(30)).apply { topMargin = k.dp(2) })
-            root.addView(k.space(1, 12))
-            body.addView(status)
-            body.addView(toolScroll, k.lp(MATCH_PARENT).apply { topMargin = k.dp(6) })
+            // Avatar and status share the top line; everything below uses the full width of the chat,
+            // so cards and charts are not squeezed into a narrow column.
+            root.orientation = LinearLayout.VERTICAL
+            val head = k.row().apply {
+                addView(avatar, k.lp(k.dp(26), k.dp(26)))
+                addView(k.column().apply {
+                    setPadding(k.dp(10), 0, 0, 0)
+                    addView(status)
+                    addView(toolScroll, k.lp(MATCH_PARENT).apply { topMargin = k.dp(4) })
+                }, k.lp(0, WRAP_CONTENT, 1f))
+            }
+            root.addView(head, k.lp(MATCH_PARENT))
             body.addView(cards, k.lp(MATCH_PARENT))
             body.addView(shimmer, k.lp(MATCH_PARENT).apply { topMargin = k.dp(8) })
             body.addView(txt, k.lp(MATCH_PARENT).apply { topMargin = k.dp(4) })
             body.addView(actions, k.lp(MATCH_PARENT).apply { topMargin = k.dp(8) })
-            root.addView(body, k.lp(0, WRAP_CONTENT, 1f))
+            root.addView(body, k.lp(MATCH_PARENT))
             txt.visibility = GONE
         }
 
@@ -703,8 +1100,12 @@ class ChatView(
             root.animate().alpha(1f).translationY(0f).setDuration(250).start()
         }
 
-        fun thinking(warming: Boolean) {
-            status.text = if (warming) "Warming up the model…" else pick(THINKING)
+        fun thinking(warming: Boolean) = status(if (warming) "Warming up the model…" else pick(THINKING))
+
+        /** What is happening right now, with the avatar spinning. */
+        fun status(label: String) {
+            status.text = label
+            if (spin?.isRunning == true) return
             spin?.cancel()
             spin = ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 1600; repeatCount = ValueAnimator.INFINITE; interpolator = LinearInterpolator()
@@ -720,7 +1121,7 @@ class ChatView(
         fun tool(e: ToolEvent) {
             localTools += e
             toolRow.visibility = VISIBLE
-            status.text = e.label + "…"
+            status.text = pick(THINKING)
             val chip = k.text((if (e.ok) "✓  " else "!  ") + e.label, 12f, if (e.ok) Pal.GREEN else Pal.SAFFRON, 500).apply {
                 background = k.rounded(Pal.alpha(if (e.ok) Pal.GREEN else Pal.SAFFRON, 0.12f), 999f)
                 setPadding(k.dp(10), k.dp(5), k.dp(10), k.dp(5))
@@ -728,10 +1129,24 @@ class ChatView(
             }
             toolRow.addView(chip, k.lp(WRAP_CONTENT).apply { if (toolRow.childCount > 0) marginStart = k.dp(6) })
             chip.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(280).setInterpolator(OvershootInterpolator(2.2f)).start()
-            if (e.ok) ResultCards.build(context, k, e.name, e.resultJson)?.let { card ->
+            if (e.ok) card(e)
+        }
+
+        /** True once a card that carries its own summary is on screen; the chat then doesn't repeat that summary as text. */
+        var cardHasSummary = false
+        val hasDataCard get() = localTools.any { it.ok && (it.name.startsWith("term_") || it.name.startsWith("web_") || it.name.startsWith("kite_")) }
+
+        fun card(e: ToolEvent) {
+            cardHasSummary = e.name.startsWith("term_")
+            ResultCards.build(context, k, e.name, e.resultJson, ::openUrl)?.let { card ->
                 cards.removeAllViews()          // newest result replaces older ones in this turn
                 cards.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(10) })
             }
+        }
+
+        /** A quiet line under the answer, e.g. what was just saved to memory. */
+        fun note(text: String) {
+            body.addView(k.text(text, 11.5f, Pal.DIM).apply { setPadding(k.dp(8), k.dp(4), k.dp(8), 0); setLineSpacing(0f, 1.3f); alpha = 0f; animate().alpha(1f).setDuration(300).start() })
         }
 
         fun text(full: String) {
@@ -742,13 +1157,27 @@ class ChatView(
             txt.update(full)
         }
 
-        fun done(full: String, stats: TurnStats?, retry: (() -> Unit)?, question: String = "") {
+        fun done(full: String, stats: TurnStats?, retry: (() -> Unit)?, question: String = "", chips: List<Pair<String, () -> Unit>> = emptyList(), restored: Boolean = false) {
             stopSpin(); shimmer.visibility = GONE; status.visibility = GONE
-            if (full.isBlank()) { txt.visibility = VISIBLE; txt.update("(stopped)") }
-            else if (txt.visibility != VISIBLE) { txt.visibility = VISIBLE; txt.update(full) }
+            // Always show the final, checked text — what streamed may have contained figures that were since removed.
+            // An app-only answer whose card already shows the summary adds nothing as a paragraph.
+            val repeat = cardHasSummary && stats == null
+            txt.visibility = if (repeat) GONE else VISIBLE; if (!repeat) txt.update(full.ifBlank { "(stopped)" })
+            if (chips.isNotEmpty()) {
+                val row = k.row().apply { setPadding(0, k.dp(8), 0, 0) }
+                chips.forEachIndexed { i, (label, action) ->
+                    row.addView(k.text(label, 13f, Pal.BLUE, 500).apply {
+                        setPadding(k.dp(14), k.dp(8), k.dp(14), k.dp(8))
+                        background = k.press(k.rounded(Pal.alpha(Pal.BLUE, 0.12f), 999f, Pal.alpha(Pal.BLUE, 0.5f)), 999f)
+                        // a choice is made once: the row goes away so it can't be tapped twice
+                        setOnClickListener { if (!phase.busy) { (row.parent as? View)?.visibility = GONE; action() } }
+                    }, k.lp(WRAP_CONTENT).apply { if (i > 0) marginStart = k.dp(8) })
+                }
+                body.addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false; addView(row) }, body.indexOfChild(actions))
+            }
             actions.removeAllViews(); actions.visibility = VISIBLE
             actions.addView(k.iconButton("⧉", 16f) { copy(full) }.apply { contentDescription = "Copy" })
-            if (retry != null) actions.addView(k.iconButton("↻", 18f) { retry() }.apply { contentDescription = "Regenerate" })
+            if (retry != null) actions.addView(k.iconButton("↻", 18f) { if (!phase.busy) retry() }.apply { contentDescription = "Regenerate" })
             if (question.isNotBlank()) actions.addView(k.iconButton("⤴", 18f) { shareAnswer(body, question) }.apply { contentDescription = "Share" })
             val st = stats ?: TurnStats(localMs(), null, null, null, null, localTools)
             val meta = k.text("⏱ ${secs(st.totalMs)}" + (st.backend?.let { " · $it" } ?: if (st.tools.isNotEmpty() && st.backend == null) " · app" else "") +
@@ -758,9 +1187,10 @@ class ChatView(
                 contentDescription = "Response details"
                 setOnClickListener { toggleDetails(st, this) }
             }
-            actions.addView(meta, k.lp(0, WRAP_CONTENT, 1f))
+            if (!restored) actions.addView(meta, k.lp(0, WRAP_CONTENT, 1f))
+            if (localTools.any { it.name.startsWith("web_") && it.ok }) body.addView(k.text("From the web · check the sources before relying on it", 10.5f, Pal.DIM).apply { setPadding(k.dp(8), 0, 0, 0) })
             if (stats?.backend != null && persona != Persona.ANALYST) body.addView(k.text("Educational only · not investment advice", 10.5f, Pal.DIM).apply { setPadding(k.dp(8), 0, 0, 0) })
-            actions.alpha = 0f; actions.animate().alpha(1f).setDuration(300).start()
+            if (!restored) { actions.alpha = 0f; actions.animate().alpha(1f).setDuration(300).start() }
         }
 
         private val started = System.nanoTime()
@@ -815,7 +1245,7 @@ class ChatView(
             stopSpin(); shimmer.visibility = GONE; status.visibility = GONE
             txt.visibility = VISIBLE; txt.update("⚠️ $message")
             actions.removeAllViews(); actions.visibility = VISIBLE
-            actions.addView(k.chip("Try again") { retry() })
+            actions.addView(k.chip("Try again") { if (!phase.busy) retry() })
         }
 
         private fun stopSpin() {
@@ -835,7 +1265,7 @@ class ChatView(
 
     private fun copy(s: String) {
         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Khayali Pulao", s))
-        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.KEYBOARD_TAP)
     }
 
     fun hideKeyboard() {
@@ -847,5 +1277,6 @@ class ChatView(
 
     companion object {
         private val THINKING = listOf("Working it out…", "Running the numbers…", "Checking the maths…")
+        const val WEB_EXPLAINER = "Allow Khayali Pulao to use the web?\n- Search DuckDuckGo for news, results and dates, and show its sources\n- Read the latest share price from Yahoo Finance (may be delayed)\n\nOnly the company name or search words are sent. Your holdings, quantities and amounts are stripped from every query and never leave the phone. You're asked once; the switch is in Settings."
     }
 }

@@ -26,7 +26,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests (maths, parser, on-device-only guards)
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug
 
       - name: Website calculator matches the app's maths
         run: node docs/khayali.test.mjs

@@ -31,15 +31,43 @@ class KiteMcpClient private constructor(ctx: Context) {
         data object Connecting : State()
         data class WaitingForBrowser(val url: String) : State()
         data class Connected(val name: String?) : State()
+        /** Was connected, but Zerodha's daily login has lapsed: one tap to sign in again. */
+        data object Expired : State()
         data class Failed(val message: String) : State()
     }
 
     private val prefs = ctx.applicationContext.getSharedPreferences("khayali_kite", Context.MODE_PRIVATE)
     private val ids = AtomicInteger(1)
     private val gson = Gson()
-    private val _state = MutableStateFlow<State>(if (token != null) State.Connected(prefs.getString(KEY_NAME, null)) else State.Off)
+    private val _state = MutableStateFlow<State>(when {
+        token != null -> State.Connected(prefs.getString(KEY_NAME, null))
+        prefs.contains(KEY_TOKEN) -> State.Expired
+        else -> State.Off
+    })
     val state: StateFlow<State> = _state
     val connected get() = _state.value is State.Connected
+    /** Serialises MCP calls: the session handshake must not race between a preload and a command. */
+    private val gate = Any()
+
+    val link: ChatFlow.Kite get() = when (_state.value) {
+        is State.Connected -> ChatFlow.Kite.CONNECTED
+        State.Expired -> ChatFlow.Kite.EXPIRED
+        else -> ChatFlow.Kite.OFF
+    }
+
+    /**
+     * Call when the app comes back to the foreground: Kite logins last a day, so a token that was
+     * fine when the phone went to sleep may be gone now. Moves Connected → Expired without a request.
+     */
+    fun checkFresh() {
+        if (_state.value is State.Connected && token == null) expire()
+    }
+
+    private fun expire() {
+        session = null
+        prefs.edit().putLong(KEY_EXPIRES, 0L).apply()      // keep the record that there was a login, so the UI offers "Reconnect"
+        if (_state.value is State.Connected || _state.value is State.Connecting) _state.value = State.Expired
+    }
 
     private var token: String?
         get() = prefs.getString(KEY_TOKEN, null)?.takeIf { prefs.getLong(KEY_EXPIRES, Long.MAX_VALUE) > System.currentTimeMillis() }
@@ -70,7 +98,7 @@ class KiteMcpClient private constructor(ctx: Context) {
             )
             withContext(Dispatchers.Main) { openBrowser(url) }
             State.WaitingForBrowser(url)
-        }.getOrElse { State.Failed(it.message ?: "Couldn't reach Kite") }.also { _state.value = it }
+        }.getOrElse { State.Failed(Net.friendly(it, "Kite")) }.also { _state.value = it }
     }
 
     /** Step 2: called with the redirect (khayalipulao://kite/callback?code&state). */
@@ -90,7 +118,7 @@ class KiteMcpClient private constructor(ctx: Context) {
             prefs.edit().putString(KEY_NAME, name).apply()
             runCatching { account("holdings") }      // warm the @mention list
             State.Connected(name)
-        }.getOrElse { State.Failed(it.message ?: "Couldn't finish Kite login") }.also { _state.value = it }
+        }.getOrElse { State.Failed(Net.friendly(it, "Kite")) }.also { _state.value = it }
     }
 
     private fun register(redirect: String): String {
@@ -119,18 +147,47 @@ class KiteMcpClient private constructor(ctx: Context) {
         val o = JsonParser.parseString(res).asJsonObject
         val t = o["access_token"]?.asString ?: error(o["error_description"]?.asString ?: "No token from Kite")
         val ttl = o["expires_in"]?.asLong ?: (12 * 3600L)
-        prefs.edit().putString(KEY_TOKEN, t).putLong(KEY_EXPIRES, System.currentTimeMillis() + ttl * 1000).apply()
+        prefs.edit().putString(KEY_TOKEN, t).putLong(KEY_EXPIRES, System.currentTimeMillis() + ttl * 1000)
+            .putString(KEY_REFRESH, o["refresh_token"]?.takeIf { !it.isJsonNull }?.asString).apply()
+    }
+
+    /** Quietly swap an expired token for a new one when the server gave us a refresh token. */
+    private fun refresh(): Boolean {
+        val rt = prefs.getString(KEY_REFRESH, null) ?: return false
+        val clientId = prefs.getString(KEY_CLIENT, null)?.substringBefore('|') ?: return false
+        return runCatching {
+            val res = http("POST", KiteData.AUTH_BASE + "/token", "application/x-www-form-urlencoded", form(
+                "grant_type" to "refresh_token", "refresh_token" to rt, "client_id" to clientId, "resource" to KiteData.ENDPOINT), auth = false)
+            val o = JsonParser.parseString(res).asJsonObject
+            val t = o["access_token"]?.asString ?: return false
+            val ttl = o["expires_in"]?.asLong ?: (12 * 3600L)
+            prefs.edit().putString(KEY_TOKEN, t).putLong(KEY_EXPIRES, System.currentTimeMillis() + ttl * 1000)
+                .putString(KEY_REFRESH, o["refresh_token"]?.takeIf { !it.isJsonNull }?.asString ?: rt).apply()
+            session = null
+            true
+        }.getOrDefault(false)
     }
 
     // ================================================================ MCP
 
-    private class Unauthorized : Exception("Kite login expired — tap the Kite pill to reconnect")
+    private class Unauthorized : Exception(EXPIRED_MESSAGE)
 
-    private fun http(method: String, url: String, type: String, body: String, auth: Boolean = true): String {
+    /**
+     * One request, retried once on a dropped connection. After the phone has been asleep the pooled
+     * socket is usually dead, and the first request fails with "unexpected end of stream" — a fresh
+     * connection then works.
+     */
+    private fun http(method: String, url: String, type: String, body: String, auth: Boolean = true): String =
+        try { httpOnce(method, url, type, body, auth) }
+        catch (e: Unauthorized) { throw e } catch (e: SessionGone) { throw e }
+        catch (e: java.io.IOException) { httpOnce(method, url, type, body, auth) }
+
+    private fun httpOnce(method: String, url: String, type: String, body: String, auth: Boolean): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method; doOutput = true; connectTimeout = 15_000; readTimeout = 45_000
             setRequestProperty("Content-Type", type)
             setRequestProperty("Accept", "application/json, text/event-stream")
+            setRequestProperty("Connection", "close")
             if (auth) {
                 token?.let { setRequestProperty("Authorization", "Bearer $it") } ?: throw Unauthorized()
                 setRequestProperty("MCP-Protocol-Version", PROTOCOL)
@@ -141,10 +198,10 @@ class KiteMcpClient private constructor(ctx: Context) {
             conn.outputStream.use { it.write(body.toByteArray()) }
             val code = conn.responseCode
             if (auth) conn.getHeaderField("Mcp-Session-Id")?.let { session = it }
-            if (code == 401) { if (auth) { prefs.edit().remove(KEY_TOKEN).apply(); _state.value = State.Off }; throw Unauthorized() }
-            if (code == 404 && auth && session != null) { session = null; throw SessionGone() }
+            if (code == 401) throw Unauthorized()
+            if ((code == 404 || code == 400) && auth && session != null) { session = null; throw SessionGone() }
             val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299 && code != 202) error("Kite returned HTTP $code ${text.take(120)}")
+            if (code !in 200..299 && code != 202) throw java.io.IOException(if (code >= 500) "Kite is having trouble right now (HTTP $code). Try again in a minute." else "Kite refused the request (HTTP $code).")
             return text
         } finally { conn.disconnect() }
     }
@@ -166,14 +223,27 @@ class KiteMcpClient private constructor(ctx: Context) {
     }
 
     /** Calls one read-only (tool, mode). Refuses anything not on the allowlist. */
-    private fun call(tool: String, args: Map<String, Any?>): String {
+    private fun call(tool: String, args: Map<String, Any?>): String = synchronized(gate) {
         require(KiteData.allowed(tool, args["mode"] as? String)) { "Blocked: '$tool/${args["mode"]}' is not a read-only Kite call" }
+        try { callOnce(tool, args) }
+        catch (e: Unauthorized) {
+            // Token rejected or lapsed: try a silent refresh once, otherwise ask the user to sign in again.
+            if (refresh()) runCatching { callOnce(tool, args) }.getOrElse { expire(); throw Unauthorized() } else { expire(); throw e }
+        }
+    }
+
+    private fun callOnce(tool: String, args: Map<String, Any?>): String {
+        if (token == null) throw Unauthorized()
         if (session == null) handshake()
         val params = JsonObject().apply { addProperty("name", tool); add("arguments", gson.toJsonTree(args)) }
         val body = try { http("POST", KiteData.ENDPOINT, "application/json", gson.toJson(rpc("tools/call", params))) }
             catch (e: SessionGone) { handshake(); http("POST", KiteData.ENDPOINT, "application/json", gson.toJson(rpc("tools/call", params))) }
-        return KiteData.resultText(KiteData.parseRpc(body) ?: error("Unreadable reply from Kite"))
+        val text = KiteData.resultText(KiteData.parseRpc(body) ?: throw java.io.IOException("Unreadable reply from Kite"))
+        if (text.length < 600 && KiteData.looksLoggedOut(text)) throw Unauthorized()
+        return text
     }
+
+    private fun failure(t: Throwable) = gson.toJson(mapOf("error" to Net.friendly(t, "Kite"), "expired" to (t is Unauthorized)))
 
     // ============================================================ public API
 
@@ -194,7 +264,7 @@ class KiteMcpClient private constructor(ctx: Context) {
                 e.apply()
             }
             out
-        }.getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
+        }.getOrElse { failure(it) }
     }
 
     /** Live prices on each symbol's own exchange (from holdings), falling back NSE → BSE. */
@@ -215,7 +285,7 @@ class KiteMcpClient private constructor(ctx: Context) {
                     ". Live price unavailable — using the last close.", "quotes" to quotes, "market_closed" to true))
             }
             out
-        }.getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
+        }.getOrElse { failure(it) }
     }
 
     fun exchangeOf(symbol: String): String? = prefs.getString("ex:$symbol", null)
@@ -234,7 +304,7 @@ class KiteMcpClient private constructor(ctx: Context) {
             val out = KiteData.summarize("history", call("market", mapOf("mode" to "historical", "instrument_token" to token,
                 "interval" to interval, "from_date" to from, "to_date" to to)))
             JsonParser.parseString(out).asJsonObject.apply { addProperty("symbol", sym); addProperty("period", period ?: "6m") }.toString()
-        }.getOrElse { """{"error": ${gson.toJson(it.message ?: "Kite unavailable")}}""" }
+        }.getOrElse { failure(it) }
     }
 
     fun disconnect() {
@@ -261,6 +331,8 @@ class KiteMcpClient private constructor(ctx: Context) {
         private const val KEY_NAME = "name"
         private const val KEY_SYMBOLS = "symbols"
         private const val KEY_PENDING = "pending"
+        private const val KEY_REFRESH = "refresh"
+        const val EXPIRED_MESSAGE = "Your Kite login has expired (Zerodha signs you out daily). Reconnect to continue."
         @Volatile private var instance: KiteMcpClient? = null
         fun get(ctx: Context) = instance ?: synchronized(this) { instance ?: KiteMcpClient(ctx).also { instance = it } }
     }

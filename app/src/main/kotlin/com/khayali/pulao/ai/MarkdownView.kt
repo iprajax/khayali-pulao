@@ -48,7 +48,7 @@ object Md {
                     while (i < lines.size && !lines[i].trim().startsWith("```")) { code.appendLine(lines[i]); i++ }
                     i++; out += Block.Code(code.toString().trimEnd())
                 }
-                t.startsWith("#") -> { flush(); val lvl = t.takeWhile { it == '#' }.length.coerceIn(1, 3); out += Block.Heading(t.drop(lvl).trim(), lvl); i++ }
+                t.startsWith("#") -> { flush(); val n = t.takeWhile { it == '#' }.length; out += Block.Heading(t.drop(n).trim(), n.coerceIn(1, 3)); i++ }
                 t.startsWith(">") -> { flush(); out += Block.Quote(t.removePrefix(">").trim()); i++ }
                 t.startsWith("|") && i + 1 < lines.size && HR.matches(lines[i + 1]) -> {
                     flush(); val header = cells(t); i += 2
@@ -59,8 +59,12 @@ object Md {
                 Regex("""^\s*([-*•])\s+""").containsMatchIn(l) || Regex("""^\s*\d+[.)]\s+""").containsMatchIn(l) -> {
                     flush(); val ordered = Regex("""^\s*\d+[.)]\s+""").containsMatchIn(l)
                     val items = mutableListOf<String>()
-                    while (i < lines.size && (Regex("""^\s*([-*•])\s+""").containsMatchIn(lines[i]) || Regex("""^\s*\d+[.)]\s+""").containsMatchIn(lines[i]))) {
-                        items += lines[i].replace(Regex("""^\s*(?:[-*•]|\d+[.)])\s+"""), ""); i++
+                    val item = Regex("""^\s*(?:[-*•]|\d+[.)])\s+""")
+                    while (i < lines.size) {
+                        if (item.containsMatchIn(lines[i])) { items += lines[i].replace(item, ""); i++ }
+                        // a blank line between items doesn't end the list ("1. A\n\n2. B" is one list)
+                        else if (lines[i].isBlank() && lines.drop(i + 1).firstOrNull { it.isNotBlank() }?.let { item.containsMatchIn(it) } == true) i++
+                        else break
                     }
                     out += Block.Bullets(items, ordered)
                 }
@@ -74,7 +78,7 @@ object Md {
     /** Plain text with markers removed (same rules as [inline]); pure, for tests and copy. */
     fun plain(src: String): String {
         var t = src.replace(Regex("""\*\*(.+?)\*\*"""), "$1").replace(Regex("""`([^`]+)`"""), "$1")
-            .replace(Regex("""\*([^*\s][^*]*)\*"""), "$1")
+            .replace(Regex("""(?<![\w*])\*([^*\s][^*]*)\*"""), "$1")
         t = t.replace("**", "")
         return t
     }
@@ -90,13 +94,20 @@ object Md {
                         out.setSpan(StyleSpan(Typeface.BOLD), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         out.setSpan(ForegroundColorSpan(accent), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); i = end + 2 } else i += 2
                 }
+                // citation markers like [2] point at the numbered sources card
+                src[i] == '[' && Regex("""^\[\d{1,2}]""").containsMatchIn(src.substring(i, minOf(src.length, i + 4))) -> {
+                    val end = src.indexOf(']', i); val s = out.length; out.append(src, i, end + 1)
+                    out.setSpan(ForegroundColorSpan(Pal.BLUE), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    out.setSpan(StyleSpan(Typeface.BOLD), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    out.setSpan(android.text.style.RelativeSizeSpan(0.85f), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); i = end + 1
+                }
                 src[i] == '`' -> {
                     val end = src.indexOf('`', i + 1)
                     if (end > i) { val s = out.length; out.append(src, i + 1, end)
                         out.setSpan(TypefaceSpan("monospace"), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         out.setSpan(BackgroundColorSpan(Pal.alpha(Pal.LINE, 0.8f)), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); i = end + 1 } else i++
                 }
-                src[i] == '*' && i + 1 < src.length && src[i + 1] != ' ' -> {
+                src[i] == '*' && i + 1 < src.length && src[i + 1] != ' ' && (i == 0 || !src[i - 1].isLetterOrDigit()) -> {
                     val end = src.indexOf('*', i + 1)
                     if (end > i) { val s = out.length; out.append(src, i + 1, end)
                         out.setSpan(StyleSpan(Typeface.ITALIC), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); i = end + 1 } else i++

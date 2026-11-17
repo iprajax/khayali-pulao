@@ -16,6 +16,19 @@ object SettingsPanel {
             addView(k.text(s, 13f, Pal.MUTED, 500)); addView(k.space(8))
         }
 
+        col.addView(k.section("AI chat") {
+            addView(k.switchRow("Web access", "Search (DuckDuckGo) and latest prices (Yahoo Finance). Only company names and search words are sent — never your holdings.", prefs.webOn) {
+                prefs.webOn = it; onChange()
+            })
+            val memory = com.khayali.pulao.ai.MemoryStore.get(ctx)
+            addView(k.switchRow("Memory", "Remembers your goals and preferences across chats, on this phone only", memory.enabled) { memory.enabled = it; onChange() })
+            addView(k.space(6))
+            addView(k.button("See what the chat remembers (${memory.playbook.bullets.size})", primary = false) {
+                ctx.startActivity(android.content.Intent(ctx, com.khayali.pulao.ai.MemoryActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }, k.lp(MATCH_PARENT))
+        })
+        gap()
+
         col.addView(k.section("Ladder steps") {
             label("Gains (%)")
             addView(k.input(prefs.gainsText, Levels.DEFAULT_GAINS, numeric = false) { prefs.gainsText = it; onChange() })
@@ -47,13 +60,13 @@ object SettingsPanel {
             val a = k.column().apply {
                 addView(k.text("Default ₹ amount", 12f, Pal.MUTED)); addView(k.space(6))
                 addView(k.input(Fmt.qty(prefs.watchAmount), "10000") { t ->
-                    t.toDoubleOrNull()?.takeIf { it > 0 }?.let { prefs.watchAmount = it; onChange() }
+                    Fmt.parse(t)?.takeIf { it > 0 }?.let { prefs.watchAmount = it; onChange() }
                 })
             }
             val s = k.column().apply {
                 addView(k.text("Default shares", 12f, Pal.MUTED)); addView(k.space(6))
                 addView(k.input(Fmt.qty(prefs.watchShares), "10") { t ->
-                    t.toDoubleOrNull()?.takeIf { it > 0 }?.let { prefs.watchShares = it; onChange() }
+                    Fmt.parse(t)?.takeIf { it > 0 }?.let { prefs.watchShares = it; onChange() }
                 })
             }
             r.addView(a, k.lp(0, WRAP_CONTENT, 1f)); r.addView(k.space(1, 12)); r.addView(s, k.lp(0, WRAP_CONTENT, 1f))
@@ -92,14 +105,14 @@ object SettingsPanel {
                 k.lp(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1.6f))
             dr.addView(k.space(1, 8))
             dr.addView(k.input(if (prefs.customPrice > 0) Fmt.qty(prefs.customPrice) else "", "₹ price") { t ->
-                prefs.customPrice = t.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0; onChange()
+                prefs.customPrice = Fmt.parse(t)?.coerceAtLeast(0.0) ?: 0.0; onChange()
             }, k.lp(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(dr, k.lp(MATCH_PARENT))
             addView(k.space(10))
             addView(k.space(6))
             label("Default yearly return (Goal & Years tabs)")
             val rates = listOf(8.0, 12.0, 15.0, 20.0)
-            addView(k.segmented(rates.map { Fmt.pct(it).removePrefix("+") }, rates.indexOf(prefs.cagr).coerceAtLeast(1)) {
+            addView(k.segmented(rates.map { Fmt.pct(it).removePrefix("+") }, rates.indexOf(prefs.cagr).let { if (it < 0) 1 else it }) {
                 prefs.cagr = rates[it]; onChange()
             })
         })
@@ -121,10 +134,10 @@ object SettingsPanel {
         gap()
 
         col.addView(k.section("Compare against") {
-            fun numRow(title: String, value: Double, set: (Double) -> Unit) {
+            fun numRow(title: String, value: Double, positive: Boolean = false, set: (Double) -> Unit) {
                 val r = k.row().apply { setPadding(0, k.dp(4), 0, k.dp(4)) }
                 r.addView(k.text(title, 14f, Pal.TEXT), k.lp(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                r.addView(k.input(Fmt.qty(value), "") { t -> t.toDoubleOrNull()?.takeIf { it >= 0 }?.let { set(it); onChange() } }, k.lp(k.dp(120)))
+                r.addView(k.input(Fmt.qty(value), "") { t -> Fmt.parse(t)?.takeIf { if (positive) it > 0 else it >= 0 }?.let { set(it); onChange() } }, k.lp(k.dp(120)))
                 addView(r, k.lp(MATCH_PARENT))
             }
             numRow("🧾 Bank FD (% / yr)", prefs.fdRate) { prefs.fdRate = it }
@@ -133,7 +146,7 @@ object SettingsPanel {
             numRow("🪙 Gold, assumed (% / yr)", prefs.goldRate) { prefs.goldRate = it }
             numRow("📈 Nifty 50, assumed (% / yr)", prefs.niftyRate) { prefs.niftyRate = it }
             numRow("🛒 Inflation (% / yr)", prefs.inflation) { prefs.inflation = it }
-            numRow("🛋️ Monthly expenses (₹)", prefs.monthlyExpense) { prefs.monthlyExpense = it }
+            numRow("🛋️ Monthly expenses (₹)", prefs.monthlyExpense, positive = true) { prefs.monthlyExpense = it }
             addView(k.space(8))
             addView(k.button("Reset to current rates (${Rates.AS_OF})", primary = false) { prefs.resetRates(); onReset() }, k.lp(MATCH_PARENT))
             addView(k.text(Rates.NOTE, 11f, Pal.DIM).apply {
@@ -145,7 +158,7 @@ object SettingsPanel {
         col.addView(k.section("Bubble") {
             label("Size")
             val sizes = listOf("S", "M", "L")
-            addView(k.segmented(listOf("Small", "Medium", "Large"), sizes.indexOf(prefs.bubbleSize).coerceAtLeast(1)) {
+            addView(k.segmented(listOf("Small", "Medium", "Large"), sizes.indexOf(prefs.bubbleSize).let { if (it < 0) 1 else it }) {
                 prefs.bubbleSize = sizes[it]; onChange()
             })
             addView(k.space(6))

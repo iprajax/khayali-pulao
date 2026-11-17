@@ -12,6 +12,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -54,11 +56,14 @@ class ModelManager private constructor(private val app: Context) {
 
     /** Recompute state from disk + any in-flight download. Cheap; call on resume. */
     fun refresh() {
+        if (_state.value is State.Verifying) return       // a 2.6 GB hash is already running; never start a second one
         val id = prefs.getLong(KEY_ID, -1)
         when {
             isReady() -> _state.value = State.Ready
             id >= 0 && query(id) != null -> watch(id)
             file.exists() && file.length() == ModelSpec.SIZE_BYTES -> verify()
+            // Keep "failed" / "not enough space" on screen (with their Retry) instead of silently resetting them.
+            _state.value is State.Failed || _state.value is State.NotEnoughSpace -> Unit
             else -> _state.value = State.Absent
         }
     }
@@ -83,7 +88,9 @@ class ModelManager private constructor(private val app: Context) {
             .setDestinationUri(Uri.fromFile(partFile))
             .setAllowedOverMetered(!wifiOnly)
             .setAllowedOverRoaming(false)
-        val id = dm.enqueue(req)
+        val id = runCatching { dm.enqueue(req) }.getOrElse {
+            _state.value = State.Failed("Android's download manager isn't available. Enable it in system settings and try again."); return
+        }
         prefs.edit().putLong(KEY_ID, id).putBoolean(KEY_WIFI, wifiOnly).apply()
         watch(id)
     }
@@ -161,9 +168,10 @@ class ModelManager private constructor(private val app: Context) {
                 var done = 0L
                 file.inputStream().buffered(1 shl 20).use { input ->
                     while (true) {
+                        ensureActive()                      // cancel / delete during verification stops here
                         val n = input.read(buf); if (n < 0) break
                         md.update(buf, 0, n); done += n
-                        if (done % (64L shl 20) < n) _state.value = State.Verifying(done, ModelSpec.SIZE_BYTES)
+                        if (done % (64L shl 20) < n && isActive) _state.value = State.Verifying(done, ModelSpec.SIZE_BYTES)
                     }
                 }
                 md.digest().joinToString("") { "%02x".format(it) } == ModelSpec.SHA256
@@ -189,6 +197,7 @@ class ModelManager private constructor(private val app: Context) {
     companion object {
         private const val KEY_ID = "download_id"
         private const val KEY_WIFI = "wifi_only"
+        @android.annotation.SuppressLint("StaticFieldLeak")       // holds the application context only
         @Volatile private var instance: ModelManager? = null
         fun get(ctx: Context) = instance ?: synchronized(this) { instance ?: ModelManager(ctx.applicationContext).also { instance = it } }
     }

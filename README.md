@@ -49,7 +49,7 @@
 - **Number guard** — any ₹ figure the model writes that doesn't match a tool result is removed, so you never see an invented number.
 - Understands **"10 lakh", "1.5 crore", "50k"**. Changes settings ("set my FD rate to 7%") and opens screens.
 - In the app and in the bubble sheet over Kite (✨), where it already knows the stock you tapped.
-- **/commands** — `/holdings` `/pnl` `/positions` `/margins` `/orders` `/mf` (instant cards from Kite, no AI needed), `/fd 3` `/goal 50 lakh` `/grow` `/move 15` `/tax` `/clear` `/help`.
+- **/commands** — `/holdings` `/pnl` `/positions` `/margins` `/orders` `/mf` (instant cards from Kite, no AI needed), `/fd 3` `/goal 50 lakh` `/grow 1 lakh 12% 10y` `/move -20` `/tax` (exact calculators, no AI needed), `/price` `/events` `/results` `/news` `/web` (opt-in web, with sources), `/remember` `/memory` `/forget`, `/clear` `/help`.
 - **@mentions** — type `@` to pick one of your Kite holdings: *"What if @INFY goes up 20%?"*
 - **Share any answer** as an image (card + text, branded) to WhatsApp, X, Instagram… — with a warning before sharing real amounts.
 - Gemini-style motion: flowing gradient greeting, thinking shimmer, word-by-word fade-in, glowing input, follow-up pills.
@@ -57,6 +57,132 @@
 ### 🔗 Connect Kite (optional, read-only)
 
 Tap **Connect Kite** in the chat to let it read your real holdings, positions, margins and orders through **Zerodha's official [Kite MCP](https://github.com/zerodha/kite-mcp-server)** (`mcp.kite.trade`), using standard MCP OAuth 2.1 (PKCE + a one-time loopback redirect on the phone). You log in on Zerodha's own page in your browser — if you're already logged in to Kite in Chrome it's usually a one-tap "Authorize". The app **only allows read tools**: every order/GTT tool is blocked in code (and tested), on top of Zerodha's hosted server excluding them. Your Kite data comes from Zerodha to your phone and is used only by the on-device model.
+
+<!-- terminal-commands -->
+## 📟 Market terminal — 72 commands
+
+Chart cards built from public, no-login data: NSE's own feeds and exchange filings, public price feeds, World Bank and mfapi.in open data. Web access is opt-in; the calculators and portfolio views marked *works offline* never touch the network. Your holdings are matched on the phone and never sent. Type `/` in the chat to browse, or just ask — short questions like "show me the heatmap" run the matching card directly, and the AI can call any of them.
+
+**Market** (15)
+
+| Command | What you get |
+|---|---|
+| `/report` | Market report: indices, breadth, sectors, top gainers and losers, FII/DII flows, your stocks — one card |
+| `/sectormovers` | Sector-wise top gainers and losers: each sector's move with its best and worst stocks |
+| `/preopen` | Pre-open session: indicative opening prices, gap-ups and gap-downs in F&O stocks |
+| `/heatmap NIFTY BANK` | Index heatmap: every constituent sized by traded value, coloured by today's move |
+| `/indices sectoral` | NSE indices ranked by today's move (broad, sectoral, thematic, strategy), with P/E and 52-week position |
+| `/sectors` | Sector indices ranked by today's move, with 30-day and 1-year change (/sectors 30d or 1y to rank by those) |
+| `/movers fno` | Top gainers and losers today — NIFTY 50 by default, or bank, next50, fno, all |
+| `/breadth` | Market breadth: how many NSE stocks are up, down and unchanged today, and the advance/decline ratio |
+| `/active` | Most active securities today: by traded value (₹ crore) and by number of shares |
+| `/status` | Is the market open? Each NSE segment's state, plus the previous session's turnover by segment |
+| `/highs` | Stocks that set a new 52-week high or low today, with the count on each side |
+| `/bands` | Stocks that hit their upper or lower price band (circuit limit) today |
+| `/volume` | Unusual volume: stocks trading at several times their 1-week average volume today |
+| `/fiidii` | FII/FPI and DII buying, selling and net flow in the cash market for the latest day |
+| `/deals INFY` | Bulk and block deals: who bought or sold, quantity and price — all, or for one stock |
+
+**Stock** (19)
+
+| Command | What you get |
+|---|---|
+| `/flow INFY` | Quarterly results as a money-flow (Sankey): income → costs → tax → profit, with a 5-quarter trend |
+| `/insider INFY` | Insider trades disclosed for one company: who bought or sold, how much and when |
+| `/announcements INFY` | A company's latest exchange announcements: subject, date and a one-line gist |
+| `/filings INFY` | Company snapshot: latest announcements, corporate actions, board meetings and results filed |
+| `/quote INFY` | Full quote: price, day and 52-week range position, VWAP, volume, delivery, P/E vs sector |
+| `/shareholding INFY` | Who owns the company: promoter, public and employee-trust holding by quarter (streamgraph) |
+| `/mindmap INFY` | Mind map of one company: price, latest results, ownership, events and sector peers |
+| `/scorecard INFY` | Radar of one stock's year: return, volatility, drawdown, trend and dividend yield, each 0–100 |
+| `/peers IT` | Sector peers side by side: every stock of a sector index with price and today's change |
+| `/history INFY` | NSE daily history for a month: open-high-low-close candles, VWAP, volume and turnover |
+| `/ta INFY` | Price with 20/50/200-day moving averages and Bollinger bands |
+| `/rsi INFY` | 14-day RSI with the 30/70 zones and what the latest reading means in plain words |
+| `/macd INFY` | MACD (12, 26, 9): MACD line, signal line and histogram, with the latest crossover |
+| `/drawdown INFY` | Underwater chart: fall from the running peak over 5 years, the worst drawdown and its recovery time |
+| `/returns INFY` | Returns over 1 week to 5 years, with CAGR, against the Nifty 50 over the same periods |
+| `/seasonality INFY` | Month by year grid of monthly returns as a heat matrix, with the average for each month |
+| `/compare INFY TCS 1y` | Two to four stocks or indices rebased to 100 over a period (1mo 3mo 6mo 1y 2y 5y) |
+| `/levels INFY` | Support and resistance: classic pivot levels from the last session, plus the 52-week high and low |
+| `/volatility INFY` | Rolling 30-day annualised volatility over a year, and the current reading against its own range |
+
+**Portfolio** (10)
+
+| Command | What you get |
+|---|---|
+| `/watch` | Your watch list: stocks you've looked at in chat plus your holdings, with sparklines |
+| `/xray` | Portfolio X-ray: allocation sunburst, largest weights and how concentrated your holdings are · works offline |
+| `/pnlflow` | Portfolio money-flow (Sankey): what you invested in each stock and what it became — gain or loss · works offline |
+| `/risk` | Portfolio risk: volatility, beta vs Nifty 50 and 1-day 95% value-at-risk in rupees |
+| `/correlation` | How your holdings move together: correlation matrix of daily returns (8 largest holdings) |
+| `/riskreturn` | Risk vs return scatter: each holding's 1-year volatility, return and weight |
+| `/stress` | Stress test: portfolio value if the Nifty fell 5, 10, 20 or 30%, using each holding's beta |
+| `/income` | Dividend income: last 12 months' dividends per share × your quantity, with yield |
+| `/rebalance` | Equal-weight comparison: how many rupees over or under an equal share each holding is · works offline |
+| `/foliomap` | Portfolio mind map: total value at the centre, one branch per holding with weight and P&L · works offline |
+
+**Derivatives** (9)
+
+| Command | What you get |
+|---|---|
+| `/oispurts` | Open-interest spurts: derivatives underlyings with the biggest change in open interest |
+| `/optionchain NIFTY` | Option chain: open interest by strike, calls vs puts, around spot for the nearest expiry |
+| `/pcr NIFTY` | Put-call ratio by open interest and by volume for the nearest expiries, and what it means |
+| `/maxpain NIFTY` | Max-pain strike for the nearest expiry, worked out from open interest, with the pain curve |
+| `/ivsmile NIFTY` | Implied volatility by strike for calls and puts (the volatility smile) for the nearest expiry |
+| `/straddle NIFTY` | At-the-money straddle price and the move, in points and %, that options price in by expiry |
+| `/oichange NIFTY` | Today's biggest additions and unwinding of open interest by strike, calls and puts |
+| `/expiries NIFTY` | Upcoming option expiry dates for an index or stock, with days to go |
+| `/vix` | India VIX: level, position in its 1-year range and the daily move it roughly implies |
+
+**Funds & planning** (6)
+
+| Command | What you get |
+|---|---|
+| `/etfs gold` | Exchange-traded funds: the most traded, with price and day change — add a word to filter |
+| `/sgb` | Sovereign gold bonds on NSE: last traded price against issue price, most traded first |
+| `/gold` | Gold in rupees per 10 grams, derived from the dollar price and USD/INR, with a 1-year chart |
+| `/fund parag flexi` | A mutual fund by name: latest NAV, 1-month to 5-year returns and the NAV chart |
+| `/fundcompare parag flexi vs nifty 50 index` | Two mutual funds side by side, both rebased to 100 over three years |
+| `/sipreal parag flexi 10000 5y` | What a monthly SIP in a fund would be worth today, from its actual NAV history, with XIRR |
+
+**Global & macro** (7)
+
+| Command | What you get |
+|---|---|
+| `/global` | World indices at a glance: last level, day change and a 1-month sparkline for ten markets |
+| `/fx` | Rupee against USD, EUR, GBP, JPY, AED and SGD with day and 1-year change |
+| `/commodities` | Gold, silver, crude oil, natural gas and copper in dollars with day and 1-month change |
+| `/crypto` | Bitcoin and ether in dollars and rupees with day change and a 1-month line |
+| `/inflation` | India CPI inflation by year, the latest value and the 10-year average |
+| `/gdp` | India real GDP growth by year, the latest value and the 10-year average |
+| `/yields` | US 10-year yield, 13-week bill yield and the dollar index with 1-year lines |
+
+**Tools** (6)
+
+| Command | What you get |
+|---|---|
+| `/sip 10000 12% 15y` | SIP calculator: monthly amount, yearly return and years → corpus, invested and growth · works offline |
+| `/stepup 10000 10% 12% 15y` | Step-up SIP: a SIP raised by X% every year, compared with keeping it flat · works offline |
+| `/swp 1 crore 80000 8%` | Systematic withdrawal: how long a corpus lasts under a fixed monthly withdrawal · works offline |
+| `/emi 50 lakh 8.5% 20y` | Loan EMI: amount, rate and years → EMI, total interest and the yearly principal-interest split · works offline |
+| `/retire 50000 25y 25y 6% 12% 8%` | Retirement corpus: expenses today, years to and in retirement → corpus and the SIP needed · works offline |
+| `/lumpsum 12 lakh 12% 10y` | Lump sum vs SIP: the same total invested at once or monthly, at a given return · works offline |
+<!-- /terminal-commands -->
+
+## What's new in 0.8
+
+- **A chat that doesn't get stuck** — one explicit state machine behind typing, pills, /commands, retries and reconnects. Came back next morning and `/holdings` failed? Zerodha signs you out daily and Android may have unloaded the model; the app now detects both, offers **Reconnect**, keeps your command and runs it when you're back.
+- **Commands need no model** — `/holdings` `/chart` `/fd` `/goal` `/grow` `/move` `/tax` are run by the app: exact and instant, even before the 2.6 GB model is downloaded.
+- **Web, with sources (opt-in)** — `/price INFY`, `/events INFY`, `/results INFY`, `/news INFY`, `/web …`, and the model can look things up too. DuckDuckGo search + a public quote feed. Answers cite numbered sources; figures that aren't in a source are removed. Only topic words are sent — amounts, quantities and identifiers are stripped from every query.
+- **Market calendar & IPOs** — `/calendar` (results, dividends, splits, bonus, buybacks, AGMs, IPOs and holidays for the week, your holdings starred), `/ipo` and `/gmp NAME` (grey-market premium trend and implied listing price, clearly labelled unofficial).
+- **Market terminal — 72 commands** — `/report` (the whole market on one card), `/preopen`, `/sectormovers`, `/heatmap`, `/flow INFY` (results as a Sankey from the XBRL filing), `/mindmap INFY`, `/shareholding INFY` (streamgraph), option chain, technicals, portfolio X-ray, global markets, mutual funds and planners — [full list](#-market-terminal--72-commands).
+- **Memory that learns, on your phone** — a small playbook of notes (your goals and preferences, plus lessons from the chat's own mistakes) that is reflected on and curated after each answer, in the style of [agentic context engineering](https://arxiv.org/abs/2510.04618). Read, delete or erase it with `/memory`.
+- **Readable on a phone** — market cards use native, colour-coded blocks: a scrolling ticker tape, sparkline rows with green/red change pills, sector bars, stat tiles and a breadth bar. `/report` puts indices, breadth, sectors, top gainers and losers, FII/DII flows and your stocks on one card with a written read-out; `/preopen`, `/sectormovers` and `/watch` (stocks you've looked at in chat) work the same way.
+- **Charts with labelled axes** — and new ones: candlesticks with volume, what-if curve, goal paths, tax waterfall, allocation donut, company-events calendar.
+- **The thread survives** — saved on the phone and restored with its cards when you return.
+- **20 audited fixes** across the overlay, sheet and home screen — see the [changelog](CHANGELOG.md).
 
 ## What's new in 0.7
 
@@ -109,12 +235,13 @@ Tap **Connect Kite** in the chat to let it read your real holdings, positions, m
 
 <sub>All screenshots come from the in-app Demo with fictional data. In real use the same sheet opens on top of Kite.</sub>
 
-## 🔒 Nothing leaves your phone
+## 🔒 Your portfolio never leaves your phone
 
-- **No uploads.** Network is used for exactly two optional things: the one-time AI model download from Hugging Face (SHA-256 checked) and, only if you tap Connect Kite, Zerodha's official Kite MCP (read-only). Tests and CI fail if any other network code, address or permission appears.
-- **On-device AI.** The chat runs Gemma 4 on your phone — your questions and Kite's numbers never leave it.
-- **Reads, never trades.** It reads the numbers Kite already shows, only while Kite is open. While the bubble is on, your taps can't reach Kite's Buy/Sell; the only things passed through are scrolling and Kite's navigation tabs.
-- **Keeps nothing of yours.** Only your settings and the hold periods you type — excluded from cloud backup and phone-to-phone transfer.
+- **Three optional uses of the internet, each off until you choose it.** The one-time AI model download from Hugging Face (SHA-256 checked); Zerodha's official read-only Kite MCP, if you tap Connect Kite; and web lookups, if you allow Web. A unit test fails the build if any other host or networking code appears.
+- **Web lookups send topic words only.** Search words go to DuckDuckGo, price lookups to Yahoo Finance. Amounts, quantities and identifiers are stripped from every query in code; holdings are never sent. No cookies, a generic user agent, and nothing but the results page may load.
+- **On-device AI.** The chat runs Gemma 4 on your phone — your questions and Kite's numbers are never sent to a cloud AI.
+- **Reads, never trades.** It reads the numbers Kite already shows, only while Kite is open. While the bubble is on, your taps can't reach Kite's Buy/Sell.
+- **What is stored, and where.** Your settings, the hold periods you type, the current chat thread and the chat's memory notes — private files on the phone, excluded from cloud backup and phone-to-phone transfer. New chat clears the thread; Memory → Erase clears the notes.
 - **No login, analytics, ads or trackers.** No third-party SDKs at all.
 
 Details: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md)

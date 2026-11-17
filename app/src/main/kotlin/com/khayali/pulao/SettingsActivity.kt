@@ -4,7 +4,6 @@ import android.app.Activity
 import android.os.Bundle
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.view.WindowInsets
 import android.widget.LinearLayout
 import android.widget.ScrollView
 
@@ -24,7 +23,7 @@ class SettingsActivity : Activity() {
         root.addView(bar, k.lp(MATCH_PARENT))
         root.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(col, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }, k.lp(MATCH_PARENT, 0, 1f))
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val b = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime()); v.setPadding(0, b.top, 0, b.bottom); insets
+            com.khayali.pulao.Insets.pad(v, insets); insets
         }
         setContentView(root)
     }

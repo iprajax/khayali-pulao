@@ -2,9 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Internet is used for ONE thing: the one-time download of the on-device AI model from
-         huggingface.co (via Android's DownloadManager). No analytics, no APIs, no data upload.
-         Enforced by OnDeviceOnlyTest. -->
+    <!-- Internet is used only for things the user switches on: the one-time download of the on-device
+         AI model (huggingface.co, via Android's DownloadManager), the optional read-only Kite MCP
+         connection (mcp.kite.trade), and optional web lookups (DuckDuckGo search, Yahoo Finance quotes).
+         No analytics, no ads, no upload of anything read from the screen. Enforced by OnDeviceOnlyTest. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
@@ -62,6 +63,11 @@
             android:exported="false"
             android:label="Settings"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ai.MemoryActivity"
+            android:exported="false"
+            android:label="Memory" />
 
         <activity
             android:name=".DemoActivity"

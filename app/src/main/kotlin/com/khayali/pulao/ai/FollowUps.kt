@@ -40,7 +40,7 @@ object FollowUps {
             }
             "compare_with_fd" -> {
                 val y = a.num("years_held") ?: 2.0
-                listOf(1.0, 3.0, 5.0).filter { it != y }.map { Pill("Held ${Fmt.qty(it)} years", tool, with(a, "years_held" to it)) }
+                listOf(1.0, 3.0, 5.0).filter { it != y }.map { Pill("Held ${Fmt.qty(it)} ${if (it == 1.0) "year" else "years"}", tool, with(a, "years_held" to it)) }
             }
             "regret" -> {
                 val p = a.num("past_price") ?: return emptyList()

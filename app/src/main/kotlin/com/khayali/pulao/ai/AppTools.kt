@@ -49,6 +49,8 @@ class AppTools(private val host: ToolHost, onEvent: (ToolEvent) -> Unit = {}) {
 
     /** Percentages the user literally typed this turn (signed). The model's guesses are corrected to these. */
     @Volatile var userPercents: List<Double> = emptyList()
+    /** Set when [userPercents] overrode a different percentage from the model in this turn. */
+    @Volatile var percentCorrected = false
 
     companion object Intent {
         private val DOWN = Regex("""(?i)\b(fall|falls|fell|drop|drops|down|crash|crashes|decline|declines|lose|loses|dip|dips|minus)\b""")
@@ -199,12 +201,15 @@ class AppTools(private val host: ToolHost, onEvent: (ToolEvent) -> Unit = {}) {
 
     private fun projectMove(a: JsonObject): Any {
         var pct = a.num("percent")!!
-        if (userPercents.isNotEmpty() && userPercents.none { abs(it - pct) < 1e-6 }) pct = userPercents.first()
+        if (userPercents.isNotEmpty() && userPercents.none { abs(it - pct) < 1e-6 }) { pct = userPercents.first(); percentCorrected = true }
         val s = stockOrArgs(a)
         val base = if (a.str("from") == "avg") Base.AVG else Base.LTP
         val amt = host.setting("watch_amount") as? Double ?: 10000.0
         val d = Projector.project(s, pct, base, QtyMode.AMOUNT, amt)
-        return mapOf("summary" to "If ${s.name} moves ${Fmt.pct(pct)} (from ${if (base == Base.AVG) "your average" else "today's"} price), it becomes ${inr(d.price, 2)} a share; ${sh(d.qty)} worth ${inr(d.value)}, ${signed(d.profit)} (${Fmt.pct1(d.profitPct)}) on ${inr(d.cost)} invested, ${signed(d.vsNow)} vs today.",
+        val summary = if (s is Stock.Portfolio)
+            "If your portfolio moves ${Fmt.pct(pct)} from ${if (base == Base.AVG) "what you invested" else "today's value"}, it would be worth ${inr(d.value)}: ${signed(d.profit)} (${Fmt.pct1(d.profitPct)}) on ${inr(d.cost)} invested, ${signed(d.vsNow)} vs today."
+        else "If ${s.name} moves ${Fmt.pct(pct)} (from ${if (base == Base.AVG) "your average" else "today's"} price), it becomes ${inr(d.price, 2)} a share; ${sh(d.qty)} worth ${inr(d.value)}, ${signed(d.profit)} (${Fmt.pct1(d.profitPct)}) on ${inr(d.cost)} invested, ${signed(d.vsNow)} vs today."
+        return mapOf("summary" to summary,
             "stock" to s.name, "move_percent" to pct, "from" to if (base == Base.AVG) "avg" else "ltp",
             "price_after" to r2(d.price), "shares" to d.qty, "value_after" to r(d.value), "cost" to r(d.cost),
             "profit_vs_cost" to r(d.profit), "profit_percent" to r1(d.profitPct), "change_vs_today" to r(d.vsNow))
@@ -310,7 +315,7 @@ class AppTools(private val host: ToolHost, onEvent: (ToolEvent) -> Unit = {}) {
     private fun r(v: Double) = Math.round(v).toDouble()
     private fun inr(v: Double, decimals: Int = 0) = "₹" + if (decimals == 0) Fmt.amount(v) else Fmt.price(v)
     private fun signed(v: Double) = (if (v < 0) "−₹" else "+₹") + Fmt.amount(kotlin.math.abs(v))
-    private fun sh(q: Double) = "${Fmt.qty(q)} shares"
+    private fun sh(q: Double) = "${Fmt.qty(q)} ${if (q == 1.0) "share" else "shares"}"
     private fun r1(v: Double) = Math.round(v * 10) / 10.0
     private fun r2(v: Double) = Math.round(v * 100) / 100.0
 

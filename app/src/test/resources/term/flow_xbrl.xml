@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><!--IFIndAs V2.1 (26-06-2026)--><xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:in-capmkt="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt" xmlns:in-capmkt-ent="http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent" xmlns:in-capmkt-roles="http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt-roles" xmlns:in-capmkt-types="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt-types" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:negated="http://www.xbrl.org/2009/role/negated" xmlns:net="http://www.xbrl.org/2009/role/net" xmlns:nonnum="http://www.xbrl.org/dtr/type/non-numeric" xmlns:num="http://www.xbrl.org/dtr/type/numeric" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:xbrldt="http://xbrl.org/2005/xbrldt" xmlns:xl="http://www.xbrl.org/2003/XLink" xmlns:xlink="http://www.w3.org/1999/xlink">
+<xbrli:context id="OneD"><xbrli:entity><xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500209</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-07-01</xbrli:startDate><xbrli:endDate>2026-09-30</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:context id="FourD"><xbrli:entity><xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500209</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-04-01</xbrli:startDate><xbrli:endDate>2026-09-30</xbrli:endDate></xbrli:period></xbrli:context>
+<in-capmkt:Symbol contextRef="OneD">INFY</in-capmkt:Symbol>
+<in-capmkt:NameOfTheCompany contextRef="OneD">INFOSYS LIMITED</in-capmkt:NameOfTheCompany>
+<in-capmkt:DateOfStartOfReportingPeriod contextRef="OneD">2026-07-01</in-capmkt:DateOfStartOfReportingPeriod>
+<in-capmkt:DateOfEndOfReportingPeriod contextRef="OneD">2026-09-30</in-capmkt:DateOfEndOfReportingPeriod>
+<in-capmkt:NatureOfReportStandaloneConsolidated contextRef="OneD">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated>
+<in-capmkt:RevenueFromOperations contextRef="OneD" decimals="-7" unitRef="INR">407190000000</in-capmkt:RevenueFromOperations>
+<in-capmkt:OtherIncome contextRef="OneD" decimals="-7" unitRef="INR">17020000000</in-capmkt:OtherIncome>
+<in-capmkt:Income contextRef="OneD" decimals="-7" unitRef="INR">424210000000</in-capmkt:Income>
+<in-capmkt:CostOfMaterialsConsumed contextRef="OneD" decimals="-7" unitRef="INR">0</in-capmkt:CostOfMaterialsConsumed>
+<in-capmkt:PurchasesOfStockInTrade contextRef="OneD" decimals="-7" unitRef="INR">0</in-capmkt:PurchasesOfStockInTrade>
+<in-capmkt:ChangesInInventoriesOfFinishedGoodsWorkInProgressAndStockInTrade contextRef="OneD" decimals="-7" unitRef="INR">0</in-capmkt:ChangesInInventoriesOfFinishedGoodsWorkInProgressAndStockInTrade>
+<in-capmkt:EmployeeBenefitExpense contextRef="OneD" decimals="-7" unitRef="INR">191000000000</in-capmkt:EmployeeBenefitExpense>
+<in-capmkt:FinanceCosts contextRef="OneD" decimals="-7" unitRef="INR">580000000</in-capmkt:FinanceCosts>
+<in-capmkt:DepreciationDepletionAndAmortisationExpense contextRef="OneD" decimals="-7" unitRef="INR">6620000000</in-capmkt:DepreciationDepletionAndAmortisationExpense>
+<in-capmkt:OtherExpenses contextRef="OneD" decimals="-7" unitRef="INR">116960000000</in-capmkt:OtherExpenses>
+<in-capmkt:Expenses contextRef="OneD" decimals="-7" unitRef="INR">315160000000</in-capmkt:Expenses>
+<in-capmkt:ProfitBeforeTax contextRef="OneD" decimals="-7" unitRef="INR">109050000000</in-capmkt:ProfitBeforeTax>
+<in-capmkt:TaxExpense contextRef="OneD" decimals="-7" unitRef="INR">30120000000</in-capmkt:TaxExpense>
+<in-capmkt:ProfitLossForPeriod contextRef="OneD" decimals="-7" unitRef="INR">78930000000</in-capmkt:ProfitLossForPeriod>
+<in-capmkt:BasicEarningsLossPerShareFromContinuingOperations contextRef="OneD" decimals="INF" unitRef="INRPerShare">19.45</in-capmkt:BasicEarningsLossPerShareFromContinuingOperations>
+<in-capmkt:DateOfStartOfReportingPeriod contextRef="FourD">2026-04-01</in-capmkt:DateOfStartOfReportingPeriod>
+<in-capmkt:DateOfEndOfReportingPeriod contextRef="FourD">2026-09-30</in-capmkt:DateOfEndOfReportingPeriod>
+<in-capmkt:NatureOfReportStandaloneConsolidated contextRef="FourD">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated>
+<in-capmkt:RevenueFromOperations contextRef="FourD" decimals="-7" unitRef="INR">806760000000</in-capmkt:RevenueFromOperations>
+<in-capmkt:OtherIncome contextRef="FourD" decimals="-7" unitRef="INR">25760000000</in-capmkt:OtherIncome>
+<in-capmkt:Income contextRef="FourD" decimals="-7" unitRef="INR">832520000000</in-capmkt:Income>
+<in-capmkt:CostOfMaterialsConsumed contextRef="FourD" decimals="-7" unitRef="INR">0</in-capmkt:CostOfMaterialsConsumed>
+<in-capmkt:PurchasesOfStockInTrade contextRef="FourD" decimals="-7" unitRef="INR">0</in-capmkt:PurchasesOfStockInTrade>
+<in-capmkt:ChangesInInventoriesOfFinishedGoodsWorkInProgressAndStockInTrade contextRef="FourD" decimals="-7" unitRef="INR">0</in-capmkt:ChangesInInventoriesOfFinishedGoodsWorkInProgressAndStockInTrade>
+<in-capmkt:EmployeeBenefitExpense contextRef="FourD" decimals="-7" unitRef="INR">379190000000</in-capmkt:EmployeeBenefitExpense>
+<in-capmkt:FinanceCosts contextRef="FourD" decimals="-7" unitRef="INR">1190000000</in-capmkt:FinanceCosts>
+<in-capmkt:DepreciationDepletionAndAmortisationExpense contextRef="FourD" decimals="-7" unitRef="INR">12750000000</in-capmkt:DepreciationDepletionAndAmortisationExpense>
+<in-capmkt:OtherExpenses contextRef="FourD" decimals="-7" unitRef="INR">228720000000</in-capmkt:OtherExpenses>
+<in-capmkt:Expenses contextRef="FourD" decimals="-7" unitRef="INR">621850000000</in-capmkt:Expenses>
+<in-capmkt:ProfitBeforeTax contextRef="FourD" decimals="-7" unitRef="INR">210670000000</in-capmkt:ProfitBeforeTax>
+<in-capmkt:TaxExpense contextRef="FourD" decimals="-7" unitRef="INR">59250000000</in-capmkt:TaxExpense>
+<in-capmkt:ProfitLossForPeriod contextRef="FourD" decimals="-7" unitRef="INR">151420000000</in-capmkt:ProfitLossForPeriod>
+<in-capmkt:BasicEarningsLossPerShareFromContinuingOperations contextRef="FourD" decimals="INF" unitRef="INRPerShare">37.32</in-capmkt:BasicEarningsLossPerShareFromContinuingOperations>
+</xbrli:xbrl>

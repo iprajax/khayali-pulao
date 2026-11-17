@@ -82,7 +82,7 @@ class MainActivity : Activity() {
         grid.addView(k.card {
             addView(k.text(Privacy.TITLE, 15f, Pal.GREEN, 500))
             addView(k.space(6))
-            addView(k.text("No uploads. Network only for the optional AI model download and, if you connect it, Zerodha's read-only Kite MCP. Never places orders.",
+            addView(k.text("Internet only for what you switch on: the AI model download, Zerodha's read-only Kite MCP, and web lookups that send search words — never your holdings. Never places orders.",
                 13f, Pal.MUTED).apply { setLineSpacing(0f, 1.3f) })
         }.apply { background = k.rounded(Pal.SURFACE, 16f, Pal.alpha(Pal.GREEN, 0.35f)) }, k.lp(MATCH_PARENT))
         grid.addView(k.space(16))
@@ -100,7 +100,7 @@ class MainActivity : Activity() {
         drawer.translationX = -k.dpf(300)
 
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val b = insets.getInsets(WindowInsets.Type.systemBars()); v.setPadding(0, b.top, 0, b.bottom); insets
+            com.khayali.pulao.Insets.pad(v, insets); insets
         }
         setContentView(root)
         refresh()
@@ -121,7 +121,8 @@ class MainActivity : Activity() {
             addView(k.text("Ask Khayali Pulao", 15f, Pal.DIM), k.lp(0, WRAP_CONTENT, 1f))
             addView(k.text("↑", 16f, 0xFFFFFFFF.toInt(), 600).apply { gravity = Gravity.CENTER; background = k.rounded(Pal.BLUE, 999f) }, k.lp(k.dp(32), k.dp(32)))
         }, k.lp(MATCH_PARENT))
-        ValueAnimator.ofFloat(0f, 360f).apply {
+        glowSpin?.cancel()
+        glowSpin = ValueAnimator.ofFloat(0f, 360f).apply {
             duration = 6000; repeatCount = ValueAnimator.INFINITE; interpolator = LinearInterpolator()
             addUpdateListener { glow.angle = it.animatedValue as Float }; start()
         }
@@ -192,13 +193,28 @@ class MainActivity : Activity() {
         addView(k.text("Not investment advice · not affiliated with Zerodha", 11f, Pal.DIM).apply { setPadding(k.dp(12), 0, 0, 0) })
     }
 
+    /** Infinite glow on the ask card; cancelled with the activity so it can't keep it alive. */
+    private var glowSpin: ValueAnimator? = null
+    /** Android 13+ delivers Back through this callback (onBackPressed is no longer called on newer targets). */
+    private val drawerBack: Any? = if (android.os.Build.VERSION.SDK_INT >= 33) android.window.OnBackInvokedCallback { toggleDrawer(false) } else null
+
+    override fun onPause() { super.onPause(); glowSpin?.pause() }
+    override fun onDestroy() { glowSpin?.cancel(); glowSpin = null; super.onDestroy() }
+
     private fun toggleDrawer(open: Boolean) {
+        if (drawerOpen == open) return
+        if (android.os.Build.VERSION.SDK_INT >= 33) (drawerBack as android.window.OnBackInvokedCallback).let { cb ->
+            if (open) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb)
+            else onBackInvokedDispatcher.unregisterOnBackInvokedCallback(cb)
+        }
         drawerOpen = open
         if (open) scrim.visibility = View.VISIBLE
         scrim.animate().alpha(if (open) 1f else 0f).setDuration(220).withEndAction { if (!open) scrim.visibility = View.GONE }.start()
         drawer.animate().translationX(if (open) 0f else -k.dpf(300)).setDuration(260).setInterpolator(DecelerateInterpolator(2f)).start()
     }
 
+    // Android 13+ gets Back through [drawerBack]; this serves Android 9–12.
+    @android.annotation.SuppressLint("GestureBackNavigation")
     @Deprecated("Back closes the drawer first")
     override fun onBackPressed() { if (drawerOpen) toggleDrawer(false) else super.onBackPressed() }
 
@@ -211,8 +227,10 @@ class MainActivity : Activity() {
         fun set(id: String, v: String, sub: String, color: Int = Pal.TEXT) = tiles[id]?.let { (a, b) -> a.text = v; a.setTextColor(color); b.text = sub }
         if (serviceEnabled()) set("bubble", "On", "Shows over Kite. Tap to manage.", Pal.GREEN)
         else set("bubble", "Off", "Tap to turn on (read the disclosure first)", Pal.SAFFRON)
+        KiteMcpClient.get(this).checkFresh()          // a login that lapsed while the app was away shows as expired, not connected
         when (val s = KiteMcpClient.get(this).state.value) {
             is KiteMcpClient.State.Connected -> set("kite", "Connected", (s.name?.let { "$it · " } ?: "") + "read-only", Pal.GREEN)
+            KiteMcpClient.State.Expired -> set("kite", "Login expired", "Zerodha signs you out daily · tap to reconnect", Pal.SAFFRON)
             else -> set("kite", "Not connected", "Connect in chat for real-portfolio answers", Pal.MUTED)
         }
         if (ModelManager.get(this).isReady()) set("model", "Ready", "${ModelSpec.DISPLAY_NAME} · ${DownloadText.bytes(ModelSpec.SIZE_BYTES)}" +

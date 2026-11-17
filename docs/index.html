@@ -147,11 +147,48 @@
     .vbig { font-size:30px; font-weight:500; margin-top:6px; }
     .cmds { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
     .cmds code { font-size:13px; }
+    .flow { display:grid; grid-template-columns: 1.15fr 1fr; gap:20px; align-items:start; }
+    .flow svg { width:100%; height:auto; display:block; }
+    .flow .node rect { fill:#1E2A38; stroke:var(--line); stroke-width:1.5; transition: all .25s; }
+    .flow .node text { fill:var(--muted); font-size:12px; font-weight:500; text-anchor:middle; transition: fill .25s; }
+    .flow .node.on rect { fill:rgba(82,130,235,.22); stroke:var(--blue); }
+    .flow .node.on text { fill:#fff; }
+    .flow .edge { stroke:var(--line); stroke-width:1.5; fill:none; marker-end:url(#arr); }
+    .btns { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+    .btns button, .chipbtn { background:#1E2A38; color:var(--text); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font:inherit; font-size:13px; cursor:pointer; }
+    .btns button:hover, .chipbtn:hover { border-color:var(--blue); }
+    .btns button:disabled { opacity:.35; cursor:not-allowed; }
+    .log { font-size:13px; color:var(--muted); min-height:66px; line-height:1.5; }
+    .log b { color:var(--text); }
+    .src { display:flex; gap:10px; padding:10px; border-radius:10px; border:1px solid transparent; transition: all .2s; }
+    .src.hot { border-color:var(--blue); background:rgba(82,130,235,.10); }
+    .src .n, .cite { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:999px; background:rgba(82,130,235,.18); color:var(--blue); font-size:11px; font-weight:600; }
+    .cite { cursor:pointer; margin:0 2px; vertical-align:1px; }
+    .src small { color:var(--blue); }
+    .field { width:100%; box-sizing:border-box; background:#17212b; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:11px 12px; font:inherit; font-size:14px; }
+    .out { font-family: ui-monospace, Menlo, monospace; font-size:13px; background:#17212b; border:1px dashed var(--line); border-radius:10px; padding:11px 12px; color:var(--green); min-height:20px; word-break:break-word; }
+    .pb { list-style:none; padding:0; margin:0; }
+    .pb li { display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
+    .pb li:last-child { border-bottom:0; }
+    .pb .tag { font-size:10px; letter-spacing:.06em; padding:2px 7px; border-radius:999px; background:rgba(103,173,91,.15); color:var(--green); white-space:nowrap; margin-top:2px; }
+    .pb .tag.l { background:rgba(255,181,71,.15); color:var(--saffron); }
+    .pb .cnt { margin-left:auto; color:var(--dim); font-size:12px; white-space:nowrap; }
+    .refused { color:var(--red); font-size:13px; }
+    .term-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:14px; }
+    .term-group h3 small { color:var(--dim); font-weight:500; font-size:13px; margin-left:6px; }
+    .term-group ul { list-style:none; margin:0; padding:0; }
+    .term-group li { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; align-items:baseline; }
+    .term-group li:last-child { border-bottom:0; }
+    .term-group code { white-space:nowrap; color:var(--blue); font-size:12.5px; }
+    .term-group span { color:var(--muted); }
+    .term-group em { color:var(--green); font-style:normal; font-size:11px; border:1px solid var(--green); border-radius:999px; padding:0 6px; margin-left:4px; }
+    .term-group li.hide { display:none; }
     footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--dim); font-size: 13px; }
     footer p { margin: 6px 0; }
     @media (max-width: 820px) {
       .hero { grid-template-columns: 1fr; padding-top: 40px; }
       .grid { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
       header nav { display: none; }
     }
   </style>
@@ -163,7 +200,10 @@
       <b>Khayali Pulao</b>
       <nav>
         <a href="#visuals">Visuals</a>
+        <a href="#terminal">Terminal</a>
         <a href="#chat">Chat</a>
+        <a href="#web">Web</a>
+        <a href="#memory">Memory</a>
         <a href="#try">Try it</a>
         <a href="#features">Features</a>
         <a href="#privacy">Privacy</a>
@@ -177,7 +217,7 @@
     <div class="hero">
       <div>
         <h1>What shall we cook today?</h1>
-        <p class="lead">A tiny bubble floats on top of Zerodha Kite — now with an on-device AI you can just ask. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2× — whether you beat an FD — and what the profit really buys, in hand after tax.</p>
+        <p class="lead">A tiny bubble floats on top of Zerodha Kite, with an on-device AI you can just ask. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2×, whether you beat an FD, and what the profit really buys in hand after tax. Ask for the latest price, results dates or news and it answers with sources. It remembers your goals, on your phone only.</p>
         <p class="meaning"><b>ख़याली पुलाव (khayali pulao)</b> — literally “imaginary pulao”: rice you cook only in your head. Hindi for daydreaming. Every investor does it; this does the maths properly.</p>
         <div class="cta">
           <a class="btn primary" href="https://github.com/iprajax/khayali-pulao/releases">Download APK</a>
@@ -195,11 +235,19 @@
 
     <section id="visuals">
       <h2>Answers you can see</h2>
-      <p class="sub">Every answer is a native card with an animated D3 chart, drawn on your phone from exact tool output. Below: the same renderer the app ships, live, on fictional data. Tap the treemap or drag across the price chart.</p>
+      <p class="sub">Every answer is a native card with an animated D3 chart, drawn on your phone from exact tool output — including a market terminal built on public, no-login data (NSE, exchange filings, public price feeds). Every chart names both axes and prints their values. Below: the same renderer the app ships, live, on fictional data. Drag across any line chart, or tap a candle.</p>
       <div class="viz-tabs" role="tablist">
-        <button class="on" data-v="holdings">Holdings</button><button data-v="history">Price history</button>
-        <button data-v="growth">Compounding</button><button data-v="versus">vs FD &amp; Nifty</button>
-        <button data-v="goal">Goal</button><button data-v="tax">Tax in hand</button>
+        <button data-v="mindmap">Company mind map</button><button data-v="stream">Shareholding stream</button>
+        <button data-v="radar">Scorecard radar</button><button data-v="butterfly">Option chain</button>
+        <button data-v="sunburst">Portfolio sunburst</button><button data-v="matrix">Seasonality</button>
+        <button data-v="sparkgrid">World markets</button><button data-v="stackarea">SIP growth</button>
+        <button class="on" data-v="sankey">Results money flow</button><button data-v="treemap">Index heatmap</button>
+        <button data-v="agenda">Market calendar</button><button data-v="gmp">IPO grey market</button>
+        <button data-v="holdings">Holdings</button><button data-v="allocation">Allocation</button>
+        <button data-v="history">Price history</button><button data-v="candles">Candlesticks</button>
+        <button data-v="scenario">What-if curve</button><button data-v="growth">Compounding</button>
+        <button data-v="versus">vs FD &amp; Nifty</button><button data-v="paths">Goal paths</button>
+        <button data-v="waterfall">Tax waterfall</button><button data-v="calendar">Events calendar</button>
         <button data-v="margins">Margins</button><button data-v="orders">Orders</button>
       </div>
       <div class="viz-stage card">
@@ -211,21 +259,105 @@
 
     <section id="chat">
       <h2>A chat that knows your portfolio</h2>
-      <p class="sub">Gemma 4 runs on-device and calls the app's tools — calculators and read-only Kite — so numbers are exact. Pick a persona, use /commands, @mention a holding.</p>
+      <p class="sub">Gemma 4 runs on-device and calls the app's tools — calculators, read-only Kite and, if you switch it on, the web — so numbers are exact. Pick a persona, use /commands, @mention a holding.</p>
       <div class="grid">
         <div class="card"><h3>📊 Analyst</h3><p>Exact what-ifs on your holdings: moves, targets, regret, compounding.</p></div>
         <div class="card"><h3>🧭 Financial planner</h3><p>Goals, horizons, FD/PPF comparison, tax-aware in-hand amounts, allocation trade-offs.</p></div>
         <div class="card"><h3>🔎 Research</h3><p>Concentration, price history and downside scenarios — both sides, never buy/sell calls.</p></div>
       </div>
       <div class="cmds">
-        <code>/holdings</code><code>/positions</code><code>/margins</code><code>/orders</code><code>/mf</code><code>/chart INFRA 1y</code><code>/fd 3</code><code>/goal 1 crore</code><code>/tax</code><code>@INFRA</code>
+        <code>/holdings</code><code>/positions</code><code>/margins</code><code>/orders</code><code>/mf</code><code>/chart INFRA 1y</code><code>/price INFRA</code><code>/events INFRA</code><code>/results INFRA</code><code>/news INFRA</code><code>/web …</code><code>/fd 3</code><code>/goal 1 crore</code><code>/grow 1 lakh 12% 10y</code><code>/move -20</code><code>/tax</code><code>/remember …</code><code>/memory</code><code>@INFRA</code>
       </div>
       <div class="grid" style="margin-top:16px">
         <div class="card"><h3>Pills that think</h3><p>Follow-ups are curated from the last result and your live holdings — exact re-runs ("at 15% a year"), context ("why is @X lagging?") and model suggestions.</p></div>
         <div class="card"><h3>Numbers you can trust</h3><p>Percentages you type are pinned to the tool call; prose never invents figures — the card and summary carry the exact ₹.</p></div>
+        <div class="card"><h3>Commands need no model</h3><p>Every /command is run by the app itself — exact and instant — so holdings, charts, FD comparison, goals and tax work before the 2.6 GB model is even downloaded.</p></div>
+        <div class="card"><h3>Picks up where you left off</h3><p>The thread, with its cards, is saved on the phone and restored when you come back — even if Android closed the app.</p></div>
         <div class="card"><h3>See how it answered</h3><p>Tap ⏱ on any reply: total time, time to first word, tokens/s, GPU/CPU, and every tool step with inputs and outputs.</p></div>
       </div>
       <p class="tiny" style="text-align:left">Educational only — not investment, tax or financial advice. Khayali Pulao is not a SEBI-registered investment adviser.</p>
+    </section>
+
+<!-- terminal -->
+    <section id="terminal">
+      <h2>📟 A market terminal in the chat — 72 commands</h2>
+      <p class="sub">Public, no-login data — NSE's own feeds and exchange filings, public price feeds, World Bank and mfapi.in — turned into chart cards on your phone. Web access is opt-in; your holdings are matched on the phone and never sent. Type <code>/</code> to browse, ask in plain words, or let the AI pick the card.</p>
+      <input class="field" id="term-q" placeholder="Search 72 commands — try “option”, “sip”, “sector”, “gold”" aria-label="Search commands" style="margin:6px 0 14px">
+      <div class="term-grid"><div class="card term-group"><h3>Market <small>15</small></h3><ul><li data-q="/report market report: indices, breadth, sectors, top gainers and losers, fii/dii flows, your stocks — one card"><code>/report</code><span>Market report: indices, breadth, sectors, top gainers and losers, FII/DII flows, your stocks — one card</span></li><li data-q="/sectormovers sector-wise top gainers and losers: each sector&#x27;s move with its best and worst stocks"><code>/sectormovers</code><span>Sector-wise top gainers and losers: each sector&#x27;s move with its best and worst stocks</span></li><li data-q="/preopen pre-open session: indicative opening prices, gap-ups and gap-downs in f&amp;o stocks"><code>/preopen</code><span>Pre-open session: indicative opening prices, gap-ups and gap-downs in F&amp;O stocks</span></li><li data-q="/heatmap nifty bank index heatmap: every constituent sized by traded value, coloured by today&#x27;s move"><code>/heatmap NIFTY BANK</code><span>Index heatmap: every constituent sized by traded value, coloured by today&#x27;s move</span></li><li data-q="/indices sectoral nse indices ranked by today&#x27;s move (broad, sectoral, thematic, strategy), with p/e and 52-week position"><code>/indices sectoral</code><span>NSE indices ranked by today&#x27;s move (broad, sectoral, thematic, strategy), with P/E and 52-week position</span></li><li data-q="/sectors sector indices ranked by today&#x27;s move, with 30-day and 1-year change (/sectors 30d or 1y to rank by those)"><code>/sectors</code><span>Sector indices ranked by today&#x27;s move, with 30-day and 1-year change (/sectors 30d or 1y to rank by those)</span></li><li data-q="/movers fno top gainers and losers today — nifty 50 by default, or bank, next50, fno, all"><code>/movers fno</code><span>Top gainers and losers today — NIFTY 50 by default, or bank, next50, fno, all</span></li><li data-q="/breadth market breadth: how many nse stocks are up, down and unchanged today, and the advance/decline ratio"><code>/breadth</code><span>Market breadth: how many NSE stocks are up, down and unchanged today, and the advance/decline ratio</span></li><li data-q="/active most active securities today: by traded value (₹ crore) and by number of shares"><code>/active</code><span>Most active securities today: by traded value (₹ crore) and by number of shares</span></li><li data-q="/status is the market open? each nse segment&#x27;s state, plus the previous session&#x27;s turnover by segment"><code>/status</code><span>Is the market open? Each NSE segment&#x27;s state, plus the previous session&#x27;s turnover by segment</span></li><li data-q="/highs stocks that set a new 52-week high or low today, with the count on each side"><code>/highs</code><span>Stocks that set a new 52-week high or low today, with the count on each side</span></li><li data-q="/bands stocks that hit their upper or lower price band (circuit limit) today"><code>/bands</code><span>Stocks that hit their upper or lower price band (circuit limit) today</span></li><li data-q="/volume unusual volume: stocks trading at several times their 1-week average volume today"><code>/volume</code><span>Unusual volume: stocks trading at several times their 1-week average volume today</span></li><li data-q="/fiidii fii/fpi and dii buying, selling and net flow in the cash market for the latest day"><code>/fiidii</code><span>FII/FPI and DII buying, selling and net flow in the cash market for the latest day</span></li><li data-q="/deals infy bulk and block deals: who bought or sold, quantity and price — all, or for one stock"><code>/deals INFY</code><span>Bulk and block deals: who bought or sold, quantity and price — all, or for one stock</span></li></ul></div><div class="card term-group"><h3>Stock <small>19</small></h3><ul><li data-q="/flow infy quarterly results as a money-flow (sankey): income → costs → tax → profit, with a 5-quarter trend"><code>/flow INFY</code><span>Quarterly results as a money-flow (Sankey): income → costs → tax → profit, with a 5-quarter trend</span></li><li data-q="/insider infy insider trades disclosed for one company: who bought or sold, how much and when"><code>/insider INFY</code><span>Insider trades disclosed for one company: who bought or sold, how much and when</span></li><li data-q="/announcements infy a company&#x27;s latest exchange announcements: subject, date and a one-line gist"><code>/announcements INFY</code><span>A company&#x27;s latest exchange announcements: subject, date and a one-line gist</span></li><li data-q="/filings infy company snapshot: latest announcements, corporate actions, board meetings and results filed"><code>/filings INFY</code><span>Company snapshot: latest announcements, corporate actions, board meetings and results filed</span></li><li data-q="/quote infy full quote: price, day and 52-week range position, vwap, volume, delivery, p/e vs sector"><code>/quote INFY</code><span>Full quote: price, day and 52-week range position, VWAP, volume, delivery, P/E vs sector</span></li><li data-q="/shareholding infy who owns the company: promoter, public and employee-trust holding by quarter (streamgraph)"><code>/shareholding INFY</code><span>Who owns the company: promoter, public and employee-trust holding by quarter (streamgraph)</span></li><li data-q="/mindmap infy mind map of one company: price, latest results, ownership, events and sector peers"><code>/mindmap INFY</code><span>Mind map of one company: price, latest results, ownership, events and sector peers</span></li><li data-q="/scorecard infy radar of one stock&#x27;s year: return, volatility, drawdown, trend and dividend yield, each 0–100"><code>/scorecard INFY</code><span>Radar of one stock&#x27;s year: return, volatility, drawdown, trend and dividend yield, each 0–100</span></li><li data-q="/peers it sector peers side by side: every stock of a sector index with price and today&#x27;s change"><code>/peers IT</code><span>Sector peers side by side: every stock of a sector index with price and today&#x27;s change</span></li><li data-q="/history infy nse daily history for a month: open-high-low-close candles, vwap, volume and turnover"><code>/history INFY</code><span>NSE daily history for a month: open-high-low-close candles, VWAP, volume and turnover</span></li><li data-q="/ta infy price with 20/50/200-day moving averages and bollinger bands"><code>/ta INFY</code><span>Price with 20/50/200-day moving averages and Bollinger bands</span></li><li data-q="/rsi infy 14-day rsi with the 30/70 zones and what the latest reading means in plain words"><code>/rsi INFY</code><span>14-day RSI with the 30/70 zones and what the latest reading means in plain words</span></li><li data-q="/macd infy macd (12, 26, 9): macd line, signal line and histogram, with the latest crossover"><code>/macd INFY</code><span>MACD (12, 26, 9): MACD line, signal line and histogram, with the latest crossover</span></li><li data-q="/drawdown infy underwater chart: fall from the running peak over 5 years, the worst drawdown and its recovery time"><code>/drawdown INFY</code><span>Underwater chart: fall from the running peak over 5 years, the worst drawdown and its recovery time</span></li><li data-q="/returns infy returns over 1 week to 5 years, with cagr, against the nifty 50 over the same periods"><code>/returns INFY</code><span>Returns over 1 week to 5 years, with CAGR, against the Nifty 50 over the same periods</span></li><li data-q="/seasonality infy month by year grid of monthly returns as a heat matrix, with the average for each month"><code>/seasonality INFY</code><span>Month by year grid of monthly returns as a heat matrix, with the average for each month</span></li><li data-q="/compare infy tcs 1y two to four stocks or indices rebased to 100 over a period (1mo 3mo 6mo 1y 2y 5y)"><code>/compare INFY TCS 1y</code><span>Two to four stocks or indices rebased to 100 over a period (1mo 3mo 6mo 1y 2y 5y)</span></li><li data-q="/levels infy support and resistance: classic pivot levels from the last session, plus the 52-week high and low"><code>/levels INFY</code><span>Support and resistance: classic pivot levels from the last session, plus the 52-week high and low</span></li><li data-q="/volatility infy rolling 30-day annualised volatility over a year, and the current reading against its own range"><code>/volatility INFY</code><span>Rolling 30-day annualised volatility over a year, and the current reading against its own range</span></li></ul></div><div class="card term-group"><h3>Portfolio <small>10</small></h3><ul><li data-q="/watch your watch list: stocks you&#x27;ve looked at in chat plus your holdings, with sparklines"><code>/watch</code><span>Your watch list: stocks you&#x27;ve looked at in chat plus your holdings, with sparklines</span></li><li data-q="/xray portfolio x-ray: allocation sunburst, largest weights and how concentrated your holdings are"><code>/xray</code><span>Portfolio X-ray: allocation sunburst, largest weights and how concentrated your holdings are <em>offline</em></span></li><li data-q="/pnlflow portfolio money-flow (sankey): what you invested in each stock and what it became — gain or loss"><code>/pnlflow</code><span>Portfolio money-flow (Sankey): what you invested in each stock and what it became — gain or loss <em>offline</em></span></li><li data-q="/risk portfolio risk: volatility, beta vs nifty 50 and 1-day 95% value-at-risk in rupees"><code>/risk</code><span>Portfolio risk: volatility, beta vs Nifty 50 and 1-day 95% value-at-risk in rupees</span></li><li data-q="/correlation how your holdings move together: correlation matrix of daily returns (8 largest holdings)"><code>/correlation</code><span>How your holdings move together: correlation matrix of daily returns (8 largest holdings)</span></li><li data-q="/riskreturn risk vs return scatter: each holding&#x27;s 1-year volatility, return and weight"><code>/riskreturn</code><span>Risk vs return scatter: each holding&#x27;s 1-year volatility, return and weight</span></li><li data-q="/stress stress test: portfolio value if the nifty fell 5, 10, 20 or 30%, using each holding&#x27;s beta"><code>/stress</code><span>Stress test: portfolio value if the Nifty fell 5, 10, 20 or 30%, using each holding&#x27;s beta</span></li><li data-q="/income dividend income: last 12 months&#x27; dividends per share × your quantity, with yield"><code>/income</code><span>Dividend income: last 12 months&#x27; dividends per share × your quantity, with yield</span></li><li data-q="/rebalance equal-weight comparison: how many rupees over or under an equal share each holding is"><code>/rebalance</code><span>Equal-weight comparison: how many rupees over or under an equal share each holding is <em>offline</em></span></li><li data-q="/foliomap portfolio mind map: total value at the centre, one branch per holding with weight and p&amp;l"><code>/foliomap</code><span>Portfolio mind map: total value at the centre, one branch per holding with weight and P&amp;L <em>offline</em></span></li></ul></div><div class="card term-group"><h3>Derivatives <small>9</small></h3><ul><li data-q="/oispurts open-interest spurts: derivatives underlyings with the biggest change in open interest"><code>/oispurts</code><span>Open-interest spurts: derivatives underlyings with the biggest change in open interest</span></li><li data-q="/optionchain nifty option chain: open interest by strike, calls vs puts, around spot for the nearest expiry"><code>/optionchain NIFTY</code><span>Option chain: open interest by strike, calls vs puts, around spot for the nearest expiry</span></li><li data-q="/pcr nifty put-call ratio by open interest and by volume for the nearest expiries, and what it means"><code>/pcr NIFTY</code><span>Put-call ratio by open interest and by volume for the nearest expiries, and what it means</span></li><li data-q="/maxpain nifty max-pain strike for the nearest expiry, worked out from open interest, with the pain curve"><code>/maxpain NIFTY</code><span>Max-pain strike for the nearest expiry, worked out from open interest, with the pain curve</span></li><li data-q="/ivsmile nifty implied volatility by strike for calls and puts (the volatility smile) for the nearest expiry"><code>/ivsmile NIFTY</code><span>Implied volatility by strike for calls and puts (the volatility smile) for the nearest expiry</span></li><li data-q="/straddle nifty at-the-money straddle price and the move, in points and %, that options price in by expiry"><code>/straddle NIFTY</code><span>At-the-money straddle price and the move, in points and %, that options price in by expiry</span></li><li data-q="/oichange nifty today&#x27;s biggest additions and unwinding of open interest by strike, calls and puts"><code>/oichange NIFTY</code><span>Today&#x27;s biggest additions and unwinding of open interest by strike, calls and puts</span></li><li data-q="/expiries nifty upcoming option expiry dates for an index or stock, with days to go"><code>/expiries NIFTY</code><span>Upcoming option expiry dates for an index or stock, with days to go</span></li><li data-q="/vix india vix: level, position in its 1-year range and the daily move it roughly implies"><code>/vix</code><span>India VIX: level, position in its 1-year range and the daily move it roughly implies</span></li></ul></div><div class="card term-group"><h3>Funds & planning <small>6</small></h3><ul><li data-q="/etfs gold exchange-traded funds: the most traded, with price and day change — add a word to filter"><code>/etfs gold</code><span>Exchange-traded funds: the most traded, with price and day change — add a word to filter</span></li><li data-q="/sgb sovereign gold bonds on nse: last traded price against issue price, most traded first"><code>/sgb</code><span>Sovereign gold bonds on NSE: last traded price against issue price, most traded first</span></li><li data-q="/gold gold in rupees per 10 grams, derived from the dollar price and usd/inr, with a 1-year chart"><code>/gold</code><span>Gold in rupees per 10 grams, derived from the dollar price and USD/INR, with a 1-year chart</span></li><li data-q="/fund parag flexi a mutual fund by name: latest nav, 1-month to 5-year returns and the nav chart"><code>/fund parag flexi</code><span>A mutual fund by name: latest NAV, 1-month to 5-year returns and the NAV chart</span></li><li data-q="/fundcompare parag flexi vs nifty 50 index two mutual funds side by side, both rebased to 100 over three years"><code>/fundcompare parag flexi vs nifty 50 index</code><span>Two mutual funds side by side, both rebased to 100 over three years</span></li><li data-q="/sipreal parag flexi 10000 5y what a monthly sip in a fund would be worth today, from its actual nav history, with xirr"><code>/sipreal parag flexi 10000 5y</code><span>What a monthly SIP in a fund would be worth today, from its actual NAV history, with XIRR</span></li></ul></div><div class="card term-group"><h3>Global & macro <small>7</small></h3><ul><li data-q="/global world indices at a glance: last level, day change and a 1-month sparkline for ten markets"><code>/global</code><span>World indices at a glance: last level, day change and a 1-month sparkline for ten markets</span></li><li data-q="/fx rupee against usd, eur, gbp, jpy, aed and sgd with day and 1-year change"><code>/fx</code><span>Rupee against USD, EUR, GBP, JPY, AED and SGD with day and 1-year change</span></li><li data-q="/commodities gold, silver, crude oil, natural gas and copper in dollars with day and 1-month change"><code>/commodities</code><span>Gold, silver, crude oil, natural gas and copper in dollars with day and 1-month change</span></li><li data-q="/crypto bitcoin and ether in dollars and rupees with day change and a 1-month line"><code>/crypto</code><span>Bitcoin and ether in dollars and rupees with day change and a 1-month line</span></li><li data-q="/inflation india cpi inflation by year, the latest value and the 10-year average"><code>/inflation</code><span>India CPI inflation by year, the latest value and the 10-year average</span></li><li data-q="/gdp india real gdp growth by year, the latest value and the 10-year average"><code>/gdp</code><span>India real GDP growth by year, the latest value and the 10-year average</span></li><li data-q="/yields us 10-year yield, 13-week bill yield and the dollar index with 1-year lines"><code>/yields</code><span>US 10-year yield, 13-week bill yield and the dollar index with 1-year lines</span></li></ul></div></div>
+      <p class="tiny" style="text-align:left">Data can be delayed or wrong; every card names its source. Educational only — no buy, sell or hold calls.</p>
+    </section>
+<!-- /terminal -->
+
+    <section id="flow">
+      <h2>A chat that never gets stuck</h2>
+      <p class="sub">The whole chat is one small state machine, so typing, pills, /commands, retries and reconnects all follow the same rules. Press the buttons to drive it — this is the same transition table the app ships (and unit-tests).</p>
+      <div class="flow">
+        <div class="card">
+          <svg viewBox="0 0 520 250" role="img" aria-label="Chat state machine">
+            <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#324050"/></marker></defs>
+            <path class="edge" d="M118,45 H168"/><path class="edge" d="M228,62 V98"/><path class="edge" d="M288,45 H338"/>
+            <path class="edge" d="M398,62 V98"/><path class="edge" d="M420,134 H470 V190 H432"/><path class="edge" d="M338,208 H288"/>
+            <path class="edge" d="M288,116 H338"/><path class="edge" d="M168,208 H118 V62"/><path class="edge" d="M378,134 V190"/>
+            <g class="node" data-n="NEEDS_MODEL"><rect x="8" y="28" width="110" height="34" rx="10"/><text x="63" y="50">No model</text></g>
+            <g class="node" data-n="IDLE"><rect x="168" y="28" width="120" height="34" rx="10"/><text x="228" y="50">Idle</text></g>
+            <g class="node" data-n="WARMING"><rect x="338" y="28" width="120" height="34" rx="10"/><text x="398" y="50">Warming up</text></g>
+            <g class="node" data-n="FETCHING"><rect x="168" y="98" width="120" height="34" rx="10"/><text x="228" y="120">App work</text></g>
+            <g class="node" data-n="THINKING"><rect x="338" y="98" width="120" height="34" rx="10"/><text x="398" y="120">Thinking</text></g>
+            <g class="node" data-n="TOOL"><rect x="338" y="190" width="94" height="34" rx="10"/><text x="385" y="212">Tool</text></g>
+            <g class="node" data-n="STREAMING"><rect x="168" y="190" width="120" height="34" rx="10"/><text x="228" y="212">Answering</text></g>
+          </svg>
+          <div class="btns" id="flow-btns"></div>
+        </div>
+        <div>
+          <div class="card"><h3 id="flow-title">Idle</h3><p class="log" id="flow-log">Ready. Send a question, run a /command, or simulate the phone sleeping overnight.</p></div>
+          <div class="card" style="margin-top:12px"><h3>What this fixes</h3><p>Came back next morning and <code>/holdings</code> failed? Zerodha signs you out daily and Android may have unloaded the model. The app now detects both: it shows <b>Reconnect</b>, keeps your command, runs it the moment you're back, and rebuilds the model's conversation from the saved thread.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="web">
+      <h2>Latest prices, results and news — with sources</h2>
+      <p class="sub">Off by default. Switch <b>🌐 Web</b> on and the chat can search DuckDuckGo and read the latest price from a public quote feed. Answers cite numbered sources; a figure that isn't in a source is removed before you see it.</p>
+      <div class="flow">
+        <div class="card">
+          <span class="kicker">ANSWER · FICTIONAL EXAMPLE</span>
+          <p style="margin:10px 0 14px;line-height:1.6">Infra Builders reported revenue of ₹1,234 crore for the quarter, up 8.5% year on year<span class="cite" data-c="1">1</span>. The board met on 22 October 2026 to approve the results<span class="cite" data-c="2">2</span>. The next results date has not been announced<span class="cite" data-c="3">3</span>.</p>
+          <span class="kicker">WEB RESULTS · DUCKDUCKGO</span>
+          <div id="srcs" style="margin-top:8px">
+            <div class="src" data-s="1"><span class="n">1</span><div><b>Infra Builders Q2 results: revenue up 8.5%</b><br><small>news.example ↗</small></div></div>
+            <div class="src" data-s="2"><span class="n">2</span><div><b>Outcome of the board meeting</b><br><small>exchange.example ↗</small></div></div>
+            <div class="src" data-s="3"><span class="n">3</span><div><b>Infra Builders results calendar</b><br><small>calendar.example ↗</small></div></div>
+          </div>
+          <div class="tiny" style="text-align:left">Tap a citation to see its source. In the app, sources open in your browser.</div>
+        </div>
+        <div>
+          <div class="card">
+            <h3>What actually leaves your phone</h3>
+            <p style="margin:6px 0 10px">Type anything. This is the same filter the app applies to every query before it is sent:</p>
+            <input class="field" id="q-in" value="should I sell my 250 shares of INFRA worth ₹3,62,500? mail me at someone@example.com" aria-label="A search query">
+            <p class="tiny" style="text-align:left;margin:10px 0 6px">Sent to the search engine:</p>
+            <div class="out" id="q-out"></div>
+          </div>
+          <div class="card" style="margin-top:12px"><h3>/price · /events · /results · /news</h3><p>Latest price with day and 52-week range and a candlestick chart; a dated calendar of dividends, results, AGMs and board meetings; and searches with sources — also without the AI model.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="memory">
+      <h2>Memory that learns — and stays on your phone</h2>
+      <p class="sub">Built on the idea of <i>agentic context engineering</i>: instead of rewriting one summary, the chat keeps a playbook of small notes and evolves it — <b>generate</b> (use the best notes), <b>reflect</b> (what did this turn teach?), <b>curate</b> (merge, count, drop). Try it:</p>
+      <div class="flow">
+        <div class="card">
+          <span class="kicker">SAY SOMETHING</span>
+          <div class="btns" id="mem-btns"></div>
+          <p class="log" id="mem-log">Each message is reflected on, then curated into the playbook on the right.</p>
+        </div>
+        <div class="card">
+          <span class="kicker">PLAYBOOK · PRIVATE FILE ON THE PHONE</span>
+          <ul class="pb" id="mem-pb"><li style="color:var(--dim)">Nothing remembered yet.</li></ul>
+          <div class="tiny" style="text-align:left;margin-top:10px">In the app: open <code>/memory</code> to read, delete or erase every note, or switch memory off.</div>
+        </div>
+      </div>
     </section>
 
     <section id="ai">
@@ -239,9 +371,9 @@
         <div>
           <div class="card"><h3>Visual answers</h3><p>Growth curves, FD comparison bars, goal rings, tax breakdowns and holdings — drawn from the tool's exact numbers.</p></div>
           <div class="card" style="margin-top:12px"><h3>/commands &amp; @mentions</h3><p><code>/holdings</code> <code>/fd 3</code> <code>/goal 50 lakh</code> <code>/tax</code> — and <code>@</code> to pick any of your Kite holdings. Share any answer as an image to WhatsApp or X.</p></div>
-          <div class="card" style="margin-top:12px"><h3>Speaks Indian money</h3><p>"10 lakh", "1.5 crore", "50k". Replies in your language — English or Hinglish.</p></div>
+          <div class="card" style="margin-top:12px"><h3>Speaks Indian money</h3><p>"10 lakh", "1.5 crore", "50k" — typed the way you say it. Replies are professional and in English.</p></div>
           <div class="card" style="margin-top:12px"><h3>🔗 Connect Kite (read-only)</h3><p>Optional. Uses Zerodha's official Kite MCP; you log in on Zerodha's page. Order tools are blocked in code. Data goes from Zerodha to your phone only.</p></div>
-          <div class="card" style="margin-top:12px"><h3>Private by design</h3><p>2.6 GB model downloaded once from Hugging Face, SHA-256 verified. Then it works offline. Nothing you ask is uploaded.</p></div>
+          <div class="card" style="margin-top:12px"><h3>Private by design</h3><p>2.6 GB model downloaded once from Hugging Face, SHA-256 verified. Then it works offline. Your questions are answered on the phone, not by a cloud AI.</p></div>
         </div>
       </div>
     </section>
@@ -287,13 +419,14 @@
 
     <section id="privacy">
       <div class="privacy">
-        <h2>🔒 Nothing leaves your phone</h2>
+        <h2>🔒 Your portfolio never leaves your phone</h2>
         <ul>
-          <li><b>No uploads.</b> Network is used only for the optional AI model download (Hugging Face, SHA-256 checked) and, if you tap Connect Kite, Zerodha's official Kite MCP (read-only). CI fails on anything else.</li>
-          <li><b>On-device AI.</b> The chat runs Gemma 4 on your phone. Your questions and Kite's numbers never leave it.</li>
+          <li><b>Three optional uses of the internet, each off until you choose it.</b> The one-time AI model download (Hugging Face, SHA-256 checked); Zerodha's official read-only Kite MCP if you tap Connect Kite; and web lookups if you switch Web on. CI fails on any other host.</li>
+          <li><b>Web lookups send topic words only.</b> Search words go to DuckDuckGo and price lookups to Yahoo Finance. Amounts, quantities and identifiers are stripped from every query in code; holdings are never sent. No cookies, a generic user agent, and nothing but the results page may load.</li>
+          <li><b>On-device AI.</b> The chat runs Gemma 4 on your phone. Your questions and Kite's numbers are never sent to a cloud AI.</li>
           <li><b>Reads, never trades.</b> Reads the numbers Kite already shows, only while Kite is open. Your taps can't reach Buy/Sell while the bubble is on.</li>
-          <li><b>Keeps nothing of yours.</b> Only your settings and the hold periods you type — excluded from cloud backup and phone transfer.</li>
-          <li><b>No login, analytics, ads or trackers.</b> No third-party SDKs at all. This page has no trackers either — the playground runs entirely in your browser.</li>
+          <li><b>What is stored, and where.</b> Your settings, hold periods, the current chat thread and memory notes — private files on the phone, excluded from cloud backup and phone transfer. New chat clears the thread; Memory → Erase clears the notes.</li>
+          <li><b>No login, analytics, ads or trackers.</b> No third-party SDKs at all. This page has no trackers either — every demo here runs entirely in your browser.</li>
         </ul>
         <p style="margin:16px 0 0"><a href="https://github.com/iprajax/khayali-pulao/blob/main/PRIVACY.md">Privacy policy</a> · <a href="https://github.com/iprajax/khayali-pulao/blob/main/SECURITY.md">Security model</a></p>
       </div>
@@ -324,17 +457,65 @@
   (function () {
     var f = document.getElementById("vf"), vk = document.getElementById("vk"), vb = document.getElementById("vb"), vs = document.getElementById("vs");
     var pts = []; for (var i = 0; i < 250; i++) pts.push({ t: new Date(2025, 10, 17 + i).toISOString(), c: 1200 + i * 1.1 + Math.sin(i / 9) * 45 + Math.sin(i / 3) * 12 });
+    var ohlc = []; (function () { var p = 1380, seed = 7; function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+      for (var i = 0; i < 42; i++) { var o = p, c = p * (1 + (rnd() - 0.47) * 0.035), h = Math.max(o, c) * (1 + rnd() * 0.01), l = Math.min(o, c) * (1 - rnd() * 0.01);
+        ohlc.push({ t: new Date(2026, 9, 6 + i).toISOString().slice(0, 10), o: o, h: h, l: l, c: c, v: Math.round(200000 + rnd() * 700000) }); p = c; } })();
     var S = {
+      mindmap: ["INFRA · MIND MAP", "Infra Builders", "Price, results, ownership and events in one tree · tap a topic to fold it · fictional", 300, { name: "INFRA", sub: "Infra Builders", children: [
+        { name: "Price", color: "blue", children: [{ name: "Last", value: "₹1,450", tone: "up" }, { name: "Today", value: "+1.2%", tone: "up" }, { name: "52-week", value: "₹980 – ₹1,728" }] },
+        { name: "Results", color: "green", children: [{ name: "Sales Q2", value: "₹4,072 Cr" }, { name: "Profit Q2", value: "₹789 Cr", tone: "up" }, { name: "Profit y/y", value: "+1.7%", tone: "up" }] },
+        { name: "Ownership", color: "violet", children: [{ name: "Promoters", value: "13.9%" }, { name: "Public", value: "85.9%" }] },
+        { name: "Events", color: "saffron", children: [{ name: "Dividend", value: "3 Nov" }, { name: "Next results", value: "Jan" }] }] }],
+      stream: ["INFRA · SHAREHOLDING", "Promoters 13.9%", "Who owns the company, quarter by quarter · fictional", 230, { unit: "%", yLabel: "Share of equity (%)", xLabel: "Quarter", series: ["Promoters", "Institutions", "Public"],
+        points: [["2025-03-31", 14.4, 52.1, 33.5], ["2025-06-30", 14.3, 52.9, 32.8], ["2025-09-30", 14.2, 53.6, 32.2], ["2025-12-31", 14.1, 54.0, 31.9], ["2026-03-31", 14.0, 54.8, 31.2], ["2026-06-30", 13.9, 55.3, 30.8], ["2026-09-30", 13.9, 55.9, 30.2]].map(function (p) { return { t: p[0], values: p.slice(1) }; }) }],
+      radar: ["INFRA · SCORECARD", "62 / 100", "Five measures scored 0–100 against fixed bands · fictional", 280, { max: 100, ringLabel: "score", axes: [
+        { label: "1-yr return", score: 70, value: "+21%" }, { label: "Low volatility", score: 55, value: "24%" }, { label: "Small drawdown", score: 48, value: "−18%" }, { label: "Trend", score: 80, value: "> 200-DMA" }, { label: "Dividend yield", score: 57, value: "1.8%" }] }],
+      butterfly: ["NIFTY · OPTION CHAIN · OPEN INTEREST", "Spot 25,328", "Puts left, calls right, by strike · dashed line = spot · fictional", 300, { left: "Puts", right: "Calls", unit: "lakh", spot: 25328, yLabel: "Strike", xLabel: "Open interest (lakh)",
+        rows: [25000, 25100, 25200, 25300, 25400, 25500, 25600].map(function (k, i) { return { strike: k, left: [62, 48, 55, 40, 21, 12, 7][i], right: [9, 14, 22, 38, 51, 66, 44][i] }; }) }],
+      sunburst: ["YOUR PORTFOLIO · X-RAY", "₹5,88,320", "Inner ring: gainers and losers · outer ring: each stock · fictional", 300, { centre: "Portfolio value", unit: "₹", inner: "group", outer: "stock", measure: "share of portfolio value",
+        root: { name: "Portfolio", children: [{ name: "Gainers", color: "green", children: [{ name: "INFRA", value: 362500 }, { name: "BALLIA", value: 120000 }] }, { name: "Losers", color: "red", children: [{ name: "CHAICO", value: 65820 }, { name: "JHUMRI", value: 40000 }] }] } }],
+      matrix: ["INFRA · SEASONALITY", "Best month: April", "Monthly returns by year · fictional", 260, { cols: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], unit: "%", xLabel: "Month", yLabel: "Year",
+        rows: [{ label: "2024", values: [2.1,-1.3,3.4,4.8,-0.6,1.2,2.9,-2.2,0.4,1.8,-1.1,2.6] }, { label: "2025", values: [-0.8,1.9,-2.7,5.1,0.9,-1.4,3.3,1.1,-0.5,2.2,0.7,-0.9] }, { label: "2026", values: [1.4,0.6,-1.8,3.9,2.4,0.3,-1.2,2.8,1.6,-0.4,0.9,null] }],
+        footer: { label: "Avg", values: [0.9,0.4,-0.4,4.6,0.9,0,1.7,0.6,0.5,1.2,0.2,0.9] }, partial: { row: "2026", col: 10 } }],
+      sparkgrid: ["WORLD MARKETS · 1 MONTH", "8 of 10 up", "Each panel: last value, change and its own range · fictional", 300, { cols: 2, items: ["S&P 500","Nasdaq","FTSE","DAX","Nikkei","Nifty 50"].map(function (n, j) {
+        var v = [], t = [], x = 100 + j * 7; for (var i = 0; i < 22; i++) { x = x * (1 + Math.sin(i * 0.7 + j) * 0.008 + 0.002); v.push(+x.toFixed(2)); t.push(new Date(2026, 9, 17 + i).toISOString().slice(0, 10)); }
+        return { label: n, t: t, v: v, change: (v[v.length - 1] / v[0] - 1) * 100 }; }) }],
+      stackarea: ["SIP · ₹10,000 A MONTH · 12% · 15 YEARS", "₹50.5 lakh", "₹18 lakh invested grows to ₹50.5 lakh · illustration", 230, { series: ["Invested", "Growth"], xLabel: "Years", yLabel: "Value (₹)",
+        points: (function () { var out = [], bal = 0; for (var y = 1; y <= 15; y++) { for (var m = 0; m < 12; m++) bal = (bal + 10000) * (1 + 0.12 / 12); out.push({ x: y, a: 120000 * y, b: Math.round(bal - 120000 * y) }); } return out; })() }],
+      sankey: ["INFRA · Q2 FY27 RESULTS · MONEY FLOW", "₹789 Cr net profit", "on sales of ₹4,072 Cr · net margin 19.4% · fictional company", 300, { unit: "₹ Cr", nodes: [
+        { id: "sales", label: "Sales", col: 0, color: "blue" }, { id: "other", label: "Other inc.", col: 0, color: "violet" }, { id: "income", label: "Income", col: 1, color: "blue" },
+        { id: "staff", label: "Staff", col: 2, color: "saffron" }, { id: "oth", label: "Other exp.", col: 2, color: "saffron" }, { id: "pbt", label: "Pre-tax", col: 2, color: "green" },
+        { id: "tax", label: "Tax", col: 3, color: "red" }, { id: "profit", label: "Net profit", col: 3, color: "green" }],
+        links: [{ from: "sales", to: "income", value: 4072 }, { from: "other", to: "income", value: 170 }, { from: "income", to: "staff", value: 1910 }, { from: "income", to: "oth", value: 1242 },
+          { from: "income", to: "pbt", value: 1090 }, { from: "pbt", to: "tax", value: 301 }, { from: "pbt", to: "profit", value: 789 }] }],
+      treemap: ["PULAO 30 · HEATMAP · 30 STOCKS", "19 up · 11 down", "Tile size: traded value · colour: today's change · ★ your holding", 300, { items: (function () {
+        var n = ["INFRA","CHAICO","BALLIA","JHUMRI","PULAO","THALI","KADHAI","TADKA","MASALA","BIRYANI","ROTI","DAL","SABZI","LASSI","CHAI","SAMOSA","JALEBI","PARATHA","IDLI","DOSA","VADA","UPMA","POHA","KHEER","HALWA","LADDU","BARFI","PEDA","RABRI","KULFI"], out = [], seed = 11;
+        function r() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+        n.forEach(function (x) { out.push({ label: x, value: (2 + r() * 88) * 1e8, change: (r() - 0.4) * 8, price: Math.round(100 + r() * 3900), mine: x === "INFRA" }); }); return out; })() }],
+      agenda: ["MARKET CALENDAR · NEXT 7 DAYS", "48 events", "Results, dividends, splits, bonus, AGMs, IPOs and holidays, by day · fictional counts", 210, { from: "2026-11-17", to: "2026-11-24", today: "2026-11-17", events: (function () {
+        var plan = { "2026-11-17": { Dividend: 6, Results: 1, "Board meeting": 2 }, "2026-11-18": { Dividend: 6, Results: 3, "Board meeting": 3, Buyback: 2, "IPO opens": 1 }, "2026-11-19": { Results: 2, Dividend: 4, "IPO opens": 1, Bonus: 1 },
+          "2026-11-20": { Dividend: 3, "IPO closes": 1, "Stock split": 1 }, "2026-11-21": { Dividend: 2, "AGM / EGM": 1 }, "2026-11-23": { Dividend: 2, "IPO closes": 1, "Rights issue": 1 }, "2026-11-24": { "Market holiday": 1 } }, out = [];
+        Object.keys(plan).forEach(function (d) { Object.keys(plan[d]).forEach(function (k) { for (var i = 0; i < plan[d][k]; i++) out.push({ date: d, kind: k }); }); }); return out; })() }],
+      gmp: ["PULAO FOODS · MAIN BOARD IPO · GREY MARKET", "₹13  +4.8%", "Unofficial premium by date — it fell from ₹40 · fictional issue", 210, { yLabel: "GMP (₹ a share)", points: [
+        { t: "2026-11-11", c: 40 }, { t: "2026-11-12", c: 36 }, { t: "2026-11-13", c: 31 }, { t: "2026-11-14", c: 27 }, { t: "2026-11-15", c: 15 }, { t: "2026-11-16", c: 13 }, { t: "2026-11-17", c: 13 }] }],
       holdings: ["YOUR KITE HOLDINGS · 4", "₹5,88,320", "+₹68,320 (+13.1%) on ₹5,20,000", 330, { holdings: [
         { symbol: "INFRA", current: 362500, pnl: 62500, pnl_percent: 20.8 }, { symbol: "BALLIA", current: 120000, pnl: 20000, pnl_percent: 20 },
         { symbol: "CHAICO", current: 65820, pnl: -4180, pnl_percent: -6 }, { symbol: "JHUMRI", current: 40000, pnl: -10000, pnl_percent: -20 }] }],
-      history: ["INFRA · 1Y", "₹1,450.00", "+21.0% · high ₹1,520 · low ₹1,140", 220, { points: pts }],
-      growth: ["COMPOUNDING", "₹3,10,585", "₹1,00,000 at 12% a year · 10 years · 3.11× (dashed: today's money)", 200, { start: 100000, rate: 12, years: 10, inflation: 6.1 }],
-      versus: ["YOU VS THE ALTERNATIVES", "+9.9% a year", "₹3,00,000 → ₹3,62,500 in 2 yrs · ahead of a 6.45% FD", 200, { items: [
+      allocation: ["ALLOCATION · SHARE OF PORTFOLIO VALUE", "61.6% in INFRA", "4 holdings · largest first", 190, { items: [
+        { label: "INFRA", value: 362500 }, { label: "BALLIA", value: 120000 }, { label: "CHAICO", value: 65820 }, { label: "JHUMRI", value: 40000 }] }],
+      history: ["INFRA · 1Y", "₹1,450.00", "+21.0% · price (₹) by date · drag to read a day", 230, { points: pts }],
+      candles: ["INFRA · 1M · OPEN-HIGH-LOW-CLOSE", "₹" + ohlc[ohlc.length - 1].c.toFixed(2), "Daily candles with volume · tap a candle", 250, { points: ohlc }],
+      scenario: ["IF IT MOVES −20%", "₹2,90,000", "−₹10,000 (−3.3%) on ₹3,00,000 · value at every move from −30% to +30%", 210, { today: 362500, cost: 300000, move: -20, value: 290000, from_avg: false }],
+      growth: ["COMPOUNDING", "₹3,10,585", "₹1,00,000 at 12% a year · 10 years · 3.11× (dashed: today's money)", 220, { start: 100000, rate: 12, years: 10, inflation: 6.1 }],
+      versus: ["YOU VS THE ALTERNATIVES", "+9.9% a year", "₹3,00,000 → ₹3,62,500 in 2 yrs · ahead of a 6.45% FD", 210, { items: [
         { label: "You", value: 362500 }, { label: "Bank FD", value: 339989 }, { label: "PPF", value: 340815 }, { label: "Gold", value: 383070 },
         { label: "Nifty 50", value: 372968 }, { label: "Inflation", value: 337731 }] }],
-      goal: ["GOAL", "+175.9% to go", "₹3,62,500 of ₹10,00,000 · 2.76× from today", 160, { now: 362500, goal: 1000000, years: { "8%": 13.2, "12%": 9, "15%": 7.3, "20%": 5.6, "25%": 4.5 } }],
-      tax: ["IN HAND IF YOU SELL · LTCG", "₹58,109", "of ₹62,500 profit", 130, { in_hand: 58109, tax: 3360, charges: 1031 }],
+      paths: ["GOAL · ₹1 CRORE", "27.6× from today", "Value by year at 8%, 12%, 15% and 20% a year · dots mark where each reaches the goal", 230, { now: 362500, goal: 10000000, rates: [8, 12, 15, 20] }],
+      waterfall: ["IN HAND IF YOU SELL · LTCG", "₹3,62,000", "of ₹4,00,000 profit · charges and tax taken off step by step", 210, { gain: 400000, in_hand: 362000, tax: 34000, charges: 4000 }],
+      calendar: ["INFRA · COMPANY EVENTS", "Results · 15 Jan 2027", "Dividends from the quote feed · dated events from cited web results", 290, { today: "2026-11-17", events: [
+        { date: "2026-06-10", kind: "Dividend", title: "Dividend ₹25 a share", source: 0 }, { date: "2026-07-24", kind: "AGM", title: "Annual general meeting held", source: 2 },
+        { date: "2026-10-22", kind: "Board meeting", title: "Board met to approve Q2 results", source: 1 }, { date: "2026-11-03", kind: "Dividend", title: "Dividend ₹26 a share", source: 0 },
+        { date: "2027-01-15", kind: "Results", title: "Q3 results expected", source: 3, upcoming: true }] }],
       margins: ["MARGINS · EQUITY", "₹2,50,000", "available to trade", 160, { net: 250000, used: 80000, cash: 180000 }],
       orders: ["ORDERS TODAY · 3", "3 orders", "1 complete · 1 open · 1 rejected", 160, { orders: [
         { symbol: "INFRA", side: "BUY", qty: 10, price: 1450, status: "COMPLETE", time: "2026-11-17 09:21:00" },
@@ -343,7 +524,8 @@
     };
     function show(k) {
       var s = S[k]; vk.textContent = s[0]; vb.textContent = s[1]; vs.textContent = s[2]; f.style.height = s[3] + "px";
-      try { if (f.contentWindow && f.contentWindow.render) f.contentWindow.render({ type: k, height: s[3], data: s[4] }); } catch (e) {}
+      var type = k === "gmp" ? "history" : k;
+      try { if (f.contentWindow && f.contentWindow.render) f.contentWindow.render({ type: type, height: s[3], data: s[4] }); } catch (e) {}
     }
     document.querySelectorAll(".viz-tabs button").forEach(function (b) {
       b.addEventListener("click", function () { document.querySelectorAll(".viz-tabs button").forEach(function (x) { x.classList.remove("on"); }); b.classList.add("on"); show(b.dataset.v); });
@@ -351,5 +533,6 @@
     f.addEventListener("load", function () { show(document.querySelector(".viz-tabs .on").dataset.v); });
   })();
   </script>
+  <script src="demos.js"></script>
 </body>
 </html>

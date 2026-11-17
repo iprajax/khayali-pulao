@@ -12,20 +12,44 @@ object Commands {
         Cmd("margins", "/margins", "Available margin", "margins"),
         Cmd("orders", "/orders", "Today's orders", "orders"),
         Cmd("mf", "/mf", "Mutual fund holdings", "mutual_funds"),
-        Cmd("chart", "/chart INFY 6m", "Price chart from Kite (1w 1m 3m 6m 1y 5y)"),
+        Cmd("chart", "/chart INFY 6m", "Price chart (1w 1m 3m 6m 1y 5y)"),
+        Cmd("price", "/price INFY", "Latest share price from the web"),
+        Cmd("calendar", "/calendar", "Market calendar for the next 7 days: results, dividends, splits, bonus, AGMs, IPOs, holidays"),
+        Cmd("ipo", "/ipo", "Open and upcoming IPOs with grey-market premium, and recent listings"),
+        Cmd("gmp", "/gmp Crystal Crop", "An IPO's grey-market premium, its trend and the listing price it implies"),
+        Cmd("events", "/events INFY", "One company's calendar: results, dividends, splits, AGM"),
+        Cmd("results", "/results tomorrow", "Who reports results on a day — or /results INFY for the latest numbers"),
+        Cmd("news", "/news INFY", "Recent news, with sources"),
+        Cmd("web", "/web your question", "Search the web (DuckDuckGo) with sources"),
         Cmd("fd", "/fd 3", "Did my portfolio beat an FD over N years?"),
         Cmd("goal", "/goal 50 lakh", "How long to reach an amount?"),
         Cmd("grow", "/grow 1 lakh 12% 10y", "Compounding"),
         Cmd("move", "/move 15", "What if my portfolio moves N%?"),
         Cmd("tax", "/tax", "In hand if I sold everything today"),
+        Cmd("remember", "/remember I invest for 10+ years", "Save a note to memory"),
+        Cmd("memory", "/memory", "See and edit what the chat remembers"),
+        Cmd("forget", "/forget", "Erase all memory"),
+        Cmd("compact", "/compact", "Summarise the chat so far to keep the model fast"),
         Cmd("clear", "/clear", "Start a new chat"),
         Cmd("help", "/help", "Show all commands"),
     )
+
+    /** Terminal features as commands, for the typing suggestions and the help list. */
+    val TERMINAL: List<Cmd> by lazy { com.khayali.pulao.ai.term.Terminal.FEATURES.map { Cmd(it.id, it.usage, it.help) } }
 
     sealed class Parsed {
         data class Kite(val section: String) : Parsed()
         data class Chart(val symbol: String, val period: String?) : Parsed()
         data class Prompt(val text: String) : Parsed()
+        /** Run one calculator directly (exact and instant; works without the model). */
+        data class Tool(val name: String, val args: String) : Parsed()
+        data class Web(val kind: ChatFlow.WebKind, val query: String) : Parsed()
+        data class Remember(val text: String) : Parsed()
+        data object Memory : Parsed()
+        data object Forget : Parsed()
+        data object Compact : Parsed()
+        /** A terminal feature (see ai/term). */
+        data class Term(val id: String, val arg: String) : Parsed()
         data object Clear : Parsed()
         data object Help : Parsed()
         data class Unknown(val name: String) : Parsed()
@@ -36,14 +60,15 @@ object Commands {
     /** Commands that start with what the user typed after "/". */
     fun suggest(typed: String): List<Cmd> {
         val q = typed.trimStart().removePrefix("/").substringBefore(' ').lowercase()
-        return ALL.filter { it.name.startsWith(q) }
+        return (ALL + TERMINAL).filter { it.name.startsWith(q) }
     }
 
     fun parse(text: String): Parsed {
         val t = text.trim().removePrefix("/")
         val name = t.substringBefore(' ').lowercase()
         val arg = t.substringAfter(' ', "").trim()
-        val cmd = ALL.firstOrNull { it.name == name } ?: return Parsed.Unknown(name)
+        val cmd = ALL.firstOrNull { it.name == name }
+            ?: return com.khayali.pulao.ai.term.Terminal.find(name)?.let { Parsed.Term(it.id, arg.removePrefix("@")) } ?: Parsed.Unknown(name)
         cmd.kiteSection?.let { return Parsed.Kite(it) }
         return when (name) {
             "chart" -> arg.split(' ').filter { it.isNotBlank() }.let { a ->
@@ -51,13 +76,46 @@ object Commands {
             }
             "clear" -> Parsed.Clear
             "help" -> Parsed.Help
-            "fd" -> Parsed.Prompt("Did my portfolio beat a bank FD? I've held it ${arg.ifBlank { "2" }.removeSuffix("y").trim()} years.")
-            "goal" -> Parsed.Prompt("How long to grow my portfolio to ${arg.ifBlank { "1 crore" }}?")
-            "grow" -> Parsed.Prompt(if (arg.isBlank()) "What does ₹1 lakh become at 12% a year for 10 years?" else "Compounding: $arg")
-            "move" -> Parsed.Prompt("What if my portfolio moves ${arg.ifBlank { "10" }.removeSuffix("%")}%?")
-            "tax" -> Parsed.Prompt("How much would I get in hand after tax if I sold all my holdings today?")
+            "fd" -> Parsed.Tool("compare_with_fd", obj("years_held" to (number(arg) ?: 2.0)))
+            "goal" -> Parsed.Tool("goal_plan", obj("target_rupees" to arg.ifBlank { "1 crore" }))
+            "move" -> Parsed.Tool("project_move", obj("percent" to (signedNumber(arg) ?: 10.0)))
+            "tax" -> Parsed.Tool("in_hand_after_tax", "{}")
+            "grow" -> grow(arg)
+            "price" -> if (arg.isBlank()) Parsed.Help else Parsed.Web(ChatFlow.WebKind.PRICE, arg.removePrefix("@"))
+            "calendar" -> Parsed.Web(ChatFlow.WebKind.CALENDAR, arg.removePrefix("@").ifBlank { "week" })
+            "ipo" -> if (arg.isBlank()) Parsed.Web(ChatFlow.WebKind.IPO, "") else Parsed.Web(ChatFlow.WebKind.GMP, arg)
+            "gmp" -> Parsed.Web(ChatFlow.WebKind.GMP, arg)
+            "events" -> if (arg.isBlank()) Parsed.Web(ChatFlow.WebKind.CALENDAR, "week") else Parsed.Web(ChatFlow.WebKind.CALENDAR, arg.removePrefix("@"))
+            // "/results" or "/results tomorrow" = who reports that day; "/results INFY" = that company's latest numbers
+            "results" -> if (arg.isBlank()) Parsed.Web(ChatFlow.WebKind.CALENDAR, "today")
+                else if (MarketData.window(arg, java.time.LocalDate.now()) != null) Parsed.Web(ChatFlow.WebKind.CALENDAR, arg)
+                else Parsed.Web(ChatFlow.WebKind.SEARCH, "${arg.removePrefix("@")} latest quarterly results revenue net profit")
+            "compact" -> Parsed.Compact
+            "news" -> if (arg.isBlank()) Parsed.Help else Parsed.Web(ChatFlow.WebKind.SEARCH, "${arg.removePrefix("@")} share latest news")
+            "web" -> if (arg.isBlank()) Parsed.Help else Parsed.Web(ChatFlow.WebKind.SEARCH, arg)
+            "remember" -> if (arg.isBlank()) Parsed.Memory else Parsed.Remember(arg)
+            "memory" -> Parsed.Memory
+            "forget" -> Parsed.Forget
             else -> Parsed.Unknown(name)
         }
+    }
+
+    private fun obj(vararg kv: Pair<String, Any>) = com.google.gson.JsonObject().apply {
+        for ((k, v) in kv) if (v is Number) addProperty(k, v) else addProperty(k, v.toString())
+    }.toString()
+
+    private fun number(s: String) = Regex("""\d+(?:\.\d+)?""").find(s)?.value?.toDoubleOrNull()
+    private fun signedNumber(s: String) = Regex("""[+\-−]?\s*\d+(?:\.\d+)?""").find(s)?.value?.replace("−", "-")?.replace(" ", "")?.toDoubleOrNull()
+
+    /** "/grow 1 lakh 12% 10y" → grow_for_years. Anything it can't read goes to the model as a question. */
+    private fun grow(arg: String): Parsed {
+        if (arg.isBlank()) return Parsed.Tool("grow_for_years", obj("amount_rupees" to "1 lakh", "yearly_return_percent" to 12.0, "years" to 10.0))
+        val rate = Regex("""(\d+(?:\.\d+)?)\s*%""").find(arg)
+        val years = Regex("""(\d+(?:\.\d+)?)\s*(?:y|yr|yrs|year|years)\b""", RegexOption.IGNORE_CASE).find(arg)
+        if (rate == null || years == null) return Parsed.Prompt("Compounding: $arg")
+        val amount = arg.replace(rate.value, " ").replace(years.value, " ").replace(Regex("""\b(at|for|a year|per year)\b""", RegexOption.IGNORE_CASE), " ").trim()
+        return if (amount.isBlank() || Money.parse(amount) == null) Parsed.Prompt("Compounding: $arg")
+        else Parsed.Tool("grow_for_years", obj("amount_rupees" to amount.replace(Regex("""\s+"""), " "), "yearly_return_percent" to rate.groupValues[1].toDouble(), "years" to years.groupValues[1].toDouble()))
     }
 
     // ------------------------------------------------------------- mentions

@@ -25,8 +25,10 @@ object Disclosure {
             "Shows a floating bubble and a results sheet over Kite. When you swipe, it scrolls Kite's list; " +
             "when you tap Kite's own navigation tabs, it opens them. It never taps Buy or Sell and never places orders.",
         "What it never does" to
-            "It does not collect, store or share this information — it never leaves your phone. The app uses the " +
-            "internet only to download its optional AI model once; nothing is uploaded. No account, no analytics, no ads.",
+            "It does not collect, store or share this information — what it reads from Kite's screen never leaves your phone. " +
+            "The app uses the internet only for things you switch on yourself (the one-time AI model download, the optional " +
+            "read-only Kite connection, optional web lookups), and none of them upload what is read from your screen. " +
+            "No account, no analytics, no ads.",
         "Your control" to
             "You can turn it off at any time in Settings → Accessibility → Khayali Pulao. Uninstalling removes everything.",
     )
