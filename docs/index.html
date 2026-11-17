@@ -183,6 +183,56 @@
     .term-group span { color:var(--muted); }
     .term-group em { color:var(--green); font-style:normal; font-size:11px; border:1px solid var(--green); border-radius:999px; padding:0 6px; margin-left:4px; }
     .term-group li.hide { display:none; }
+    /* ---- motion (see fx.js) ---- */
+    html, body { overflow-x:clip; }
+    .hero-wrap { position:relative; isolation:isolate; }
+    #aurora { position:absolute; inset:-40px -10vw 0; width:calc(100% + 20vw); height:calc(100% + 40px); z-index:-1; filter:blur(10px); pointer-events:none; }
+    .eyebrow { display:inline-block; font-size:13px; letter-spacing:.04em; padding:6px 12px; border:1px solid var(--line); border-radius:999px; margin:0 0 14px; }
+    .shiny { background:linear-gradient(110deg, var(--muted) 35%, #fff 50%, var(--muted) 65%); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:shine 4s linear infinite; }
+    @keyframes shine { from { background-position:120% 0 } to { background-position:-120% 0 } }
+    .split-w { display:inline-block; opacity:0; transform:translateY(.45em); filter:blur(6px); animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
+    @keyframes rise { to { opacity:1; transform:none; filter:none; } }
+    .ask { font-size:18px; color:var(--muted); min-height:2.6em; margin:4px 0 14px; }
+    .ask .typed { color:var(--text); font-family:ui-monospace, Menlo, monospace; font-size:16px; }
+    .caret { color:var(--blue); animation:blink 1s steps(1) infinite; margin-left:2px; }
+    @keyframes blink { 50% { opacity:0 } }
+    .stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:22px; }
+    .stats div { background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:12px; padding:12px; }
+    .stats b { display:block; font-size:26px; font-weight:700; }
+    .stats span { font-size:12px; color:var(--muted); }
+    .magnet { transition:transform .25s cubic-bezier(.2,.7,.2,1); will-change:transform; }
+    .star { position:relative; overflow:hidden; }
+    .star::after { content:""; position:absolute; inset:-2px; background:conic-gradient(from 0deg, transparent 70%, rgba(255,255,255,.7) 80%, transparent 90%); animation:spin 3s linear infinite; mix-blend-mode:overlay; pointer-events:none; }
+    @keyframes spin { to { transform:rotate(1turn) } }
+    .tilt { transition:transform .3s ease; transform-style:preserve-3d; }
+    .marquee { overflow:hidden; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:22px 0 0; mask-image:linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+    .marquee + .marquee { margin-top:-1px; }
+    .marquee-track { display:flex; gap:28px; width:max-content; padding:11px 0; animation:loop 60s linear infinite; }
+    .marquee.reverse .marquee-track { animation-direction:reverse; animation-duration:90s; }
+    .marquee:hover .marquee-track { animation-play-state:paused; }
+    @keyframes loop { to { transform:translateX(-50%) } }
+    .tape span { white-space:nowrap; font-size:14px; color:var(--muted); } .tape b { color:var(--text); margin-right:4px; }
+    .tape i { font-style:normal; font-weight:600; margin-left:4px; } .tape i.up { color:var(--green); } .tape i.down { color:var(--red); }
+    .cmdloop span { white-space:nowrap; font-family:ui-monospace, Menlo, monospace; font-size:13px; color:var(--blue); padding:3px 10px; border:1px solid rgba(82,130,235,.35); border-radius:999px; }
+    .card, .wall-tile { position:relative; }
+    .card::before, .wall-tile::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0; transition:opacity .3s;
+      background:radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(82,130,235,.14), transparent 60%); }
+    .card:hover::before, .wall-tile:hover::before { opacity:1; }
+    .js .reveal { opacity:0; transform:translateY(18px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+    .js .reveal.in { opacity:1; transform:none; }
+    .wall-group { margin:30px 0 12px; font-size:15px; letter-spacing:.08em; text-transform:uppercase; color:var(--blue); }
+    .wall-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; align-items:start; }
+    .wall-tile { padding:14px 14px 8px; border:1px solid var(--line); }
+    .wall-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+    .wall-title { font-weight:600; font-size:15px; }
+    .wall-cmd { font-size:12px; color:var(--blue); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:55%; }
+    .wall-sub { font-size:12.5px; color:var(--muted); margin:3px 0 8px; min-height:1px; }
+    .wall-tile iframe { width:100%; border:0; display:block; background:transparent; }
+    .dots-host { position:relative; isolation:isolate; }
+    .dots-host > canvas.dots { position:absolute; inset:-20px -2vw; width:calc(100% + 4vw); height:calc(100% + 40px); z-index:-1; }
+    @media (max-width: 820px) { .stats { grid-template-columns:repeat(2, 1fr); } .wall-grid { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion: reduce) { .split-w, .reveal { opacity:1; transform:none; filter:none; animation:none; } .marquee-track, .shiny, .star::after, .caret { animation:none; } }
+    .btns button.pulse { border-color:var(--blue); box-shadow:0 0 0 3px rgba(82,130,235,.25); }
     footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--dim); font-size: 13px; }
     footer p { margin: 6px 0; }
     @media (max-width: 820px) {
@@ -199,7 +249,7 @@
       <img src="media/icon.png" alt="">
       <b>Khayali Pulao</b>
       <nav>
-        <a href="#visuals">Visuals</a>
+        <a href="#wall-section">Charts</a>
         <a href="#terminal">Terminal</a>
         <a href="#chat">Chat</a>
         <a href="#web">Web</a>
@@ -214,50 +264,46 @@
   </header>
 
   <main class="wrap">
+    <div class="hero-wrap">
+    <canvas id="aurora" aria-hidden="true"></canvas>
     <div class="hero">
       <div>
-        <h1>What shall we cook today?</h1>
+        <p class="eyebrow shiny">On-device AI · 72-command market terminal · nothing to sign up for</p>
+        <h1 data-split>What shall we cook today?</h1>
+        <p class="ask">Ask: <span class="typed" data-rotate='["What if my biggest holding falls 20%?","/report — the whole market on one card","/flow INFY — where every rupee of revenue went","/ipo — what is open, and the grey-market premium","/calendar — results, dividends and splits this week","/optionchain — where the open interest sits","/sip 10000 12% 15y"]'></span><span class="caret">▍</span></p>
         <p class="lead">A tiny bubble floats on top of Zerodha Kite, with an on-device AI you can just ask. Tap a holding to see what it would be worth at +0.5%, +5%, +15% or 2×, whether you beat an FD, and what the profit really buys in hand after tax. Ask for the latest price, results dates or news and it answers with sources. It remembers your goals, on your phone only.</p>
         <p class="meaning"><b>ख़याली पुलाव (khayali pulao)</b> — literally “imaginary pulao”: rice you cook only in your head. Hindi for daydreaming. Every investor does it; this does the maths properly.</p>
         <div class="cta">
-          <a class="btn primary" href="https://github.com/iprajax/khayali-pulao/releases">Download APK</a>
-          <a class="btn ghost" href="#try">Try it in your browser</a>
-          <a class="btn ghost" href="https://github.com/iprajax/khayali-pulao">View source</a>
+          <a class="btn primary magnet star" href="https://github.com/iprajax/khayali-pulao/releases/latest">Download APK</a>
+          <a class="btn ghost magnet" href="#wall">See every feature</a>
+          <a class="btn ghost magnet" href="https://github.com/iprajax/khayali-pulao">View source</a>
+        </div>
+        <div class="stats">
+          <div><b data-count="72">72</b><span>terminal commands</span></div>
+          <div><b data-count="43">43</b><span>live charts</span></div>
+          <div><b data-count="261">261</b><span>automated tests</span></div>
+          <div><b data-count="0">0</b><span>accounts or trackers</span></div>
         </div>
       </div>
       <div>
-        <div class="phone">
+        <div class="phone tilt">
           <video src="media/demo.mp4" poster="screens/move.png" autoplay muted loop playsinline aria-label="Demo of the daydream sheet with fictional data"></video>
         </div>
         <p class="note">In-app demo · fictional data</p>
       </div>
     </div>
+    </div>
 
-    <section id="visuals">
-      <h2>Answers you can see</h2>
-      <p class="sub">Every answer is a native card with an animated D3 chart, drawn on your phone from exact tool output — including a market terminal built on public, no-login data (NSE, exchange filings, public price feeds). Every chart names both axes and prints their values. Below: the same renderer the app ships, live, on fictional data. Drag across any line chart, or tap a candle.</p>
-      <div class="viz-tabs" role="tablist">
-        <button data-v="mindmap">Company mind map</button><button data-v="stream">Shareholding stream</button>
-        <button data-v="radar">Scorecard radar</button><button data-v="butterfly">Option chain</button>
-        <button data-v="sunburst">Portfolio sunburst</button><button data-v="matrix">Seasonality</button>
-        <button data-v="sparkgrid">World markets</button><button data-v="stackarea">SIP growth</button>
-        <button class="on" data-v="sankey">Results money flow</button><button data-v="treemap">Index heatmap</button>
-        <button data-v="agenda">Market calendar</button><button data-v="gmp">IPO grey market</button>
-        <button data-v="holdings">Holdings</button><button data-v="allocation">Allocation</button>
-        <button data-v="history">Price history</button><button data-v="candles">Candlesticks</button>
-        <button data-v="scenario">What-if curve</button><button data-v="growth">Compounding</button>
-        <button data-v="versus">vs FD &amp; Nifty</button><button data-v="paths">Goal paths</button>
-        <button data-v="waterfall">Tax waterfall</button><button data-v="calendar">Events calendar</button>
-        <button data-v="margins">Margins</button><button data-v="orders">Orders</button>
-      </div>
-      <div class="viz-stage card">
-        <div class="viz-head"><span class="kicker" id="vk">YOUR KITE HOLDINGS · 4</span><div class="vbig" id="vb">₹5,88,320</div><div class="muted" id="vs">+₹68,320 (+13.1%) on ₹5,20,000</div></div>
-        <iframe id="vf" src="viz/viz.html" title="Chart"></iframe>
-        <div class="tiny">Fictional data · rendered by d3.js inside the app's offline WebView (network blocked)</div>
-      </div>
+    <div class="marquee tape" aria-hidden="true"><div class="marquee-track"><span><b>NIFTY</b> 25,375.15 <i class="up">▲ 0.33%</i></span><span><b>BANKNIFTY</b> 61,950.40 <i class="up">▲ 0.64%</i></span><span><b>SENSEX</b> 82,310.55 <i class="up">▲ 0.29%</i></span><span><b>INFRA</b> 1,450.00 <i class="up">▲ 1.21%</i></span><span><b>CHAICO</b> 658.20 <i class="down">▼ 0.45%</i></span><span><b>BALLIA</b> 1,893.00 <i class="up">▲ 1.25%</i></span><span><b>JHUMRI</b> 205.29 <i class="down">▼ 0.18%</i></span><span><b>INDIA VIX</b> 15.11 <i class="down">▼ 3.64%</i></span><span><b>USD/INR</b> 93.66 <i class="down">▼ 0.61%</i></span><span><b>GOLD ₹/10g</b> 1,16,601 <i class="down">▼ 0.12%</i></span><span><b>REALTY</b> 1.96% <i class="up">▲ 1.96%</i></span><span><b>IT</b> −0.44% <i class="down">▼ 0.44%</i></span></div></div>
+    <div class="marquee cmdloop reverse" aria-hidden="true"><div class="marquee-track"><span>/report</span><span>/sectormovers</span><span>/preopen</span><span>/watch</span><span>/heatmap NIFTY BANK</span><span>/flow INFY</span><span>/indices sectoral</span><span>/sectors</span><span>/movers fno</span><span>/breadth</span><span>/active</span><span>/status</span><span>/highs</span><span>/bands</span><span>/volume</span><span>/fiidii</span><span>/deals INFY</span><span>/insider INFY</span><span>/announcements INFY</span><span>/oispurts</span><span>/filings INFY</span><span>/etfs gold</span><span>/sgb</span><span>/xray</span><span>/pnlflow</span><span>/risk</span><span>/correlation</span><span>/riskreturn</span><span>/stress</span><span>/income</span><span>/rebalance</span><span>/foliomap</span><span>/quote INFY</span><span>/shareholding INFY</span><span>/mindmap INFY</span><span>/scorecard INFY</span><span>/peers IT</span><span>/history INFY</span><span>/ta INFY</span><span>/rsi INFY</span><span>/macd INFY</span><span>/drawdown INFY</span><span>/returns INFY</span><span>/seasonality INFY</span><span>/compare INFY TCS 1y</span><span>/levels INFY</span><span>/volatility INFY</span><span>/optionchain NIFTY</span><span>/pcr NIFTY</span><span>/maxpain NIFTY</span><span>/ivsmile NIFTY</span><span>/straddle NIFTY</span><span>/oichange NIFTY</span><span>/expiries NIFTY</span><span>/global</span><span>/fx</span><span>/commodities</span><span>/gold</span><span>/crypto</span><span>/vix</span><span>/inflation</span><span>/gdp</span><span>/yields</span><span>/fund parag flexi</span><span>/fundcompare parag flexi vs nifty 50 index</span><span>/sipreal parag flexi 10000 5y</span><span>/sip 10000 12% 15y</span><span>/stepup 10000 10% 12% 15y</span><span>/swp 1 crore 80000 8%</span><span>/emi 50 lakh 8.5% 20y</span><span>/retire 50000 25y 25y 6% 12% 8%</span><span>/lumpsum 12 lakh 12% 10y</span></div></div>
+
+    <section id="wall-section" class="reveal">
+      <h2>Every chart, all at once — <span id="wall-count">40</span> of them</h2>
+      <p class="sub">Nothing to click: these are the app's own D3 renderers, drawing fictional data as you scroll. Every chart names its axes and prints its values; tap any of them to read a point. The command under each title is what you type in the chat.</p>
+      <div id="wall"></div>
     </section>
 
-    <section id="chat">
+    <section id="chat" class="reveal">
       <h2>A chat that knows your portfolio</h2>
       <p class="sub">Gemma 4 runs on-device and calls the app's tools — calculators, read-only Kite and, if you switch it on, the web — so numbers are exact. Pick a persona, use /commands, @mention a holding.</p>
       <div class="grid">
@@ -279,7 +325,8 @@
     </section>
 
 <!-- terminal -->
-    <section id="terminal">
+    <section id="terminal" class="reveal dots-host">
+      <canvas class="dots" aria-hidden="true"></canvas>
       <h2>📟 A market terminal in the chat — 72 commands</h2>
       <p class="sub">Public, no-login data — NSE's own feeds and exchange filings, public price feeds, World Bank and mfapi.in — turned into chart cards on your phone. Web access is opt-in; your holdings are matched on the phone and never sent. Type <code>/</code> to browse, ask in plain words, or let the AI pick the card.</p>
       <input class="field" id="term-q" placeholder="Search 72 commands — try “option”, “sip”, “sector”, “gold”" aria-label="Search commands" style="margin:6px 0 14px">
@@ -288,7 +335,7 @@
     </section>
 <!-- /terminal -->
 
-    <section id="flow">
+    <section id="flow" class="reveal">
       <h2>A chat that never gets stuck</h2>
       <p class="sub">The whole chat is one small state machine, so typing, pills, /commands, retries and reconnects all follow the same rules. Press the buttons to drive it — this is the same transition table the app ships (and unit-tests).</p>
       <div class="flow">
@@ -315,7 +362,7 @@
       </div>
     </section>
 
-    <section id="web">
+    <section id="web" class="reveal">
       <h2>Latest prices, results and news — with sources</h2>
       <p class="sub">Off by default. Switch <b>🌐 Web</b> on and the chat can search DuckDuckGo and read the latest price from a public quote feed. Answers cite numbered sources; a figure that isn't in a source is removed before you see it.</p>
       <div class="flow">
@@ -343,7 +390,7 @@
       </div>
     </section>
 
-    <section id="memory">
+    <section id="memory" class="reveal">
       <h2>Memory that learns — and stays on your phone</h2>
       <p class="sub">Built on the idea of <i>agentic context engineering</i>: instead of rewriting one summary, the chat keeps a playbook of small notes and evolves it — <b>generate</b> (use the best notes), <b>reflect</b> (what did this turn teach?), <b>curate</b> (merge, count, drop). Try it:</p>
       <div class="flow">
@@ -360,7 +407,7 @@
       </div>
     </section>
 
-    <section id="ai">
+    <section id="ai" class="reveal">
       <h2>✨ Ask Khayali Pulao — AI that runs on your phone</h2>
       <p class="sub">Gemma 4 runs on-device. It calls the app's own calculators, so every answer comes with an exact, visual result card — never an invented number.</p>
       <div class="ai-grid">
@@ -378,7 +425,7 @@
       </div>
     </section>
 
-    <section id="try">
+    <section id="try" class="reveal">
       <h2>Try it right here</h2>
       <p class="sub">The same maths as the app, running in your browser. Change the numbers, switch tabs, pick a tone. Nothing leaves this page.</p>
       <div class="play">
@@ -388,7 +435,7 @@
       <noscript><p class="sub">The playground needs JavaScript — the screenshots below show the same thing.</p></noscript>
     </section>
 
-    <section id="features">
+    <section id="features" class="reveal">
       <h2>Six ways to cook a khayali pulao</h2>
       <p class="sub">Every number is configurable — FD rate, gold and Nifty assumptions, inflation, your expenses, ladder steps, tone.</p>
       <div class="grid">
@@ -417,7 +464,7 @@
       <p class="note" style="text-align:left">All screenshots: in-app Demo with fictional data.</p>
     </section>
 
-    <section id="privacy">
+    <section id="privacy" class="reveal">
       <div class="privacy">
         <h2>🔒 Your portfolio never leaves your phone</h2>
         <ul>
@@ -432,7 +479,7 @@
       </div>
     </section>
 
-    <section id="install">
+    <section id="install" class="reveal">
       <h2>Install</h2>
       <ol class="steps">
         <li>Download the APK from <a href="https://github.com/iprajax/khayali-pulao/releases">Releases</a> and install it.</li>
@@ -453,86 +500,8 @@
   </footer>
   <script src="khayali.js"></script>
   <script src="site.js"></script>
-  <script>
-  (function () {
-    var f = document.getElementById("vf"), vk = document.getElementById("vk"), vb = document.getElementById("vb"), vs = document.getElementById("vs");
-    var pts = []; for (var i = 0; i < 250; i++) pts.push({ t: new Date(2025, 10, 17 + i).toISOString(), c: 1200 + i * 1.1 + Math.sin(i / 9) * 45 + Math.sin(i / 3) * 12 });
-    var ohlc = []; (function () { var p = 1380, seed = 7; function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
-      for (var i = 0; i < 42; i++) { var o = p, c = p * (1 + (rnd() - 0.47) * 0.035), h = Math.max(o, c) * (1 + rnd() * 0.01), l = Math.min(o, c) * (1 - rnd() * 0.01);
-        ohlc.push({ t: new Date(2026, 9, 6 + i).toISOString().slice(0, 10), o: o, h: h, l: l, c: c, v: Math.round(200000 + rnd() * 700000) }); p = c; } })();
-    var S = {
-      mindmap: ["INFRA · MIND MAP", "Infra Builders", "Price, results, ownership and events in one tree · tap a topic to fold it · fictional", 300, { name: "INFRA", sub: "Infra Builders", children: [
-        { name: "Price", color: "blue", children: [{ name: "Last", value: "₹1,450", tone: "up" }, { name: "Today", value: "+1.2%", tone: "up" }, { name: "52-week", value: "₹980 – ₹1,728" }] },
-        { name: "Results", color: "green", children: [{ name: "Sales Q2", value: "₹4,072 Cr" }, { name: "Profit Q2", value: "₹789 Cr", tone: "up" }, { name: "Profit y/y", value: "+1.7%", tone: "up" }] },
-        { name: "Ownership", color: "violet", children: [{ name: "Promoters", value: "13.9%" }, { name: "Public", value: "85.9%" }] },
-        { name: "Events", color: "saffron", children: [{ name: "Dividend", value: "3 Nov" }, { name: "Next results", value: "Jan" }] }] }],
-      stream: ["INFRA · SHAREHOLDING", "Promoters 13.9%", "Who owns the company, quarter by quarter · fictional", 230, { unit: "%", yLabel: "Share of equity (%)", xLabel: "Quarter", series: ["Promoters", "Institutions", "Public"],
-        points: [["2025-03-31", 14.4, 52.1, 33.5], ["2025-06-30", 14.3, 52.9, 32.8], ["2025-09-30", 14.2, 53.6, 32.2], ["2025-12-31", 14.1, 54.0, 31.9], ["2026-03-31", 14.0, 54.8, 31.2], ["2026-06-30", 13.9, 55.3, 30.8], ["2026-09-30", 13.9, 55.9, 30.2]].map(function (p) { return { t: p[0], values: p.slice(1) }; }) }],
-      radar: ["INFRA · SCORECARD", "62 / 100", "Five measures scored 0–100 against fixed bands · fictional", 280, { max: 100, ringLabel: "score", axes: [
-        { label: "1-yr return", score: 70, value: "+21%" }, { label: "Low volatility", score: 55, value: "24%" }, { label: "Small drawdown", score: 48, value: "−18%" }, { label: "Trend", score: 80, value: "> 200-DMA" }, { label: "Dividend yield", score: 57, value: "1.8%" }] }],
-      butterfly: ["NIFTY · OPTION CHAIN · OPEN INTEREST", "Spot 25,328", "Puts left, calls right, by strike · dashed line = spot · fictional", 300, { left: "Puts", right: "Calls", unit: "lakh", spot: 25328, yLabel: "Strike", xLabel: "Open interest (lakh)",
-        rows: [25000, 25100, 25200, 25300, 25400, 25500, 25600].map(function (k, i) { return { strike: k, left: [62, 48, 55, 40, 21, 12, 7][i], right: [9, 14, 22, 38, 51, 66, 44][i] }; }) }],
-      sunburst: ["YOUR PORTFOLIO · X-RAY", "₹5,88,320", "Inner ring: gainers and losers · outer ring: each stock · fictional", 300, { centre: "Portfolio value", unit: "₹", inner: "group", outer: "stock", measure: "share of portfolio value",
-        root: { name: "Portfolio", children: [{ name: "Gainers", color: "green", children: [{ name: "INFRA", value: 362500 }, { name: "BALLIA", value: 120000 }] }, { name: "Losers", color: "red", children: [{ name: "CHAICO", value: 65820 }, { name: "JHUMRI", value: 40000 }] }] } }],
-      matrix: ["INFRA · SEASONALITY", "Best month: April", "Monthly returns by year · fictional", 260, { cols: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], unit: "%", xLabel: "Month", yLabel: "Year",
-        rows: [{ label: "2024", values: [2.1,-1.3,3.4,4.8,-0.6,1.2,2.9,-2.2,0.4,1.8,-1.1,2.6] }, { label: "2025", values: [-0.8,1.9,-2.7,5.1,0.9,-1.4,3.3,1.1,-0.5,2.2,0.7,-0.9] }, { label: "2026", values: [1.4,0.6,-1.8,3.9,2.4,0.3,-1.2,2.8,1.6,-0.4,0.9,null] }],
-        footer: { label: "Avg", values: [0.9,0.4,-0.4,4.6,0.9,0,1.7,0.6,0.5,1.2,0.2,0.9] }, partial: { row: "2026", col: 10 } }],
-      sparkgrid: ["WORLD MARKETS · 1 MONTH", "8 of 10 up", "Each panel: last value, change and its own range · fictional", 300, { cols: 2, items: ["S&P 500","Nasdaq","FTSE","DAX","Nikkei","Nifty 50"].map(function (n, j) {
-        var v = [], t = [], x = 100 + j * 7; for (var i = 0; i < 22; i++) { x = x * (1 + Math.sin(i * 0.7 + j) * 0.008 + 0.002); v.push(+x.toFixed(2)); t.push(new Date(2026, 9, 17 + i).toISOString().slice(0, 10)); }
-        return { label: n, t: t, v: v, change: (v[v.length - 1] / v[0] - 1) * 100 }; }) }],
-      stackarea: ["SIP · ₹10,000 A MONTH · 12% · 15 YEARS", "₹50.5 lakh", "₹18 lakh invested grows to ₹50.5 lakh · illustration", 230, { series: ["Invested", "Growth"], xLabel: "Years", yLabel: "Value (₹)",
-        points: (function () { var out = [], bal = 0; for (var y = 1; y <= 15; y++) { for (var m = 0; m < 12; m++) bal = (bal + 10000) * (1 + 0.12 / 12); out.push({ x: y, a: 120000 * y, b: Math.round(bal - 120000 * y) }); } return out; })() }],
-      sankey: ["INFRA · Q2 FY27 RESULTS · MONEY FLOW", "₹789 Cr net profit", "on sales of ₹4,072 Cr · net margin 19.4% · fictional company", 300, { unit: "₹ Cr", nodes: [
-        { id: "sales", label: "Sales", col: 0, color: "blue" }, { id: "other", label: "Other inc.", col: 0, color: "violet" }, { id: "income", label: "Income", col: 1, color: "blue" },
-        { id: "staff", label: "Staff", col: 2, color: "saffron" }, { id: "oth", label: "Other exp.", col: 2, color: "saffron" }, { id: "pbt", label: "Pre-tax", col: 2, color: "green" },
-        { id: "tax", label: "Tax", col: 3, color: "red" }, { id: "profit", label: "Net profit", col: 3, color: "green" }],
-        links: [{ from: "sales", to: "income", value: 4072 }, { from: "other", to: "income", value: 170 }, { from: "income", to: "staff", value: 1910 }, { from: "income", to: "oth", value: 1242 },
-          { from: "income", to: "pbt", value: 1090 }, { from: "pbt", to: "tax", value: 301 }, { from: "pbt", to: "profit", value: 789 }] }],
-      treemap: ["PULAO 30 · HEATMAP · 30 STOCKS", "19 up · 11 down", "Tile size: traded value · colour: today's change · ★ your holding", 300, { items: (function () {
-        var n = ["INFRA","CHAICO","BALLIA","JHUMRI","PULAO","THALI","KADHAI","TADKA","MASALA","BIRYANI","ROTI","DAL","SABZI","LASSI","CHAI","SAMOSA","JALEBI","PARATHA","IDLI","DOSA","VADA","UPMA","POHA","KHEER","HALWA","LADDU","BARFI","PEDA","RABRI","KULFI"], out = [], seed = 11;
-        function r() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
-        n.forEach(function (x) { out.push({ label: x, value: (2 + r() * 88) * 1e8, change: (r() - 0.4) * 8, price: Math.round(100 + r() * 3900), mine: x === "INFRA" }); }); return out; })() }],
-      agenda: ["MARKET CALENDAR · NEXT 7 DAYS", "48 events", "Results, dividends, splits, bonus, AGMs, IPOs and holidays, by day · fictional counts", 210, { from: "2026-11-17", to: "2026-11-24", today: "2026-11-17", events: (function () {
-        var plan = { "2026-11-17": { Dividend: 6, Results: 1, "Board meeting": 2 }, "2026-11-18": { Dividend: 6, Results: 3, "Board meeting": 3, Buyback: 2, "IPO opens": 1 }, "2026-11-19": { Results: 2, Dividend: 4, "IPO opens": 1, Bonus: 1 },
-          "2026-11-20": { Dividend: 3, "IPO closes": 1, "Stock split": 1 }, "2026-11-21": { Dividend: 2, "AGM / EGM": 1 }, "2026-11-23": { Dividend: 2, "IPO closes": 1, "Rights issue": 1 }, "2026-11-24": { "Market holiday": 1 } }, out = [];
-        Object.keys(plan).forEach(function (d) { Object.keys(plan[d]).forEach(function (k) { for (var i = 0; i < plan[d][k]; i++) out.push({ date: d, kind: k }); }); }); return out; })() }],
-      gmp: ["PULAO FOODS · MAIN BOARD IPO · GREY MARKET", "₹13  +4.8%", "Unofficial premium by date — it fell from ₹40 · fictional issue", 210, { yLabel: "GMP (₹ a share)", points: [
-        { t: "2026-11-11", c: 40 }, { t: "2026-11-12", c: 36 }, { t: "2026-11-13", c: 31 }, { t: "2026-11-14", c: 27 }, { t: "2026-11-15", c: 15 }, { t: "2026-11-16", c: 13 }, { t: "2026-11-17", c: 13 }] }],
-      holdings: ["YOUR KITE HOLDINGS · 4", "₹5,88,320", "+₹68,320 (+13.1%) on ₹5,20,000", 330, { holdings: [
-        { symbol: "INFRA", current: 362500, pnl: 62500, pnl_percent: 20.8 }, { symbol: "BALLIA", current: 120000, pnl: 20000, pnl_percent: 20 },
-        { symbol: "CHAICO", current: 65820, pnl: -4180, pnl_percent: -6 }, { symbol: "JHUMRI", current: 40000, pnl: -10000, pnl_percent: -20 }] }],
-      allocation: ["ALLOCATION · SHARE OF PORTFOLIO VALUE", "61.6% in INFRA", "4 holdings · largest first", 190, { items: [
-        { label: "INFRA", value: 362500 }, { label: "BALLIA", value: 120000 }, { label: "CHAICO", value: 65820 }, { label: "JHUMRI", value: 40000 }] }],
-      history: ["INFRA · 1Y", "₹1,450.00", "+21.0% · price (₹) by date · drag to read a day", 230, { points: pts }],
-      candles: ["INFRA · 1M · OPEN-HIGH-LOW-CLOSE", "₹" + ohlc[ohlc.length - 1].c.toFixed(2), "Daily candles with volume · tap a candle", 250, { points: ohlc }],
-      scenario: ["IF IT MOVES −20%", "₹2,90,000", "−₹10,000 (−3.3%) on ₹3,00,000 · value at every move from −30% to +30%", 210, { today: 362500, cost: 300000, move: -20, value: 290000, from_avg: false }],
-      growth: ["COMPOUNDING", "₹3,10,585", "₹1,00,000 at 12% a year · 10 years · 3.11× (dashed: today's money)", 220, { start: 100000, rate: 12, years: 10, inflation: 6.1 }],
-      versus: ["YOU VS THE ALTERNATIVES", "+9.9% a year", "₹3,00,000 → ₹3,62,500 in 2 yrs · ahead of a 6.45% FD", 210, { items: [
-        { label: "You", value: 362500 }, { label: "Bank FD", value: 339989 }, { label: "PPF", value: 340815 }, { label: "Gold", value: 383070 },
-        { label: "Nifty 50", value: 372968 }, { label: "Inflation", value: 337731 }] }],
-      paths: ["GOAL · ₹1 CRORE", "27.6× from today", "Value by year at 8%, 12%, 15% and 20% a year · dots mark where each reaches the goal", 230, { now: 362500, goal: 10000000, rates: [8, 12, 15, 20] }],
-      waterfall: ["IN HAND IF YOU SELL · LTCG", "₹3,62,000", "of ₹4,00,000 profit · charges and tax taken off step by step", 210, { gain: 400000, in_hand: 362000, tax: 34000, charges: 4000 }],
-      calendar: ["INFRA · COMPANY EVENTS", "Results · 15 Jan 2027", "Dividends from the quote feed · dated events from cited web results", 290, { today: "2026-11-17", events: [
-        { date: "2026-06-10", kind: "Dividend", title: "Dividend ₹25 a share", source: 0 }, { date: "2026-07-24", kind: "AGM", title: "Annual general meeting held", source: 2 },
-        { date: "2026-10-22", kind: "Board meeting", title: "Board met to approve Q2 results", source: 1 }, { date: "2026-11-03", kind: "Dividend", title: "Dividend ₹26 a share", source: 0 },
-        { date: "2027-01-15", kind: "Results", title: "Q3 results expected", source: 3, upcoming: true }] }],
-      margins: ["MARGINS · EQUITY", "₹2,50,000", "available to trade", 160, { net: 250000, used: 80000, cash: 180000 }],
-      orders: ["ORDERS TODAY · 3", "3 orders", "1 complete · 1 open · 1 rejected", 160, { orders: [
-        { symbol: "INFRA", side: "BUY", qty: 10, price: 1450, status: "COMPLETE", time: "2026-11-17 09:21:00" },
-        { symbol: "CHAICO", side: "SELL", qty: 5, price: 0, status: "OPEN", time: "2026-11-17 10:02:00" },
-        { symbol: "TCS", side: "BUY", qty: 1, price: 2405, status: "REJECTED", time: "2026-11-17 11:15:00" }] }],
-    };
-    function show(k) {
-      var s = S[k]; vk.textContent = s[0]; vb.textContent = s[1]; vs.textContent = s[2]; f.style.height = s[3] + "px";
-      var type = k === "gmp" ? "history" : k;
-      try { if (f.contentWindow && f.contentWindow.render) f.contentWindow.render({ type: type, height: s[3], data: s[4] }); } catch (e) {}
-    }
-    document.querySelectorAll(".viz-tabs button").forEach(function (b) {
-      b.addEventListener("click", function () { document.querySelectorAll(".viz-tabs button").forEach(function (x) { x.classList.remove("on"); }); b.classList.add("on"); show(b.dataset.v); });
-    });
-    f.addEventListener("load", function () { show(document.querySelector(".viz-tabs .on").dataset.v); });
-  })();
-  </script>
+  <script src="wall.js"></script>
+  <script src="fx.js"></script>
   <script src="demos.js"></script>
 </body>
 </html>

@@ -115,4 +115,47 @@
     };
     $("mem-btns").appendChild(b);
   });
+
+  // ---------------------------------------------------------------- auto-play (pauses while you use a demo)
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function autoplay(host, every, step) {
+    if (!host || reduce) return;
+    var paused = 0, seen = false;
+    host.addEventListener("pointerdown", function () { paused = Date.now() + 15000; });
+    host.addEventListener("keydown", function () { paused = Date.now() + 15000; });
+    new IntersectionObserver(function (es) { seen = es[0].isIntersecting; }, { threshold: .2 }).observe(host);
+    setInterval(function () { if (seen && Date.now() > paused) step(); }, every);
+  }
+  // chat state machine: a scripted day in the life, looping
+  var SCRIPT = ["Ask a question", "Model ready", "Calls a tool", "Tool returns", "First word", "Answer done", "Run /holdings", "Kite replies", "Phone sleeps overnight", "Run /holdings", "Reconnect Kite", "Kite replies", "Ask a question", "Calls a tool", "Tool returns", "First word", "Answer done"];
+  var si = 0;
+  autoplay(document.getElementById("flow"), 1700, function () {
+    var box = $("flow-btns"); if (!box) return;
+    for (var tries = 0; tries < SCRIPT.length; tries++) {
+      var want = SCRIPT[si++ % SCRIPT.length];
+      var b = Array.prototype.find.call(box.querySelectorAll("button"), function (x) { return x.textContent === want && !x.disabled; });
+      if (b) { b.click(); b.classList.add("pulse"); setTimeout(function () { b.classList.remove("pulse"); }, 600); return; }
+    }
+  });
+  // privacy filter: types example queries
+  var QUERIES = ["should I sell my 250 shares of INFRA worth ₹3,62,500?", "INFRA Q2 results date", "is my ₹12 lakh in CHAICO too much? call 9876543210", "mail me@example.com the BALLIA dividend record date", "Nifty IT outlook this week"];
+  var qi = 0, qin = $("q-in");
+  autoplay(document.getElementById("web"), 4200, function () {
+    if (!qin || document.activeElement === qin) return;
+    var q = QUERIES[qi++ % QUERIES.length], k = 0;
+    var t = setInterval(function () { qin.value = q.slice(0, ++k); qin.dispatchEvent(new Event("input")); if (k >= q.length) clearInterval(t); }, 22);
+  });
+  // citations: light up each source in turn
+  var ci = 0;
+  autoplay(document.getElementById("web"), 1500, function () {
+    var cs = document.querySelectorAll(".cite"); if (!cs.length) return;
+    cs[ci++ % cs.length].dispatchEvent(new Event("mouseenter"));
+  });
+  // memory: says each thing in turn, then starts again
+  var mi = 0;
+  autoplay(document.getElementById("memory"), 2600, function () {
+    var bs = document.querySelectorAll("#mem-btns button"); if (!bs.length) return;
+    if (mi > 0 && mi % bs.length === 0) { pb = []; drawPb(); $("mem-log").textContent = "Starting again: each message is reflected on, then curated into the playbook."; mi++; return; }
+    bs[mi++ % bs.length].click();
+  });
 })();
