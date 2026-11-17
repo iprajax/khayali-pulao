@@ -78,6 +78,7 @@ class Knowledge(json: String, vectors: ByteArray) {
 
 /** /screens — search the community screens by idea; shows each screen's rules, themes and link. */
 object ScreensFeature : Feature {
+    override val method = "Keyword search (BM25) over each screen's name, rules and themes picks the best matches; then EmbeddingGemma 2 vectors, computed on a Mac and shipped as int8, add the screens closest in meaning to those (marked ≈). On the phone the question itself is not embedded — EmbeddingGemma 2 can't run there."
     override val requires = "knowledge"
     override val id = "screens"; override val usage = "/screens quality low debt"; override val group = Group.STOCK; override val needsWeb = false
     override val help = "Search 500 community stock screens by idea: their rules, themes and where they come from"

@@ -54,20 +54,41 @@ class MarketStore private constructor(ctx: Context) : SQLiteOpenHelper(ctx.appli
         } finally { db.endTransaction() }
     }
 
+    fun daysAfter(after: LocalDate): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM days WHERE d > ?", arrayOf(key(after).toString())).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+
+    /**
+     * Only the trading days after [after], for [keep] symbols plus any that traded at least ₹5 crore on one of those days.
+     * Used to extend the snapshot with a day or two of new data instead of rebuilding it from millions of rows.
+     */
+    fun since(after: LocalDate, keep: Set<String>): Panel? {
+        val db = readableDatabase; val from = key(after).toString()
+        val dates = db.rawQuery("SELECT d FROM days WHERE d > ? ORDER BY d", arrayOf(from)).use { c -> buildList { while (c.moveToNext()) add(c.getInt(0)) } }
+        if (dates.isEmpty()) return null
+        val names = HashMap<Long, String>(); db.rawQuery("SELECT id, sym FROM syms", null).use { c -> while (c.moveToNext()) names[c.getLong(0)] = c.getString(1) }
+        val liquid = db.rawQuery("SELECT DISTINCT s FROM bars WHERE d > ? AND val >= ?", arrayOf(from, Market.LIQUID_VALUE.toString())).use { c -> buildSet { while (c.moveToNext()) add(c.getLong(0)) } }
+        val used = names.filter { (id, n) -> n in keep || id in liquid }.keys.toList()
+        return load(dates, used, names, from, ">")
+    }
+
     /** The last [days] trading days as a [Panel] (null if there is no data yet). */
     fun panel(days: Int): Panel? {
         val db = readableDatabase
         val dates = db.rawQuery("SELECT d FROM days ORDER BY d DESC LIMIT ?", arrayOf(days.toString())).use { c -> buildList { while (c.moveToNext()) add(c.getInt(0)) } }.reversed()
         if (dates.size < 2) return null
-        val dIx = dates.withIndex().associate { it.value to it.index }
         val names = HashMap<Long, String>(); db.rawQuery("SELECT id, sym FROM syms", null).use { c -> while (c.moveToNext()) names[c.getLong(0)] = c.getString(1) }
         // stocks that traded at least ₹5 crore on some day in the window; the rest can never be "liquid" in the analysis
         val used = db.rawQuery("SELECT DISTINCT s FROM bars WHERE d >= ? AND val >= ?", arrayOf(dates.first().toString(), Market.LIQUID_VALUE.toString())).use { c -> buildList { while (c.moveToNext()) add(c.getLong(0)) } }
+        return load(dates, used, names, dates.first().toString(), ">=")
+    }
+
+    private fun load(dates: List<Int>, used: List<Long>, names: Map<Long, String>, from: String, op: String): Panel {
+        val db = readableDatabase
+        val dIx = dates.withIndex().associate { it.value to it.index }
         val syms = used.mapNotNull { names[it] }.sorted(); val pos = syms.withIndex().associate { it.value to it.index }; val sIx = HashMap<Long, Int>(); used.forEach { id -> names[id]?.let { n -> sIx[id] = pos.getValue(n) } }
         val n = dates.size
         val adj = Array(syms.size) { FloatArray(n) { Float.NaN } }; val ret = Array(syms.size) { FloatArray(n) { Float.NaN } }
         val v = Array(syms.size) { FloatArray(n) { Float.NaN } }; val q = Array(syms.size) { FloatArray(n) { Float.NaN } }
-        db.rawQuery("SELECT d, s, adj, ret, val, vol FROM bars WHERE d >= ?", arrayOf(dates.first().toString())).use { c ->
+        db.rawQuery("SELECT d, s, adj, ret, val, vol FROM bars WHERE d $op ?", arrayOf(from)).use { c ->
             while (c.moveToNext()) { val d = dIx[c.getInt(0)] ?: continue; val s = sIx[c.getLong(1)] ?: continue
                 adj[s][d] = c.getDouble(2).toFloat(); ret[s][d] = c.getDouble(3).toFloat(); v[s][d] = c.getDouble(4).toFloat(); q[s][d] = c.getDouble(5).toFloat() }
         }

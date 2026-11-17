@@ -65,6 +65,8 @@ interface Feature {
     val group: Group
     /** False for features that work fully offline (pure calculators, or ones that only need the user's holdings). */
     val needsWeb: Boolean get() = true
+    /** How the card is made — data, universe, method, parameters — for the reply's "How this was made" panel. */
+    val method: String get() = ""
     /** The artifact it can't work without ("market", "knowledge"), or null. The chat offers that download first. */
     val requires: String? get() = null
     /** Plain-language phrases that mean this feature; used to route short questions without the model. */

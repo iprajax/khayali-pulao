@@ -109,6 +109,25 @@ class MarketEngineTest {
         assertNull(com.khayali.pulao.ai.data.PanelFile.read(File.createTempFile("junk", ".bin").apply { writeText("nope"); deleteOnExit() }))
     }
 
+    @Test fun newDaysExtendTheSnapshotExactly() {
+        val full = panel()
+        fun slice(p: Panel, from: Int, to: Int, syms: List<String> = p.symbols): Panel {
+            val ix = syms.map { p.of(it)!! }
+            fun cut(a: Array<FloatArray>) = Array(ix.size) { a[ix[it]].copyOfRange(from, to) }
+            return Panel(p.dates.subList(from, to), syms, cut(p.adj), cut(p.ret), cut(p.value), cut(p.volume))
+        }
+        val old = slice(full, 0, 300, listOf("FADER", "RISER", "SPLITCO"))         // a stock appears only in the new days
+        val tail = slice(full, 300, full.days)
+        val merged = com.khayali.pulao.ai.data.PanelFile.append(old, tail, max = 1000)
+        assertEquals(full.dates, merged.dates); assertEquals(full.symbols, merged.symbols)
+        for (sym in listOf("FADER", "RISER", "SPLITCO")) assertEquals(full.adj[full.of(sym)!!].toList(), merged.adj[merged.of(sym)!!].toList())
+        assertTrue(merged.adj[merged.of("STEADY")!!].take(300).all { it.isNaN() })        // only known from the new days
+        assertEquals(full.ret[full.of("STEADY")!!].drop(300), merged.ret[merged.of("STEADY")!!].drop(300))
+        val trimmed = com.khayali.pulao.ai.data.PanelFile.append(old, tail, max = 310)
+        assertEquals(full.dates.takeLast(310), trimmed.dates)
+        assertEquals(old, com.khayali.pulao.ai.data.PanelFile.append(old, slice(full, 0, 10), max = 1000))   // nothing newer: unchanged
+    }
+
     @Test fun regimeAndAnomalies() {
         val p = panel(); val r = Market.regime(p)
         assertEquals(4, r.stocks)

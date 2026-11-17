@@ -22,6 +22,25 @@ object PanelFile {
         return Panel(p.dates, ix.map { p.symbols[it] }, Array(ix.size) { p.adj[ix[it]] }, Array(ix.size) { p.ret[ix[it]] }, Array(ix.size) { p.value[ix[it]] }, Array(ix.size) { p.volume[ix[it]] })
     }
 
+    /**
+     * [old] extended with the days in [tail] that come after it, keeping at most [max] days (the oldest drop off).
+     * Symbols are the union; a symbol missing on a day is NaN, as everywhere else.
+     */
+    fun append(old: Panel, tail: Panel, max: Int): Panel {
+        val newDays = tail.dates.withIndex().filter { it.value > old.dates.last() }.map { it.index }
+        if (newDays.isEmpty()) return old
+        val syms = (old.symbols + tail.symbols).distinct().sorted()
+        val oi = old.symbols.withIndex().associate { it.value to it.index }; val ti = tail.symbols.withIndex().associate { it.value to it.index }
+        val total = old.days + newDays.size; val drop = maxOf(0, total - max); val n = total - drop
+        fun merge(pick: (Panel) -> Array<FloatArray>) = Array(syms.size) { s ->
+            val o = oi[syms[s]]; val t = ti[syms[s]]
+            FloatArray(n) { k -> val d = k + drop
+                if (d < old.days) (if (o != null) pick(old)[o][d] else Float.NaN) else (if (t != null) pick(tail)[t][newDays[d - old.days]] else Float.NaN) }
+        }
+        val dates = (old.dates + newDays.map { tail.dates[it] }).drop(drop)
+        return Panel(dates, syms, merge { it.adj }, merge { it.ret }, merge { it.value }, merge { it.volume })
+    }
+
     fun write(p: Panel, file: File) {
         val tmp = File(file.path + ".part")
         DataOutputStream(tmp.outputStream().buffered(1 shl 16)).use { o ->

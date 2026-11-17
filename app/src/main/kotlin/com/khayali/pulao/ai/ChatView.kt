@@ -325,7 +325,12 @@ class ChatView(
         messageCount++
     }
 
-    private fun newBot() = BotMessage().also { list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); it.appear() }
+    private fun newBot() = BotMessage().also { it.why = turnWhy; list.addView(it.root, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); it.appear() }
+
+    /** How the next request arrived when it wasn't typed ("pill:…", "action", "ticker:…", "starter"); see [Methods.why]. */
+    private var via: String? = null
+    /** Why the current turn's replies exist, shown in each reply's "How this was made" panel. */
+    private var turnWhy: String? = null
 
     /** Bring back the saved thread, with its cards, exactly as it was. */
     private fun restore() {
@@ -402,7 +407,7 @@ class ChatView(
                     background = k.press(null, 12f)
                     addView(k.text(t.icon, 18f, Pal.TEXT), k.lp(k.dp(34)))
                     addView(k.text(t.text, 14.5f, Pal.TEXT).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
-                    setOnClickListener { runAction(t.run) }
+                    setOnClickListener { via = "starter"; runAction(t.run) }
                 }, k.lp(MATCH_PARENT))
             }
             list.addView(tasks, k.lp(MATCH_PARENT))
@@ -611,7 +616,7 @@ class ChatView(
         pillRow.removeAllViews()
         pills.visibility = if (items.isEmpty()) GONE else VISIBLE
         items.forEachIndexed { i, s ->
-            val p = k.chip(Labels.of(s)) { (onTap ?: { x -> submit(x.replace(Regex("^\\S+\\s{2}"), "")) })(s) }.apply {
+            val p = k.chip(Labels.of(s)) { if (onTap == null) via = "pill:" + Labels.of(s); (onTap ?: { x -> submit(x.replace(Regex("^\\S+\\s{2}"), "")) })(s) }.apply {
                 background = k.press(k.rounded(Pal.BG, 999f, Pal.LINE), 999f); setPadding(k.dp(14), k.dp(9), k.dp(14), k.dp(9))
                 alpha = 0f; translationX = k.dpf(24)
             }
@@ -753,7 +758,9 @@ class ChatView(
         val text = raw.trim()
         showSuggestions(emptyList())
         WatchStore.symbolsIn(text).forEach { watch.add(it) }
-        when (val a = ChatFlow.route(text, env())) {
+        val routed = ChatFlow.route(text, env())
+        turnWhy = Methods.why(text, routed, via); via = null
+        when (val a = routed) {
             ChatFlow.Action.Ignore -> return
             ChatFlow.Action.Clear -> { input.setText(""); newChat() }
             ChatFlow.Action.Help -> { input.setText(""); showHelp() }
@@ -1052,7 +1059,7 @@ class ChatView(
             c == "Allow web access" -> { pending = lastQuestion; askWeb(null) }
             c.endsWith("…") -> { input.setText(c.removeSuffix("…").trimEnd() + " "); input.setSelection(input.text.length); input.requestFocus() }
             phase.busy -> android.widget.Toast.makeText(context, "One moment — finishing the current answer", android.widget.Toast.LENGTH_SHORT).show()
-            else -> submit(c)
+            else -> { if (via == null) via = "action"; submit(c) }
         }
     }
 
@@ -1064,9 +1071,12 @@ class ChatView(
             .setItems(items.map { it.first }.toTypedArray()) { _, i ->
                 val c = items[i].second
                 if (c.startsWith("ask:")) { input.setText(c.removePrefix("ask:")); input.setSelection(input.text.length); input.requestFocus() }
-                else submit(c)
+                else { via = "ticker:$sym"; submit(c) }
             }.show()
     }
+
+    /** Whether a terminal step used the network (for the privacy line). */
+    private fun Terminal_needsWeb(name: String) = name.startsWith("term_") && com.khayali.pulao.ai.term.Terminal.find(name.removePrefix("term_"))?.needsWeb == true
 
     /** Whether a plan step's need is met right now, or why not. */
     private fun unmet(need: String?): Pair<String, () -> Unit>? = when (need) {
@@ -1110,7 +1120,9 @@ class ChatView(
                     val e = runForModel(cmd)
                     if (e.ok) {
                         mark(i, "✓", Pal.GREEN); results += e.resultJson; ran += cmd
-                        val bot = newBot(); bot.tool(e); bot.done(ToolJson.summary(e.resultJson).orEmpty(), null, null, question = cmd)
+                        val bot = newBot(); bot.why = "Step ${i + 1} of ${plan.steps.size} in the plan “${plan.goal}”: ${st.title.replaceFirstChar { it.lowercase() }} — it ran $cmd." +
+                            (if (cmd != st.command) " (${st.command} filled in from what earlier steps found.)" else "")
+                        bot.tool(e); bot.done(ToolJson.summary(e.resultJson).orEmpty(), null, null, question = cmd)
                         remember(cmd, ToolJson.summary(e.resultJson).orEmpty(), e, seenByModel = false)
                         done += Planner.Done(st, cmd, ToolJson.summary(e.resultJson).orEmpty(), null)
                     } else {
@@ -1120,7 +1132,8 @@ class ChatView(
                 }
                 val next = Planner.next(results, ran)
                 // next steps and fixes are action links inside the wrap-up itself
-                val wrap = newBot(); wrap.done(Planner.wrapUp(plan, done, next), null, null, question = label)
+                val wrap = newBot(); wrap.why = "The plan's wrap-up: one line from each step's own summary, steps that couldn't run with their fix, and next steps taken from the cards' suggestions."
+                wrap.done(Planner.wrapUp(plan, done, next), null, null, question = label)
                 remember(label, Planner.wrapUp(plan, done, next), null, seenByModel = false)
                 lastQuestion = label
                 finishTurn()
@@ -1504,6 +1517,9 @@ class ChatView(
             txt.update(full)
         }
 
+        /** Why this reply exists (see [Methods.why]); shown in its "How this was made" panel. */
+        var why: String? = null
+
         fun done(full: String, stats: TurnStats?, retry: (() -> Unit)?, question: String = "", chips: List<Pair<String, () -> Unit>> = emptyList(), restored: Boolean = false) {
             stopSpin(); shimmer.visibility = GONE; status.visibility = GONE
             // Always show the final, checked text — what streamed may have contained figures that were since removed.
@@ -1528,7 +1544,7 @@ class ChatView(
             if (question.isNotBlank()) actions.addView(k.iconButton("⤴", 18f) { shareAnswer(body, question) }.apply { contentDescription = "Share" })
             val st = stats ?: TurnStats(localMs(), null, null, null, null, localTools)
             val meta = k.text("⏱ ${secs(st.totalMs)}" + (st.backend?.let { " · $it" } ?: if (st.tools.isNotEmpty() && st.backend == null) " · app" else "") +
-                (st.tokensPerSec?.let { " · ${it.toInt()} tok/s" } ?: "") + "  ▾", 11f, Pal.DIM).apply {
+                (st.tokensPerSec?.let { " · ${it.toInt()} tok/s" } ?: "") + " · how this was made  ▾", 11f, Pal.DIM).apply {
                 setPadding(k.dp(8), k.dp(6), k.dp(8), k.dp(6)); maxLines = 1
                 background = k.press(null, 999f)
                 contentDescription = "Response details"
@@ -1562,7 +1578,19 @@ class ChatView(
                 r.addView(k.text(value, 12f, color, 500))
                 d.addView(r, k.lp(MATCH_PARENT))
             }
-            d.addView(k.caps("Response details", Pal.BLUE)); d.addView(k.space(6))
+            d.addView(k.caps("How this was made", Pal.BLUE)); d.addView(k.space(6))
+            fun para(label: String, text: String) {
+                d.addView(k.text(label, 11f, Pal.MUTED, 600).apply { letterSpacing = 0.04f; setPadding(0, k.dp(6), 0, k.dp(2)) })
+                d.addView(k.text(text, 12.5f, Pal.TEXT).apply { setLineSpacing(0f, 1.3f) }, k.lp(MATCH_PARENT))
+            }
+            why?.let { para("WHY YOU'RE SEEING THIS", it) }
+            st.tools.filter { it.ok }.distinctBy { it.name + it.argsJson }.forEach { t ->
+                val m = Methods.of(t)
+                para("HOW · ${m.title.uppercase()}", "Data: ${m.data}" + (m.asOf?.let { " (as of $it)" } ?: "") + "\nMethod: ${m.how}\nLimits: ${m.limits}")
+            }
+            if (st.backend != null) Methods.model(st.backend).let { m -> para("HOW · ${m.title.uppercase()}", "Data: ${m.data}\nMethod: ${m.how}\nLimits: ${m.limits}") }
+            para("PRIVACY", if (st.tools.any { it.ok && (it.name.startsWith("web_") || Terminal_needsWeb(it.name)) }) "Worked out on this phone. The only thing sent was the lookup itself (topic words or a symbol) — never your holdings, amounts or chat." else "Worked out entirely on this phone. Nothing was sent anywhere.")
+            d.addView(k.space(8)); d.addView(k.caps("Timing", Pal.MUTED)); d.addView(k.space(2))
             row("Total time", secs(st.totalMs))
             st.warmupMs?.let { row("Model warm-up (first use)", secs(it)) }
             st.firstTokenMs?.let { row("Time to first word", secs(it)) }

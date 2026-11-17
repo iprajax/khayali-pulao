@@ -11,6 +11,8 @@ private object Local {
     const val NEED = "This needs your market history on the phone. Type /data to download it (1 year is about 25 MB, from NSE's public archive)."
     const val NOT_ADVICE = "What the data and each rule show — not a recommendation to buy or sell. Past results don't promise future ones; backtests ignore costs and taxes."
     fun p(v: Double?, d: Int = 1) = v?.let { N.pct(it * 100, d) } ?: "—"
+    /** The data a card was built from, for its "How this was made" panel. */
+    fun span(p: Panel) = "${p.dates.first()} to ${p.dates.last()} · ${p.days} trading days · ${p.symbols.size} stocks"
     fun short(b: Market.Backtest) = b.months < 36
     /** "▲ beat the market by 3.7 pts" / "▼ lagged the market by 2.1 pts". */
     fun verdict(b: Market.Backtest): String { val x = (b.rate - b.benchRate) * 100
@@ -22,6 +24,7 @@ private object Local {
 
 /** /brief — the action brief: what is happening, what changed, what is unusual, how your holdings look, what each rule flags, and what to review. */
 object BriefFeature : Feature {
+    override val method = "Regime = share of liquid stocks above their 50- and 200-day simple averages (Broad uptrend ≥60/55%, Broad downtrend ≤40/45%), new 52-week highs and lows, and 20-day volatility of the equal-weight market against its past year. Hidden patterns = volume ≥4× the stock's 20-day median, a move ≥3.5× its 60-day daily volatility, 7+ days in one direction, or a new 52-week high on ≥2× volume. Holdings: trend vs 50/200-day averages and distance from the 52-week high. Next steps are tied to those numbers. Universe: liquid NSE stocks — median daily traded value of at least ₹5 crore over the last 60 sessions (ETFs and fund units excluded). Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes. Backtests: every rule picks on the last trading day of each month using only data up to that day, holds its picks equally weighted for the month, and is compared with the equal-weight market of the same liquid stocks — all from one common start date. No costs, slippage or taxes."
     override val requires = "market"
     override val id = "brief"
     override val usage = "/brief"
@@ -96,12 +99,13 @@ object BriefFeature : Feature {
             append("Source: NSE daily data on this phone.")
         }
         val nextCmds = next.map { it.value }.filter { it.startsWith("/") && !it.endsWith("…") }
-        return card.sources("NSE (your copy)").pills(*(nextCmds + listOf("/strategies", "/anomalies")).distinct().take(5).toTypedArray())
+        return card.sources("NSE (your copy)").put("span", Local.span(p)).put("asOf", p.dates.last().toString()).pills(*(nextCmds + listOf("/strategies", "/anomalies")).distinct().take(5).toTypedArray())
             .put("regime", r.label).json(summary)
     }
 }
 
 object RegimeFeature : Feature {
+    override val method = "Share of liquid stocks above their 50- and 200-day simple averages; labels: Broad uptrend (≥60% above 200-day and ≥55% above 50-day), Broad downtrend (≤40% and ≤45%), Recovering/Weakening when the 50-day share leads or lags by 10 points. New highs/lows over 252 sessions; volatility = 20-day standard deviation of the equal-weight market, annualised, ranked against the past year. Universe: liquid NSE stocks — median daily traded value of at least ₹5 crore over the last 60 sessions (ETFs and fund units excluded). Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes."
     override val requires = "market"
     override val id = "regime"; override val usage = "/regime"; override val group = Group.MARKET; override val needsWeb = false
     override val help = "Market regime from your own data: breadth, trend, new highs and lows, volatility"
@@ -115,12 +119,13 @@ object RegimeFeature : Feature {
             .breadth("Advances and declines today", r.advances, r.declines, (r.stocks - r.advances - r.declines).coerceAtLeast(0))
             .kpis(listOf(Card.Kpi("NEW 52-WK HIGHS", "${r.newHighs}"), Card.Kpi("NEW 52-WK LOWS", "${r.newLows}"), Card.Kpi("VOLATILITY", r.volNow?.let { "%.0f%%".format(it * 100) } ?: "—", null, r.volPercentile?.let { "percentile ${it.toInt()}" } ?: "")))
             .note("Regime is read from participation: how many stocks are above their 50- and 200-day averages. " + Local.NOT_ADVICE)
-            .sources("NSE (your copy)").pills("/brief", "/anomalies", "/strategies")
+            .sources("NSE (your copy)").put("span", Local.span(p)).put("asOf", p.dates.last().toString()).pills("/brief", "/anomalies", "/strategies")
             .json("${r.date}: ${r.label.lowercase()}; ${r.above50.toInt()}% of ${r.stocks} liquid stocks above their 50-day average and ${r.above200.toInt()}% above their 200-day; ${r.newHighs} new 52-week highs and ${r.newLows} lows. Source: NSE daily data on this phone.")
     }
 }
 
 object AnomaliesFeature : Feature {
+    override val method = "Each stock is compared with its own history: volume spike = today's volume ≥4× its 20-day median; outsized move = today's move ≥3.5× its 60-day daily volatility; streak = 7+ sessions in one direction; breakout = a new 52-week closing high on ≥2× volume. Strongest signal first. Universe: liquid NSE stocks — median daily traded value of at least ₹5 crore over the last 60 sessions (ETFs and fund units excluded). Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes."
     override val requires = "market"
     override val id = "anomalies"; override val usage = "/anomalies"; override val group = Group.MARKET; override val needsWeb = false
     override val help = "Hidden patterns today: volume spikes, outsized moves, streaks, breakouts vs each stock's history"
@@ -135,12 +140,13 @@ object AnomaliesFeature : Feature {
             .headline("${a.size} unusual stocks", kinds.entries.joinToString(" · ") { "${it.value} ${it.key.lowercase()}" })
             .movers(null, a.map { Card.Mover(it.symbol, "${it.kind} · ${it.detail}", null, it.move * 100, emptyList(), null, it.symbol in mine) })
             .note("Each pattern is measured against that stock's own recent history (volume vs its 20-day median; moves vs its 60-day volatility). Unusual activity often follows news — check what happened before reading anything into it.")
-            .sources("NSE (your copy)").pills("/brief", "/news ${a.first().symbol}", "/health ${a.first().symbol}")
+            .sources("NSE (your copy)").put("span", Local.span(p)).put("asOf", p.dates.last().toString()).pills("/brief", "/news ${a.first().symbol}", "/health ${a.first().symbol}")
             .json("${a.size} unusual liquid stocks on ${p.dates.last()}: " + a.take(4).joinToString("; ") { "${it.symbol} ${it.kind.lowercase()} (${it.detail}, ${Local.p(it.move)})" } + ". Source: NSE daily data on this phone.")
     }
 }
 
 object StrategiesFeature : Feature {
+    override val method = "Fourteen price-and-volume rules from the playbook (see /learn), each backtested on your history. Backtests: every rule picks on the last trading day of each month using only data up to that day, holds its picks equally weighted for the month, and is compared with the equal-weight market of the same liquid stocks — all from one common start date. No costs, slippage or taxes. Universe: liquid NSE stocks — median daily traded value of at least ₹5 crore over the last 60 sessions (ETFs and fund units excluded). Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes."
     override val requires = "market"
     override val id = "strategies"; override val usage = "/strategies"; override val group = Group.STOCK; override val needsWeb = false
     override val help = "Every strategy in the playbook backtested on your data, with what each flags today"
@@ -160,7 +166,7 @@ object StrategiesFeature : Feature {
         if (skipped.isNotEmpty()) c.rows("Need more history", skipped.map { Card.Row(it.name, "needs ${it.need} trading days of warm-up plus 3 months to test; you have ${p.days}", "/data 3y", "warn") })
         if (skipped.isNotEmpty()) c.pills("/data 3y")
         if (Local.short(b0)) c.note("Only ${b0.months} months of history — too short to judge any strategy. A longer pack (/data) gives a fairer test.")
-        return c.note(Local.NOT_ADVICE).sources("NSE (your copy)").pills("/screen ${tests.maxBy { it.second.rate }.first.id}", "/learn ${tests.maxBy { it.second.rate }.first.id}", "/brief")
+        return c.note(Local.NOT_ADVICE).sources("NSE (your copy)").put("span", Local.span(p)).put("asOf", p.dates.last().toString()).pills("/screen ${tests.maxBy { it.second.rate }.first.id}", "/learn ${tests.maxBy { it.second.rate }.first.id}", "/brief")
             .json(tests.sortedByDescending { it.second.rate }.let { r -> "Best over ${b0.months} months: ${r[0].first.name} ${Local.rate(r[0].second.rate, b0)}" +
                 (r.getOrNull(1)?.let { ", then ${it.first.name} ${Local.p(it.second.rate)}" } ?: "") + "; the market made ${Local.p(b0.benchRate)}. " +
                 "${tests.count { it.second.rate > it.second.benchRate }} of ${tests.size} rules beat it. " +
@@ -169,6 +175,7 @@ object StrategiesFeature : Feature {
 }
 
 object ScreenFeature : Feature {
+    override val method = "Applies one rule to the latest trading day and lists its top picks, with the same rule's backtest. Backtests: every rule picks on the last trading day of each month using only data up to that day, holds its picks equally weighted for the month, and is compared with the equal-weight market of the same liquid stocks — all from one common start date. No costs, slippage or taxes. Universe: liquid NSE stocks — median daily traded value of at least ₹5 crore over the last 60 sessions (ETFs and fund units excluded). Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes."
     override val requires = "market"
     override val id = "screen"; override val usage = "/screen momentum"; override val group = Group.STOCK; override val needsWeb = false
     override val help = "Run one strategy today (momentum, breakout, lowvol, rsi, … see /strategies): its picks and backtest"
@@ -187,12 +194,13 @@ object ScreenFeature : Feature {
         b?.let { c.viz("multiline", 200, mapOf("t" to it.curve.map { x -> x.first.toString() }, "base" to 100, "yLabel" to "Value of ₹100", "xLabel" to "Month",
             "series" to listOf(mapOf("name" to st.name, "color" to "blue", "v" to it.curve.map { x -> x.second * 100 }), mapOf("name" to "Market", "color" to "muted", "v" to it.bench.map { x -> x.second * 100 }))),
             "Backtest: ${Local.rate(it.rate, it)} vs ${Local.p(it.benchRate)} for the market; max fall ${Local.p(it.maxDrawdown)}.") }
-        return c.note(Local.NOT_ADVICE).sources("NSE (your copy)").pills("/learn ${st.id}", "/strategies", "/health ${picks.firstOrNull()?.let { p.symbols[it] } ?: ""}".trim())
+        return c.note(Local.NOT_ADVICE).sources("NSE (your copy)").put("span", Local.span(p)).put("asOf", p.dates.last().toString()).pills("/learn ${st.id}", "/strategies", "/health ${picks.firstOrNull()?.let { p.symbols[it] } ?: ""}".trim())
             .json("${st.name} today picks ${picks.take(8).joinToString(", ") { p.symbols[it] }}" + (b?.let { "; backtest ${Local.rate(it.rate, it)} vs ${Local.p(it.benchRate)} for the market" } ?: "") + ". Source: NSE daily data on this phone.")
     }
 }
 
 object HealthFeature : Feature {
+    override val method = "Returns over 1 week, 1 month, 3 months and 1 year from adjusted prices; distance from the 50- and 200-day simple averages and from the 52-week high; 60-day annualised volatility; flags when below the 200-day average, when the 50-day is under the 200-day, or more than 25% below the high."
     override val requires = "market"
     override val id = "health"; override val usage = "/health INFY"; override val group = Group.PORTFOLIO; override val needsWeb = false
     override val help = "One stock's health from your data: trend vs its averages, distance from its high, volatility, anything unusual"
@@ -207,12 +215,13 @@ object HealthFeature : Feature {
                 if (hs.size == 1) hs[0].flags.joinToString("; ").ifBlank { "above its averages, near its high" } else "trend, distance from high and volatility for each")
         hs.forEach { h -> c.kpis(listOf(Card.Kpi("${h.symbol} · 1 WEEK", Local.p(h.r1w), h.r1w?.times(100)), Card.Kpi("1 MONTH", Local.p(h.r1m), h.r1m?.times(100)), Card.Kpi("1 YEAR", Local.p(h.r1y), h.r1y?.times(100)),
             Card.Kpi("VS 200-DAY", Local.p(h.vs200), h.vs200?.times(100)), Card.Kpi("FROM 52W HIGH", Local.p(h.fromHigh), h.fromHigh?.times(100)), Card.Kpi("VOLATILITY", h.vol?.let { "%.0f%%".format(it * 100) } ?: "—"))) }
-        return c.note(Local.NOT_ADVICE).sources("NSE (your copy)").pills("/chart ${hs[0].symbol} 1y", "/events ${hs[0].symbol}", "/brief")
+        return c.note(Local.NOT_ADVICE).sources("NSE (your copy)").put("span", Local.span(p)).put("asOf", p.dates.last().toString()).pills("/chart ${hs[0].symbol} 1y", "/events ${hs[0].symbol}", "/brief")
             .json(hs.joinToString(" ") { h -> "${h.symbol}: 1 month ${Local.p(h.r1m)}, 1 year ${Local.p(h.r1y)}, ${Local.p(h.vs200)} vs its 200-day average, ${Local.p(h.fromHigh)} from its 52-week high" + (if (h.flags.isEmpty()) "." else "; " + h.flags.joinToString(", ") + ".") } + " Source: NSE daily data on this phone.")
     }
 }
 
 object LearnFeature : Feature {
+    override val method = "Text from the app's playbook. For the fundamental strategies, the thresholds shown are the ones most used across 500 public stock screens on screener.in (counted on a Mac when the knowledge bank was built)."
     override val id = "learn"; override val usage = "/learn momentum"; override val group = Group.TOOLS; override val needsWeb = false
     override val help = "Learn a strategy: the idea, why it has worked, when it struggles, how to read it"
     override val triggers = listOf(Regex("""(?i)^(explain|what is|teach me|how does) (the )?(momentum|low[- ]?vol(atility)?|trend following|52[- ]week high|mean reversion|pullback|golden cross|magic formula|piotroski|coffee can|garp|peg|graham|dividend|quality)( strategy| investing| score)?\??$"""),
@@ -249,6 +258,7 @@ object LearnFeature : Feature {
 
 /** /data — the artifact manager: what's on the phone, its state, and what you can do with it. */
 object DataFeature : Feature {
+    override val method = "Lists what is installed and its state (not installed, downloading, checking, ready, update available). Market history: NSE's daily bhavcopy files fetched by this phone from nsearchives.nseindia.com, in both of NSE's formats, stored in a private database. Knowledge bank: one file from the project site, accepted only if its SHA-256 matches."
     override val id = "data"; override val usage = "/data"; override val group = Group.TOOLS; override val needsWeb = false
     override val help = "Models and data on this phone: download 1, 3 or 5 years of NSE history, update or delete"
     override val triggers = listOf(Regex("""(?i)^((download|get|update) (the )?(market )?(data|history)|manage (models|data|downloads)|what('s| is) (downloaded|on (my|the) phone))\??$"""))

@@ -37,11 +37,21 @@ class MarketPack private constructor(private val ctx: Context) {
     /** NSE publishes a day's file in the evening; before 7 pm the latest complete day is yesterday. */
     private fun latest(): LocalDate { val now = java.time.ZonedDateTime.now(ist); return if (now.hour >= 19) now.toLocalDate() else now.toLocalDate().minusDays(1) }
 
-    init { refresh() }
+    // Start from the last known summary (no database work on the main thread), then check in the background.
+    init { _state.value = remembered(); refresh() }
 
-    fun refresh() {
+    private fun remembered(): Artifacts.State {
+        val f = prefs.getString("market_summary", null)?.split('|') ?: return Artifacts.State.NotInstalled
+        return if (f.size == 4) Artifacts.State.Ready("${f[0]} to ${f[1]}", f[3].toLongOrNull() ?: 0, 0, "${f[2]} days") else Artifacts.State.NotInstalled
+    }
+
+    /** Re-checks the state against the database, off the main thread. */
+    fun refresh() { scope.launch { refreshNow() } }
+
+    @Synchronized private fun refreshNow() {
         if (_state.value.let { it is Artifacts.State.Downloading || it is Artifacts.State.Building || it is Artifacts.State.Updating }) return
         val last = store.lastDay()
+        prefs.edit().apply { if (last == null) remove("market_summary") else putString("market_summary", "${store.firstDay()}|$last|${store.dayCount()}|${store.bytes(ctx)}") }.apply()
         _state.value = when {
             last == null -> Artifacts.State.NotInstalled
             todo(last.plusDays(1)).isNotEmpty() -> Artifacts.State.Stale(version(), store.bytes(ctx), "${todo(last.plusDays(1)).size} trading day(s) behind")
@@ -75,8 +85,9 @@ class MarketPack private constructor(private val ctx: Context) {
                     done += chunk.size
                     _state.value = Artifacts.next(_state.value, Artifacts.Ev.Progress(done.toLong(), days.size.toLong()))
                 }
-                cached = null; snapshot.delete()
+                cached = null                                     // the snapshot is extended with the new days on next use
                 _state.value = Artifacts.State.Ready(version(), store.bytes(ctx), System.currentTimeMillis(), "${store.dayCount()} days")
+                prefs.edit().putString("market_summary", "${store.firstDay()}|${store.lastDay()}|${store.dayCount()}|${store.bytes(ctx)}").apply()
                 warm()
             } catch (t: Throwable) {
                 _state.value = Artifacts.State.Failed(com.khayali.pulao.ai.Net.friendly(t, "NSE's archive"))
@@ -86,7 +97,7 @@ class MarketPack private constructor(private val ctx: Context) {
     }
 
     fun cancel() { job?.cancel(); cached = null; refresh() }
-    fun delete() { job?.cancel(); cached = null; snapshot.delete(); store.wipe(ctx); _state.value = Artifacts.State.NotInstalled }
+    fun delete() { job?.cancel(); cached = null; snapshot.delete(); store.wipe(ctx); prefs.edit().remove("market_summary").apply(); _state.value = Artifacts.State.NotInstalled }
 
     private val snapshot get() = java.io.File(ctx.filesDir, "market_panel.bin")
 
@@ -101,10 +112,18 @@ class MarketPack private constructor(private val ctx: Context) {
         cached?.let { return it.second }
         val t0 = System.currentTimeMillis()
         val last = store.lastDay() ?: return null
-        val fromFile = PanelFile.read(snapshot)?.takeIf { it.dates.last() == last && it.days >= minOf(store.dayCount(), FULL) }
-        val p = fromFile ?: store.panel(FULL)?.let { PanelFile.slim(it) }?.also { PanelFile.write(it, snapshot) } ?: return null
+        val need = minOf(store.dayCount(), FULL)
+        val snap = PanelFile.read(snapshot)
+        var how = "read from snapshot"
+        val p = when {
+            snap != null && snap.dates.last() == last && snap.days >= need -> snap
+            // a day or two newer than the snapshot: add just those days (milliseconds, instead of rebuilding from every row)
+            snap != null && snap.dates.last() < last && snap.days + store.daysAfter(snap.dates.last()) >= need ->
+                store.since(snap.dates.last(), snap.symbols.toSet())?.let { PanelFile.append(snap, it, FULL) }?.also { PanelFile.write(it, snapshot); how = "snapshot extended" }
+            else -> null
+        } ?: store.panel(FULL)?.let { PanelFile.slim(it) }?.also { PanelFile.write(it, snapshot); how = "built from database" } ?: return null
         cached = p.days to p
-        android.util.Log.i("KhayaliMarket", "panel ${p.days} days × ${p.symbols.size} stocks ${if (fromFile != null) "read from snapshot" else "built from database"} in ${System.currentTimeMillis() - t0} ms")
+        android.util.Log.i("KhayaliMarket", "panel ${p.days} days × ${p.symbols.size} stocks $how in ${System.currentTimeMillis() - t0} ms")
         return p
     }
 
