@@ -272,9 +272,20 @@ object DataFeature : Feature {
     override val triggers = listOf(Regex("""(?i)^((download|get|update) (the )?(market )?(data|history)|manage (models|data|downloads)|what('s| is) (downloaded|on (my|the) phone))\??$"""))
     override suspend fun run(arg: String, f: Fetch): String {
         val hub = f.artifacts ?: return Card.error("Model and data management is only available on the phone.")
-        val a = arg.trim()
+        val a = arg.trim().lowercase()
+        // deleting is never one tap: a bare "delete" only asks; "delete confirm" deletes
+        if (a == "delete" || a == "knowledge delete") {
+            val what = if (a == "delete") "your market history" else "the knowledge bank"
+            val item = hub.items().firstOrNull { it.id == (if (a == "delete") "market" else "knowledge") }
+            return Card("Delete $what?", "saffron")
+                .headline("This removes $what from the phone", (item?.bytes?.takeIf { it > 0 }?.let { "${it / 1_000_000} MB · " } ?: "") + "you can download it again, but it takes time.")
+                .rows(null, listOf(Card.Row("Yes, delete it", "Can't be undone", "", "down", action = "/data $a confirm"), Card.Row("Keep it", "Nothing changes", "", "", action = "/data")))
+                .sources("This phone").json("Asked to confirm before deleting $what.")
+        }
         val said = when {
             a.isEmpty() -> null
+            a == "delete confirm" -> hub.market("delete")
+            a == "knowledge delete confirm" -> hub.knowledge("delete")
             a.startsWith("knowledge", true) -> hub.knowledge(a.removePrefix("knowledge").trim())
             else -> hub.market(a)
         }

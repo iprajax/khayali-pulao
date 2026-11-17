@@ -153,7 +153,15 @@ object Labels {
             "calendar" -> "📅 What's coming up"
             "report" -> "📰 Market report"
             "screens" -> if (arg.isBlank()) "🔎 Community screens" else "🔎 Screens: $arg"
-            "data" -> if (arg.matches(Regex("""\d+y"""))) "⬇ Get ${arg.dropLast(1)} years of data" else "📦 Models & data"
+            "data" -> when {
+                arg.matches(Regex("""\d+y""")) -> "⬇ Get ${arg.dropLast(1)} years of data"
+                arg.isBlank() -> "📦 Models & data"
+                arg == "update" -> "🔄 Update market history"
+                arg == "stop" -> "⏹ Stop the download"
+                arg == "knowledge" -> "📚 Get the knowledge bank"
+                arg.contains("delete") -> if (arg.startsWith("knowledge")) "🗑 Delete the knowledge bank" else "🗑 Delete market history"
+                else -> cmd
+            }
             "flow" -> "💸 $arg's results flow"
             "web" -> "🌐 Search: ${arg.take(28)}"
             "ipo" -> "🆕 Open IPOs"

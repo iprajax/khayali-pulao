@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3
+
+- **Fixed: one tap could delete your market history.** After `/data`, a suggestion labelled "📦 Models & data" actually ran `/data delete`, with no confirmation. Deleting is now never one tap: delete actions are no longer offered as suggestions, `/data delete` asks first (with the size) and only "Yes, delete it" deletes, and every data action is labelled for what it does. Tested.
+
 ## 0.9.2
 
 - **Every ticker opens the wheel, in any reply** — calendar, IPOs, holdings, web results and every terminal card, plus stock labels inside charts. Cards are wired as they appear, so new cards get it automatically; a label must be a stock the phone knows, so headings never trigger it.

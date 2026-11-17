@@ -48,11 +48,11 @@ class AndroidArtifactHub(private val ctx: Context) : ArtifactHub {
             ArtifactHub.Item("market", Artifacts.Kind.DATA, "Market history · ${pack.tier.label}", ms, (ms as? Artifacts.State.Ready)?.bytes ?: (ms as? Artifacts.State.Stale)?.bytes ?: 0,
                 "Daily prices of every NSE stock, downloaded by this phone from NSE's public archive. Powers /brief, /anomalies, /strategies.",
                 when (ms) { Artifacts.State.NotInstalled, is Artifacts.State.Failed -> listOf("/data 1y", "/data 3y", "/data 5y")
-                    is Artifacts.State.Stale -> listOf("/data update", "/data delete"); is Artifacts.State.Ready -> listOf("/data 3y", "/data 5y", "/data delete")
+                    is Artifacts.State.Stale -> listOf("/data update"); is Artifacts.State.Ready -> listOf("/data update", "/data 5y")
                     else -> listOf("/data stop") }, neededBy("market")),
             KnowledgePack.get(ctx).let { kb -> kb.refresh(); ArtifactHub.Item("knowledge", Artifacts.Kind.INDEX, "Strategy knowledge bank", kb.state.value, if (kb.ready()) kb.spec.bytes else 0,
                 "500 community stock screens with their rules, searchable by meaning (EmbeddingGemma 2 vectors). ${kb.spec.bytes / 1000} KB, downloaded on demand.",
-                if (kb.ready()) listOf("/screens", "/data knowledge delete") else listOf("/data knowledge"), neededBy("knowledge")) },
+                if (kb.ready()) listOf("/screens") else listOf("/data knowledge"), neededBy("knowledge")) },
             ArtifactHub.Item("playbook", Artifacts.Kind.INDEX, "Strategy playbook", Artifacts.State.Ready("${com.khayali.pulao.ai.term.Playbook.ENTRIES.size} strategies", 0, 0),
                 0, "Built in. Searched on the phone by keywords.", listOf("/strategies", "/learn momentum")),
             ArtifactHub.Item("memory", Artifacts.Kind.INDEX, "Your memory", Artifacts.State.Ready("${mem.playbook.bullets.size} notes", 0, 0, if (mem.enabled) "on" else "off"),
