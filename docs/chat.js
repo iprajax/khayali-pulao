@@ -224,6 +224,18 @@
           return step();
         }).then(function () { screensCard(); return sleep(2400); });
     } },
+    { title: "Every answer explains itself", sub: "Why you're seeing it, how it was made — and that nothing left the phone", run: function () {
+      var foot = add(el("div", "cd-foot", "⧉ &nbsp; ⤴ &nbsp; ⏱ 0.4 s · app · <u>how this was made ▾</u>"));
+      return sleep(900).then(function () { return tap(foot); }).then(function () {
+        hideFinger(); foot.innerHTML = "⧉ &nbsp; ⤴ &nbsp; ⏱ 0.4 s · app · <u>how this was made ▴</u>";
+        card('<div class="cd-kick">HOW THIS WAS MADE</div>' +
+          '<div class="cd-why"><b>WHY YOU\'RE SEEING THIS</b>You typed /screens quality low debt. It needed the knowledge bank first, so it downloaded that, then ran.</div>' +
+          '<div class="cd-why"><b>HOW · /SCREENS</b>Data: rules of 500 public screens, downloaded once and checked by checksum.<br>Method: keyword search picks the best matches; EmbeddingGemma 2 vectors add the closest in meaning (≈).<br>Limits: rules are each author\'s; they need company financials.</div>' +
+          '<div class="cd-why"><b>PRIVACY</b><span class="up">Worked out entirely on this phone. Nothing was sent anywhere.</span></div>' +
+          '<div class="cd-why"><b>TIMING</b>Total 0.4 s · App only (no AI needed)</div>', "cd-how");
+        return sleep(3200);
+      });
+    } },
   ];
 
   // ---------------------------------------------------------------- player

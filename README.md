@@ -5,61 +5,105 @@
 <h1 align="center">Khayali Pulao</h1>
 
 <p align="center">
-  <b>A daydream calculator that floats on top of Zerodha Kite.</b><br>
-  Tap a holding and see what it would be worth at +0.5%, +5%, +15%, 2× — whether you beat an FD — and what the profit actually buys, in hand after tax.
+  <b>Your private market advisor. Nothing leaves your phone.</b><br>
+  Ask in plain words. It makes a plan, runs every step on your phone with your own copy of NSE's market data, and hands you next steps you can tap.<br>
+  The AI runs on the phone too — no account, no server, no analytics.
 </p>
 
 <p align="center">
   <a href="https://github.com/iprajax/khayali-pulao/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/iprajax/khayali-pulao/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Android 9+" src="https://img.shields.io/badge/Android-9%2B-3DDC84?logo=android&logoColor=white">
-  <img alt="Uploads: none" src="https://img.shields.io/badge/uploads-none-5282EB">
-  <img alt="On-device only" src="https://img.shields.io/badge/data-never%20leaves%20your%20phone-67AD5B">
+  <img alt="Server: none" src="https://img.shields.io/badge/server-none-5282EB">
+  <img alt="Analytics: none" src="https://img.shields.io/badge/analytics-none-5282EB">
+  <img alt="AI: on-device" src="https://img.shields.io/badge/AI-on--device-67AD5B">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-lightgrey"></a>
 </p>
 
 <p align="center">
   <a href="https://iprajax.github.io/khayali-pulao/">Website</a> ·
   <a href="https://github.com/iprajax/khayali-pulao/releases">Download APK</a> ·
-  <a href="https://iprajax.github.io/khayali-pulao/#try">Try it in your browser</a> ·
-  <a href="PRIVACY.md">Privacy</a> ·
-  <a href="SECURITY.md">Security</a>
+  <a href="#-nothing-leaves-your-phone">Privacy</a> ·
+  <a href="CHANGELOG.md">What's new</a>
 </p>
-
----
-
-> **ख़याली पुलाव (khayali pulao)** — literally *"imaginary pulao"*: rice you cook only in your head.
-> It's how Hindi says *daydreaming* or *building castles in the air*. Every investor does it — this app just does the maths properly.
-
-<p align="center">
-  <img src="docs/media/demo.gif" width="300" alt="Demo: tapping a fictional holding opens a sheet with Move %, vs FD, Spend it and Goal tabs">
-  <br><sub>Recorded in the in-app <b>Demo</b> — every name and number is fictional.</sub>
-</p>
-
-## ✨ Ask Khayali Pulao — on-device AI chat
 
 <table>
   <tr>
-    <td><img src="docs/screens/chat-greeting.png" width="250" alt="Chat greeting"></td>
-    <td><img src="docs/screens/chat-growth.png" width="250" alt="Chat answer with a compounding chart card"></td>
+    <td><img src="docs/screens/chat-plan.png" width="200" alt="A plan for the day running step by step"></td>
+    <td><img src="docs/screens/chat-next-steps.png" width="200" alt="Next steps you can tap"></td>
+    <td><img src="docs/screens/chat-ticker-menu.png" width="200" alt="A ticker's menu"></td>
+    <td><img src="docs/screens/chat-how-made.png" width="200" alt="How this was made, with the privacy line"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Plans your day</sub></td><td align="center"><sub>Next steps you can tap</sub></td>
+    <td align="center"><sub>Every stock is a menu</sub></td><td align="center"><sub>Explains itself</sub></td>
   </tr>
 </table>
+<p align="center"><sub>Rendered from the website's replay of the chat — fictional stocks and data.</sub></p>
 
-- **Gemma 4 E2B runs on your phone** (Google LiteRT-LM, GPU with CPU fallback). Downloaded once from Hugging Face (2.6 GB, SHA-256 verified, resumable, Wi-Fi option); then chat works offline.
-- **Tool calling over every calculator** — the model never does maths itself. Each answer comes with a **visual result card** drawn from the tool's exact numbers: growth curve, FD comparison bars, goal ring, tax breakdown, before/after bars, holdings.
-- **Number guard** — any ₹ figure the model writes that doesn't match a tool result is removed, so you never see an invented number.
-- Understands **"10 lakh", "1.5 crore", "50k"**. Changes settings ("set my FD rate to 7%") and opens screens.
-- In the app and in the bubble sheet over Kite (✨), where it already knows the stock you tapped.
-- **/commands** — `/holdings` `/pnl` `/positions` `/margins` `/orders` `/mf` (instant cards from Kite, no AI needed), `/fd 3` `/goal 50 lakh` `/grow 1 lakh 12% 10y` `/move -20` `/tax` (exact calculators, no AI needed), `/price` `/events` `/results` `/news` `/web` (opt-in web, with sources), `/remember` `/memory` `/forget`, `/clear` `/help`.
-- **@mentions** — type `@` to pick one of your Kite holdings: *"What if @INFY goes up 20%?"*
-- **Share any answer** as an image (card + text, branded) to WhatsApp, X, Instagram… — with a warning before sharing real amounts.
-- Gemini-style motion: flowing gradient greeting, thinking shimmer, word-by-word fade-in, glowing input, follow-up pills.
+## Why it exists
 
-### 🔗 Connect Kite (optional, read-only)
+Money apps want your portfolio on their servers. AI assistants want your questions in their cloud. For something as personal as your money, Khayali Pulao takes the opposite route: **the AI, your data and every calculation stay on your phone.** There is no Khayali Pulao server, so there is nothing to sign up for and nowhere for your data to go.
 
-Tap **Connect Kite** in the chat to let it read your real holdings, positions, margins and orders through **Zerodha's official [Kite MCP](https://github.com/zerodha/kite-mcp-server)** (`mcp.kite.trade`), using standard MCP OAuth 2.1 (PKCE + a one-time loopback redirect on the phone). You log in on Zerodha's own page in your browser — if you're already logged in to Kite in Chrome it's usually a one-tap "Authorize". The app **only allows read tools**: every order/GTT tool is blocked in code (and tested), on top of Zerodha's hosted server excluding them. Your Kite data comes from Zerodha to your phone and is used only by the on-device model.
+It is also built to be *useful*, not just private: ask "what should I do today?" and it doesn't do one lookup — it plans, runs each step, shows its working, and ends with what to look at next. It shows what the data and each rule say. It never tells you to buy or sell.
+
+> **ख़याली पुलाव (khayali pulao)** — *"imaginary pulao"*, rice you cook only in your head: Hindi for daydreaming. Every investor does it — this app does the maths properly.
+
+## 🔒 Nothing leaves your phone
+
+- **The AI runs on the phone.** Gemma 4 E2B (Google LiteRT-LM), downloaded once and checked by SHA-256. Your questions and its answers are never sent to a cloud AI.
+- **Your data stays on the phone.** Kite holdings are matched on the phone. Your NSE history, analysis, backtests, chat and memory live in private app storage — excluded from cloud backup and phone-to-phone transfer.
+- **No analytics, no audit trail.** No analytics, crash reporting, ads or third-party SDKs. No account, no login. The app keeps no logs anywhere but your phone, and you can wipe everything (⋮ → Models & data, Memory → Erase, New chat).
+- **Reads, never trades.** The Kite connection is read-only; order tools are blocked in code and tests.
+
+**The only times it touches the internet — each one switched on by you:**
+
+| When | Goes to | What is sent |
+|---|---|---|
+| AI model download, once | Hugging Face | The file request |
+| Market history, when you ask | NSE's public archive | A request for each day's file |
+| Knowledge bank, when you ask | This project's website | The file request |
+| Connect Kite (optional) | Zerodha's official [Kite MCP](https://github.com/zerodha/kite-mcp-server) | Read-only calls; you log in on Zerodha's own page |
+| Web lookups (opt-in) | DuckDuckGo, Yahoo Finance, NSE, Moneycontrol, InvestorGain | Topic words or a symbol — amounts, quantities and IDs are stripped first |
+
+**Never sent, to anyone:** your holdings, amounts, questions, chat or memory. The app has no server and keeps no logs; the sites above see an ordinary request, as from any browser.
+
+**How you can check it:** the app asks for one permission (Internet). All networking lives in two files, and CI fails the build if networking code appears anywhere else or an unlisted host is used ([`OnDeviceOnlyTest`](app/src/test/kotlin/com/khayali/pulao/OnDeviceOnlyTest.kt)). Every reply's **How this was made** panel says what, if anything, was sent. Details: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md).
+
+## What it does for you
+
+### 🗺 Plans your day — and ends with what to do next
+Ask **"What should I do today?"** and it becomes a plan: the market's trend and hidden patterns from your own NSE data, the news behind the most unusual stock it found, the week's results and dividends, and today's picks of the strategy that tested best — each step's card in turn, ticking off as it goes. It ends with what it all shows and **next steps you can tap**. The same works for one stock (*"should I buy INFY?"*), your portfolio, why the market moved, which strategy to follow, or an IPO.
+
+### 🧭 Your own market data, analysed on the phone
+`/data 3y` downloads three years of NSE's daily prices straight from NSE's archive (about 25 MB a year — every phone fetches its own copy; nothing is redistributed). Then:
+
+| Command | What it does |
+|---|---|
+| `/brief` | The action brief: market regime, the week, hidden patterns, your holdings, strategy signals, next steps |
+| `/regime` | Breadth, trend, new highs/lows, volatility |
+| `/anomalies` | Hidden patterns: volume spikes, outsized moves, streaks, breakouts — each against the stock's own history |
+| `/strategies` | 14 rules backtested side by side on your data, from one start date |
+| `/screen momentum` | One rule's picks today, with its backtest |
+| `/health INFY` | One stock's (or your holdings') trend and risk |
+| `/learn` | The playbook: 25 strategies — 14 that run on your data, 11 fundamental families with the thresholds most used across 500 public stock screens |
+| `/screens quality low debt` | Search those 500 community screens by idea (a 289 KB knowledge bank with EmbeddingGemma 2 vectors) |
+
+### 👆 Everything is tappable
+Every suggested next step, every command mentioned in an answer and every **ticker** — tap a stock for its trend and risk, chart, news, results and dividends, quote, or a deep-dive plan. Tap a command and it **asks for each parameter** with choices to pick. An empty chat opens with task starters built around your own stocks.
+
+### 🔍 Every answer explains itself
+Under each reply, **How this was made**: why you're seeing it (you typed it, a plan step, a tapped suggestion, or the AI's choice), which data made it and how fresh it is, the exact method and parameters, its limits, the timing — and a privacy line saying what, if anything, left the phone.
+
+### 💼 Your portfolio, read-only
+**Connect Kite** (optional) and it reads your holdings, positions, margins and orders through Zerodha's official Kite MCP — reviewing each holding's trend, concentration and risk. The original **daydream sheet** still floats on Kite: tap a holding to see what it's worth at +5%, +15% or 2×, whether you beat an FD, and what the profit buys in hand after tax.
+
+### 📟 81 commands, and opt-in web
+A market terminal in the chat — indices, sectors, movers, breadth, option chain, technicals, results as a money-flow, shareholding, global markets, mutual funds and planners. With **Web** on: the week's calendar, IPOs and grey-market premium, and news with numbered sources (figures not found in a source are removed).
+
+<details>
+<summary><b>All 81 commands</b></summary>
 
 <!-- terminal-commands -->
-## 📟 Market terminal — 80 commands
 
 Chart cards built from public, no-login data: NSE's own feeds and exchange filings, public price feeds, World Bank and mfapi.in open data. Web access is opt-in; the calculators and portfolio views marked *works offline* never touch the network. Your holdings are matched on the phone and never sent. Type `/` in the chat to browse, or just ask — short questions like "show me the heatmap" run the matching card directly, and the AI can call any of them.
 
@@ -171,173 +215,84 @@ Chart cards built from public, no-login data: NSE's own feeds and exchange filin
 | `/lumpsum 12 lakh 12% 10y` | Lump sum vs SIP: the same total invested at once or monthly, at a given return · works offline |
 <!-- /terminal-commands -->
 
-## 🧭 Personal advisor on your own data (0.9)
+</details>
 
-Ask **"what should I do today?"** or type `/brief`. The app reads its own copy of NSE's daily data (downloaded by your phone with `/data`, never redistributed) and returns one action brief:
+### 📦 Light by design
+The app ships small. The AI model, market history and the knowledge bank download only when you ask — straight to the phone, checked before use — and live in one place: **⋮ → Models & data**. A command that needs one says so, downloads it with a live progress card, then runs what you asked. **No computer is needed** for anything; the Mac tools in [`tools/`](tools) are optional, for research.
 
-- **Market regime** — how many liquid stocks are above their 50- and 200-day averages, new highs and lows, volatility against the past year.
-- **The week** — the biggest moves among liquid stocks.
-- **Hidden patterns** — volume spikes, outsized moves, streaks and breakouts, each measured against that stock's own history.
-- **Your holdings** (Kite connected) — trend, distance from the 52-week high, concentration.
-- **Strategies** — 14 rules (momentum, 52-week high, low volatility, trend, pullback, breakout on volume, steady compounders, low beta, accumulation, RSI pullback, no lottery tickets, largest traded, weekly reversal…), each backtested on your data with what it flags today.
-- **Worth reviewing** — every item tied to a number above.
-
-It explains what the data and each rule show. It never says buy or sell and is not investment advice.
-
-| Command | What it does |
-|---|---|
-| `/data` | Models and data on the phone: download 1, 3 or 5 years of NSE history, update, stop, delete |
-| `/brief` | The action brief |
-| `/regime` | Breadth, trend, new highs/lows, volatility |
-| `/anomalies` | Hidden patterns today |
-| `/strategies` | 14 rules backtested side by side |
-| `/screen momentum` | One rule's picks today and its backtest |
-| `/health INFY` | One stock's (or your holdings') trend and risk |
-| `/learn` | The playbook: 25 strategies — 14 that run on your data, 11 fundamental families with the thresholds most used in public screens |
-| `/screens quality low debt` | Search 500 community stock screens by idea (knowledge bank, downloaded on demand) |
-
-It ends with **Next steps** — concrete actions tied to its numbers (review a flagged holding, reduce concentration, see the best rule's picks, find out why a stock moved). While you type, the chat suggests the next useful question.
-
-### 🗺 Plans, not one lookup
-
-Ask a broad question and the chat makes a plan and works through it: **"What should I do today?"** runs the brief, then the news behind the most unusual stock it found, then this week's calendar, then today's picks of the strategy that tested best — each step's card in turn, ticking off as it goes — and ends with what it all shows and what to do next. The same for one stock ("should I buy INFY?"), your portfolio, why the market moved, which strategy to follow, or an IPO. Every suggested next step, every command mentioned in an answer and every ticker is tappable (tickers open a menu: trend, chart, news, events, quote, deep dive). Commands that need parameters ask for them one at a time with choices to tap.
-
-### 📦 Light app, everything on demand
-
-The app ships small. The AI model, market history and the strategy knowledge bank are downloaded only when you ask, straight to the phone, each checked before use, and managed in one place: **⋮ → Models & data** (status, size, live progress, which commands need each one, download / update / delete). Commands declare what they need: ask for `/brief` without market history and the chat says what's needed, downloads it with a live progress card, then runs what you asked.
-
-**No computer is needed.** Downloads, analysis, backtests and the brief all run on the phone. The Mac tools below are optional, for research.
-
-**On a Mac (optional):** `python3 tools/market/fetch.py --from 2016-01-01` fetches your own copy of the history; `uv run tools/research/research.py build`, then `ask "breakout to a new high on heavy volume"`, searches past situations by meaning with [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2) (candidates from a 4-bit [turbovec](https://pypi.org/project/turbovec/) index, re-ranked exactly) and shows how they went the next month. `research.py bank` / `find` / `export` build the screens knowledge bank the app downloads (`docs/knowledge/screens-v1.kb`: rules, names, themes and links to the original screens, with int8 EmbeddingGemma 2 vectors). On the phone, where EmbeddingGemma 2 can't run, search is hybrid: keywords pick anchor screens and the vectors add the ones closest in meaning.
-
-## What's new in 0.8
-
-- **A chat that doesn't get stuck** — one explicit state machine behind typing, pills, /commands, retries and reconnects. Came back next morning and `/holdings` failed? Zerodha signs you out daily and Android may have unloaded the model; the app now detects both, offers **Reconnect**, keeps your command and runs it when you're back.
-- **Commands need no model** — `/holdings` `/chart` `/fd` `/goal` `/grow` `/move` `/tax` are run by the app: exact and instant, even before the 2.6 GB model is downloaded.
-- **Web, with sources (opt-in)** — `/price INFY`, `/events INFY`, `/results INFY`, `/news INFY`, `/web …`, and the model can look things up too. DuckDuckGo search + a public quote feed. Answers cite numbered sources; figures that aren't in a source are removed. Only topic words are sent — amounts, quantities and identifiers are stripped from every query.
-- **Market calendar & IPOs** — `/calendar` (results, dividends, splits, bonus, buybacks, AGMs, IPOs and holidays for the week, your holdings starred), `/ipo` and `/gmp NAME` (grey-market premium trend and implied listing price, clearly labelled unofficial).
-- **Market terminal — 80 commands** — `/report` (the whole market on one card), `/preopen`, `/sectormovers`, `/heatmap`, `/flow INFY` (results as a Sankey from the XBRL filing), `/mindmap INFY`, `/shareholding INFY` (streamgraph), option chain, technicals, portfolio X-ray, global markets, mutual funds and planners — [full list](#-market-terminal--80-commands).
-- **Memory that learns, on your phone** — a small playbook of notes (your goals and preferences, plus lessons from the chat's own mistakes) that is reflected on and curated after each answer, in the style of [agentic context engineering](https://arxiv.org/abs/2510.04618). Read, delete or erase it with `/memory`.
-- **Readable on a phone** — market cards use native, colour-coded blocks: a scrolling ticker tape, sparkline rows with green/red change pills, sector bars, stat tiles and a breadth bar. `/report` puts indices, breadth, sectors, top gainers and losers, FII/DII flows and your stocks on one card with a written read-out; `/preopen`, `/sectormovers` and `/watch` (stocks you've looked at in chat) work the same way.
-- **Charts with labelled axes** — and new ones: candlesticks with volume, what-if curve, goal paths, tax waterfall, allocation donut, company-events calendar.
-- **The thread survives** — saved on the phone and restored with its cards when you return.
-- **20 audited fixes** across the overlay, sheet and home screen — see the [changelog](CHANGELOG.md).
-
-## What's new in 0.7
-
-- **Interactive D3 answers** — every result is a native card with an animated chart (holdings treemap + P&L, price history with scrubbing, compounding curve vs inflation, FD/PPF/gold/Nifty bars, goal ring, tax split, margins donut, orders timeline). Same renderer runs live on the [website](https://iprajax.github.io/khayali-pulao/#visuals). d3 is bundled; the chart WebView blocks all network.
-- **Personas** — 📊 Analyst · 🧭 Financial planner · 🔎 Research. Same exact tools; different focus. Educational only — never buy/sell/hold calls; not a SEBI-registered adviser.
-- **Kite MCP, all read methods** — holdings, positions, margins, profile, mutual funds, orders/trades, live price (falls back to last close when the market is shut), price history. Read-only enforced per *(tool, mode)*.
-- **Context pills** — starters built from your live holdings (biggest, best, worst, concentration) and follow-ups from the last result; exact re-runs like "at 15% a year".
-- **Exact numbers** — percentages you type are pinned to the tool call; when a calculator ran, the reply shows its exact summary and only number-free insight from the model.
-- **Response details** — tap ⏱ for total time, time to first word, tokens/s, GPU/CPU and every tool step.
-- **New home** — bento dashboard + left drawer; settings on their own screen; comparison rates refreshed (Nov 2026).
-
-## What it does
-
-| | |
-|---|---|
-| **Move %** | What if it moves +0.5% … +5% … +15% … 2×? A ladder (0.5% steps to 5%, then 7, 10, 12, 15, 20…), slider, ± steps that walk your own levels, and *target price → %*. From your average price or today's LTP. |
-| **vs FD** | Did you actually beat a bank FD? Your real yearly return (CAGR) and inflation-adjusted gain vs savings, FD, PPF, gold, Nifty and inflation. Every rate is yours to set. |
-| **Spend it** | Profit *in hand* after LTCG (₹1.25 L exemption) or STCG, STT and DP charges — then what it means: FD interest per month, months of your expenses covered, 4%-rule income, 10-year compounding. |
-| **Goal** | "I want ₹2 Cr." How much it must rise, the LTP needed, and roughly how many years at 8–25% a year. |
-| **Years** | Compounding: today's value after 1–30 years at the return you pick. |
-| **Regret** | *Agar tab liya hota* — what if you'd bought cheaper? |
-| **Whole portfolio** | Tap Kite's Invested / Current card to daydream everything at once. |
-| **Pulao maths** | Gains in desi units — cutting chais ☕, Ballia → Sealdah tickets on Bhrigu Express 🚆, family trips to Ballia on Pawan Express 🚂, a bhains for the village 🐃, a plot in Ballia 🌾 or Jhumri Telaiya 🏡 — plus your own dream unit. |
-| **Tone** | *Serious* (numbers only) · *Light* (calm one-liners, default) · *Masala* (FD wale uncle has opinions). |
-
-## Screenshots
+## The daydream sheet
 
 <table>
   <tr>
-    <td><img src="docs/screens/move.png" width="220" alt="Move %"></td>
-    <td><img src="docs/screens/vs-fd.png" width="220" alt="vs FD"></td>
-    <td><img src="docs/screens/spend.png" width="220" alt="Spend it"></td>
-    <td><img src="docs/screens/spend-list.png" width="220" alt="Spend it — what it buys"></td>
+    <td><img src="docs/screens/move.png" width="180" alt="Move %"></td>
+    <td><img src="docs/screens/vs-fd.png" width="180" alt="vs FD"></td>
+    <td><img src="docs/screens/spend.png" width="180" alt="Spend it"></td>
+    <td><img src="docs/screens/goal.png" width="180" alt="Goal"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Move %</sub></td><td align="center"><sub>vs FD</sub></td>
-    <td align="center"><sub>Spend it — in hand</sub></td><td align="center"><sub>…and what it buys</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screens/goal.png" width="220" alt="Goal"></td>
-    <td><img src="docs/screens/years.png" width="220" alt="Years"></td>
-    <td><img src="docs/screens/watchlist-goal.png" width="220" alt="Watchlist stock"></td>
-    <td><img src="docs/screens/settings.png" width="220" alt="Settings"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Goal</sub></td><td align="center"><sub>Years</sub></td>
-    <td align="center"><sub>Watchlist stock</sub></td><td align="center"><sub>Everything is configurable</sub></td>
+    <td align="center"><sub>Move %</sub></td><td align="center"><sub>vs FD</sub></td><td align="center"><sub>In hand after tax</sub></td><td align="center"><sub>Goal</sub></td>
   </tr>
 </table>
 
-<sub>All screenshots come from the in-app Demo with fictional data. In real use the same sheet opens on top of Kite.</sub>
-
-## 🔒 Your portfolio never leaves your phone
-
-- **Three optional uses of the internet, each off until you choose it.** The one-time AI model download from Hugging Face (SHA-256 checked); Zerodha's official read-only Kite MCP, if you tap Connect Kite; and web lookups, if you allow Web. A unit test fails the build if any other host or networking code appears.
-- **Web lookups send topic words only.** Search words go to DuckDuckGo, price lookups to Yahoo Finance. Amounts, quantities and identifiers are stripped from every query in code; holdings are never sent. No cookies, a generic user agent, and nothing but the results page may load.
-- **On-device AI.** The chat runs Gemma 4 on your phone — your questions and Kite's numbers are never sent to a cloud AI.
-- **Reads, never trades.** It reads the numbers Kite already shows, only while Kite is open. While the bubble is on, your taps can't reach Kite's Buy/Sell.
-- **What is stored, and where.** Your settings, the hold periods you type, the current chat thread and the chat's memory notes — private files on the phone, excluded from cloud backup and phone-to-phone transfer. New chat clears the thread; Memory → Erase clears the notes.
-- **No login, analytics, ads or trackers.** No third-party SDKs at all.
-
-Details: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md)
+Move %, vs FD (savings, FD, PPF, gold, Nifty, inflation), in hand after LTCG/STCG, STT and charges, goals, compounding, *agar tab liya hota* regret, and gains in desi units (cutting chais, Bhrigu Express tickets, a plot in Ballia). It reads what Kite shows on your screen through Android accessibility — no login, no network — and can't place orders. <sub>Screenshots: in-app Demo, fictional data.</sub>
 
 ## Install
 
-1. Download `khayali-pulao-<version>.apk` from [Releases](https://github.com/iprajax/khayali-pulao/releases) and install it (allow *Install unknown apps* for your browser/files app).
-2. Open **Khayali Pulao → Turn it on** → Accessibility → Installed apps → *Khayali Pulao* → On.
-   *Android 13+: if it's greyed out, go to Settings → Apps → Khayali Pulao → ⋮ → Allow restricted settings.*
-3. Open Kite. Tap the 🍚 bubble (blue ring = on), then tap any holding, watchlist stock or the Invested card.
-
-No Kite? Tap **Try the demo** on the home screen.
+1. Download the APK from [Releases](https://github.com/iprajax/khayali-pulao/releases) and install it.
+2. Open Khayali Pulao and tap **Ask**. Download the on-device AI once (2.6 GB, best on Wi-Fi) — commands work even before it arrives.
+3. Type `/data 3y` for three years of NSE history, then ask **"What should I do today?"**
+4. Optional: **Connect Kite** (read-only) for your portfolio, switch **Web** on for news and the calendar, and turn on the Kite bubble in Accessibility for the daydream sheet.
 
 ## How it works
 
 ```
- Kite (unchanged)                    Khayali Pulao (on-device)
- ───────────────                     ──────────────────────────
- Holdings row  ── accessibility ──►  KiteParser  ──►  Projector / Dreams / Costs  ──►  DreamSheet
- "INFRA, quantity 250, average       (regex on the       (pure Kotlin maths,            (Kite-styled
-  price 1,200.00, … last traded       row's text)          unit-tested)                  bottom sheet)
-  price 1,450.00"
+ you ask ──► router ──► one command ─────────────────────┐
+              │   └───► planner: 3-5 steps, chained ─────┤
+              │                                           ▼
+              │          tools, all run on the phone: your NSE history engine (regime, patterns,
+              │          backtests) · calculators · knowledge bank · Kite MCP (read-only, opt-in)
+              │          · web lookups (opt-in, topic words only)
+              │                                           │
+              └───► Gemma 4 E2B on the phone ◄── cards ◄──┘   numbers checked against the tools
+                                                  │
+                         reply: cards · takeaway · next steps you can tap · "How this was made"
 ```
 
-Kite exposes each row to Android accessibility as plain text. Khayali Pulao parses that text, does the maths locally, and draws its own sheet as an accessibility overlay. No screenshots, no OCR, no network.
+Everything in that picture runs on the phone. The router, planner, engine and explanations are plain, unit-tested Kotlin; the model only writes text around tool results, and any figure it writes that isn't in a result is removed.
 
 ## Build from source
 
 ```bash
 git clone https://github.com/iprajax/khayali-pulao.git && cd khayali-pulao
-./gradlew testDebugUnitTest     # maths, parser, tax/charges and on-device-only guards
+./gradlew testDebugUnitTest     # 300+ tests: engine, planner, routing, maths, privacy guards
 ./gradlew assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Requires JDK 17 and Android SDK 35. Release signing reads `KP_KEYSTORE`, `KP_KEYSTORE_PASSWORD`, `KP_KEY_ALIAS`, `KP_KEY_PASSWORD` from the environment — keys never live in the repo.
+Requires JDK 17 and Android SDK 36. Release signing reads `KP_KEYSTORE`, `KP_KEYSTORE_PASSWORD`, `KP_KEY_ALIAS`, `KP_KEY_PASSWORD` from the environment — keys never live in the repo.
 
 ## FAQ
 
-**Is this made by Zerodha?** No. It's an independent, open-source side project. It doesn't use any Zerodha API, login or servers — it only reads what the Kite app already shows on your own screen.
+**Does anything I ask leave my phone?** No. The AI runs on the phone. The only network use is what you switch on (table above), and it never includes your holdings, amounts, questions or chat.
 
-**Why an Accessibility service?** It's the only on-device way to read another app's on-screen text without screenshots or network access. The service is scoped to Kite, read-only, and can't place orders.
+**Does it need a computer or a server?** No. There is no Khayali Pulao server, and everything runs on the phone.
 
-**Which AI model, and how big?** Gemma 4 E2B (Apache-2.0) via Google's LiteRT-LM. 2.6 GB download, ~0.8 GB RAM on GPU. You can delete it from the chat menu.
+**Is this investment advice?** No. It shows what the data and each rule say, and suggests what to look at — never buy or sell. Khayali Pulao is not a SEBI-registered adviser; backtests ignore costs and taxes, and past results don't promise future ones.
 
-**Can the AI place trades?** No. It has no trading tools, and the Kite connection allows read-only calls only — both are enforced in code and covered by tests.
+**Is it made by Zerodha?** No. It's an independent, open-source project. The Kite connection uses Zerodha's official, public Kite MCP, read-only.
 
-**Is it on the Play Store?** Not currently — Google Play restricts Accessibility API use to accessibility tools, so it's distributed as an APK on GitHub.
+**Which AI model, and how big?** Gemma 4 E2B (Apache-2.0) via Google's LiteRT-LM — a 2.6 GB download, about 0.8 GB of RAM on the GPU. Delete it any time in ⋮ → Models & data.
 
-**Are the tax and charges exact?** No — they're estimates (12.5% LTCG above ₹1.25 L, 20% STCG, 0.1% STT, ₹15.34 DP charge, small exchange/SEBI/GST). Gold and Nifty returns are assumed long-run averages you can change.
+**Why an Accessibility service?** Only for the optional daydream bubble on Kite: it's the only on-device way to read another app's on-screen text without screenshots or a network. The chat doesn't need it.
+
+**Is it on the Play Store?** Not currently — Google Play restricts Accessibility API use, so it's distributed as an APK on GitHub.
 
 ## Disclaimer
 
-Khayali Pulao is a **daydream**, not investment, tax or financial advice. Projections are hypothetical and markets can go down as well as up. "Zerodha" and "Kite" are trademarks of Zerodha Broking Ltd., used here only to describe compatibility; this project is not affiliated with or endorsed by Zerodha.
+Educational only — not investment, tax or financial advice. Projections and backtests are hypothetical; markets can go down as well as up. "Zerodha" and "Kite" are trademarks of Zerodha Broking Ltd., used only to describe compatibility; this project is not affiliated with or endorsed by Zerodha.
 
 ## Credits
 
-App icon and illustrations generated with ChatGPT image generation, then edited. Colours follow Kite's dark theme so the overlay feels at home.
+App icon generated with ChatGPT image generation, then edited. Colours follow Kite's dark theme. Strategy-screen thresholds counted from public screens on [screener.in](https://www.screener.in/screens/), each credited by link in the knowledge bank.
 
 ## License
 
