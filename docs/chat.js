@@ -235,7 +235,7 @@
           Quote: '<path d="M7 5h10M7 9h10M12 9c0 3-2 5-5 5h-.5l7 6"/>', "Deep dive": '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5l5.5 5.5"/>',
           Ask: '<path d="M4 4h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>' };
         var acts = ["Trend", "Chart", "News", "Events", "Quote", "Deep dive", "Ask"].map(function (n) { return ['<svg viewBox="0 0 23 23">' + I[n] + "</svg>", n]; });
-        var pr = phone.getBoundingClientRect(), tr = t.getBoundingClientRect(), R = 92;
+        var pr = phone.getBoundingClientRect(), tr = t.getBoundingClientRect(), R = 76;
         var cx = Math.min(Math.max(tr.left - pr.left + 30, R + 44), pr.width - R - 44), cy = Math.min(Math.max(tr.top - pr.top, R + 70), pr.height - R - 90);
         wheel.innerHTML = '<div class="cd-disc" style="left:' + cx + 'px;top:' + cy + 'px"></div><div class="cd-hub" style="left:' + cx + 'px;top:' + cy + 'px">BALLIA</div>' +
           acts.map(function (a, i) { var ang = (-90 + i * 360 / acts.length) * Math.PI / 180;

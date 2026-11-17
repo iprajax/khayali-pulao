@@ -36,7 +36,11 @@ class ActionsTest {
         assertFalse(Tickers.isSymbol("NSE")); assertTrue(Tickers.isSymbol("★ INFY")); assertFalse(Tickers.isSymbol("Low pe stocks"))
         val menu = Tickers.menu("INFY", web = false, market = true).map { it.second }
         assertTrue(menu.containsAll(listOf("/health INFY", "/chart INFY 1y", "/news INFY", "what's happening with INFY")))
+        // labels that are exactly a known stock open the wheel; heading words never do
+        assertTrue(Tickers.isKnown("INFY") && Tickers.isKnown("★ FIRSTCRY"))
+        assertFalse(Tickers.isKnown("TODAY") || Tickers.isKnown("TAKEAWAY") || Tickers.isKnown("HDFC") || Tickers.isKnown("NIFTY"))
         Tickers.known = emptySet()
+        assertTrue(Tickers.isKnown("ZEEL")); assertFalse(Tickers.isKnown("TIMING"))
     }
 
     @Test fun actionLinksParse() {

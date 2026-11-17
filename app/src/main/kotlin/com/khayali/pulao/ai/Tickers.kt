@@ -24,6 +24,18 @@ object Tickers {
         "UK", "EU", "Q1", "Q2", "Q3", "Q4", "EBITDA", "NOT", "NIFTY", "SENSEX", "MCX", "STT", "LTCG", "STCG", "TDS", "GST", "PPF", "EPF", "NPS", "KYC", "API", "MCP",
         "SMA", "RSI", "MACD", "VWAP", "DMA", "OPM", "PEG", "TTM", "FY", "H1", "H2", "NA", "CEO", "CFO", "MD", "BANK", "AUTO", "PHARMA", "FMCG", "METAL", "REALTY", "MEDIA", "ENERGY")
 
+    /** All-caps words cards use as labels; never tickers. */
+    private val WORDS = setOf("TODAY", "TAKEAWAY", "PLAN", "SETUP", "TIMING", "PRIVACY", "STEPS", "WHY", "HOW", "NEW", "ALL", "OTHERS", "MARKET", "STOCK", "STOCKS",
+        "VOLATILITY", "RESULTS", "DIVIDEND", "BONUS", "SPLIT", "BUYBACK", "HOLIDAY", "AGM", "OPEN", "CLOSED", "UPCOMING", "LISTED", "LISTING", "BIDDING", "TOTAL",
+        "HOLDING", "HOLDINGS", "INVESTED", "CURRENT", "PNL", "DAY", "WEEK", "MONTH", "YEAR", "HIGH", "LOW", "LTP", "QTY", "AVG", "BUY", "SELL", "GAINERS", "LOSERS", "SECTORS", "SECTOR")
+
+    /** A label that is exactly a stock the phone knows (or, before anything is known, has a ticker's shape and isn't a heading word). */
+    fun isKnown(s: String): Boolean {
+        val t = s.trim().removePrefix("★").trim().removePrefix("@")
+        if (!SHAPE.matches(t) || t in STOP || t in WORDS) return false
+        return known.isEmpty() || t in known
+    }
+
     /** Does this field (a row title, a mover's symbol) name a stock? Structured fields need only the right shape. */
     fun isSymbol(s: String, structured: Boolean = true): Boolean {
         val t = s.trim().removePrefix("★").trim().removePrefix("@")
@@ -55,6 +67,29 @@ object Tickers {
     private fun span(sym: String) = object : ClickableSpan() {
         override fun onClick(widget: View) { onTap?.invoke(sym) }
         override fun updateDrawState(ds: TextPaint) { ds.color = com.khayali.pulao.Pal.BLUE; ds.isUnderlineText = false; ds.isFakeBoldText = true }
+    }
+
+    /**
+     * Wires every ticker in a finished card — whatever built it (calendar, IPOs, holdings, web results, terminal
+     * cards). A text that is just a symbol makes its row a tap target; tickers inside sentences become tap spans.
+     * Rows that already do something on tap keep it.
+     */
+    fun wire(root: View) {
+        fun clickableAncestor(v: View): Boolean { var p: android.view.ViewParent? = v.parent
+            while (p is View && p !== root.parent) { if (p.hasOnClickListeners()) return true; p = p.parent }; return false }
+        fun walk(v: View) {
+            if (v is android.view.ViewGroup) { for (i in 0 until v.childCount) walk(v.getChildAt(i)); return }
+            val tv = v as? android.widget.TextView ?: return
+            val text = tv.text?.toString()?.trim().orEmpty(); if (text.isEmpty()) return
+            if ((tv.text as? Spanned)?.getSpans(0, tv.text.length, ClickableSpan::class.java)?.isNotEmpty() == true) return
+            val bare = text.removePrefix("★").removePrefix("@").trim().substringBefore(' ').substringBefore('\n')
+            if (text.length <= 22 && isKnown(bare) && (text == bare || text.removePrefix("★").trim() == bare) && !tv.hasOnClickListeners() && !clickableAncestor(tv)) {
+                val row = (tv.parent as? View)?.takeIf { it !== root && !it.hasOnClickListeners() && (it.parent as? View)?.hasOnClickListeners() != true } ?: tv
+                attach(row, bare); return
+            }
+            if (!tv.hasOnClickListeners() && !clickableAncestor(tv)) apply(tv)
+        }
+        walk(root)
     }
 
     /** Makes a view open the symbol menu on tap and on long-press. */

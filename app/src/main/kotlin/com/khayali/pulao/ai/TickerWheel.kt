@@ -33,7 +33,7 @@ class TickerWheel(
     touchX: Float, touchY: Float, private val onPick: (String) -> Unit, private val onClose: () -> Unit,
 ) : FrameLayout(ctx) {
 
-    private val radius = k.dpf(104)
+    private val radius = k.dpf(86)
     private var cx = touchX; private var cy = touchY
     private val white = 0xFFFFFFFF.toInt()
 
@@ -45,21 +45,21 @@ class TickerWheel(
             val r = width / 2f
             fill.shader = RadialGradient(r * 0.7f, r * 0.55f, r * 1.4f, intArrayOf(Pal.alpha(0xFF2A3647.toInt(), 0.92f), Pal.alpha(0xFF141C26.toInt(), 0.94f)), null, Shader.TileMode.CLAMP)
             c.drawCircle(r, r, r - k.dpf(1), fill); c.drawCircle(r, r, r - k.dpf(1), edge)
-            c.drawCircle(r, r, k.dpf(46), inner)
+            c.drawCircle(r, r, k.dpf(38), inner)
         }
     }
     private val centre = k.column().apply {
         gravity = Gravity.CENTER
         background = k.rounded(Pal.alpha(white, 0.08f), 999f, Pal.alpha(white, 0.22f))
-        addView(k.text(symbol, if (symbol.length > 8) 10.5f else 12f, Pal.alpha(white, 0.95f), 600).apply { gravity = Gravity.CENTER; maxLines = 1; letterSpacing = 0.02f })
+        addView(k.text(symbol, if (symbol.length > 8) 9.5f else 11f, Pal.alpha(white, 0.95f), 600).apply { gravity = Gravity.CENTER; maxLines = 1; letterSpacing = 0.02f })
         setOnClickListener { close() }
         contentDescription = "Close $symbol actions"
     }
     private val buttons = items.map { (icon, label, cmd) ->
         k.column().apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            addView(LineIcon(ctx, icon, k).apply { background = k.rounded(Pal.alpha(white, 0.05f), 999f, Pal.alpha(white, 0.16f)) }, k.lp(k.dp(44), k.dp(44)))
-            addView(k.text(label, 10f, Pal.alpha(white, 0.72f), 500).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(4), 0, 0); maxLines = 1; letterSpacing = 0.04f }, k.lp(k.dp(72), WRAP_CONTENT))
+            addView(LineIcon(ctx, icon, k).apply { background = k.rounded(Pal.alpha(white, 0.05f), 999f, Pal.alpha(white, 0.16f)) }, k.lp(k.dp(38), k.dp(38)))
+            addView(k.text(label, 9.5f, Pal.alpha(white, 0.7f), 500).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(3), 0, 0); maxLines = 1; letterSpacing = 0.04f }, k.lp(k.dp(64), WRAP_CONTENT))
             background = k.press(null, 14f)
             contentDescription = "$label for $symbol"
             setOnClickListener { performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); close { onPick(cmd) } }
@@ -69,23 +69,23 @@ class TickerWheel(
     init {
         setBackgroundColor(Pal.alpha(0xFF000000.toInt(), 0.38f))
         isClickable = true; setOnClickListener { close() }
-        val d = (radius * 2 + k.dpf(76)).toInt()
+        val d = (radius * 2 + k.dpf(66)).toInt()
         addView(disc, LayoutParams(d, d))
-        addView(centre, LayoutParams(k.dp(62), k.dp(62)))
-        buttons.forEach { addView(it, LayoutParams(k.dp(72), WRAP_CONTENT)) }
+        addView(centre, LayoutParams(k.dp(54), k.dp(54)))
+        buttons.forEach { addView(it, LayoutParams(k.dp(64), WRAP_CONTENT)) }
         alpha = 0f
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        val m = radius + k.dpf(42)
+        val m = radius + k.dpf(36)
         cx = cx.coerceIn(m, (width - m).coerceAtLeast(m)); cy = cy.coerceIn(m + k.dpf(16), (height - m).coerceAtLeast(m + k.dpf(16)))
         fun place(v: View, x: Float, y: Float) = v.layout((x - v.measuredWidth / 2f).toInt(), (y - v.measuredHeight / 2f).toInt(), (x + v.measuredWidth / 2f).toInt(), (y + v.measuredHeight / 2f).toInt())
         place(disc, cx, cy); place(centre, cx, cy)
         buttons.forEachIndexed { i, v ->
             val a = Math.toRadians(-90.0 + i * 360.0 / buttons.size)
             // the icon (not the label) sits on the ring
-            val x = cx + radius * cos(a).toFloat(); val y = cy + radius * sin(a).toFloat() + (v.measuredHeight / 2f - k.dpf(22))
+            val x = cx + radius * cos(a).toFloat(); val y = cy + radius * sin(a).toFloat() + (v.measuredHeight / 2f - k.dpf(19))
             place(v, x, y)
         }
     }
@@ -125,7 +125,7 @@ class TickerWheel(
         }
         private val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Pal.alpha(0xFFFFFFFF.toInt(), 0.9f); textAlign = Paint.Align.CENTER; typeface = Typeface.create("sans-serif-light", Typeface.NORMAL) }
         override fun onDraw(c: Canvas) {
-            val s = k.dpf(18); val ox = (width - s) / 2f; val oy = (height - s) / 2f
+            val s = k.dpf(16); val ox = (width - s) / 2f; val oy = (height - s) / 2f
             fun x(f: Float) = ox + f * s
             fun y(f: Float) = oy + f * s
             val path = Path()

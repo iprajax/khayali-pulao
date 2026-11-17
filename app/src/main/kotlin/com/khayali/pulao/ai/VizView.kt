@@ -35,7 +35,12 @@ class VizView(ctx: Context, type: String, data: Any, heightDp: Int) : WebView(ct
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? =
                 if (req.url.toString().startsWith("file:///android_asset/viz/")) null
                 else WebResourceResponse("text/plain", "utf-8", null)          // refuse everything else
-            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest) = true
+            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
+                // every navigation is refused; a tapped stock label in a chart asks for kp://ticker/SYMBOL — open its wheel
+                val u = req.url
+                if (u.scheme == "kp" && u.host == "ticker") u.lastPathSegment?.uppercase()?.takeIf { Tickers.isKnown(it) }?.let { sym -> view.post { Tickers.onTap?.invoke(sym) } }
+                return true
+            }
             override fun onPageFinished(view: WebView, url: String) { view.evaluateJavascript("render($spec)", null) }
         }
         loadUrl("file:///android_asset/viz/viz.html")

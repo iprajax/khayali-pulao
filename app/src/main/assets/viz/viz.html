@@ -22,6 +22,15 @@
 <div class="tip" id="tip"></div>
 <script src="d3.min.js"></script>
 <script>
+// A tap on a stock label in any chart opens that stock's wheel in the app (the app refuses the navigation and reads the symbol).
+document.addEventListener("click", function (e) {
+  var el = e.target; for (var i = 0; i < 3 && el; i++, el = el.parentNode) {
+    var t = (el.textContent || "").trim().replace(/^[★@]\s*/, "");
+    if (el.children && el.children.length > 2) break;
+    if (/^[A-Z][A-Z0-9&\-]{1,14}$/.test(t)) { location.href = "kp://ticker/" + encodeURIComponent(t); e.preventDefault(); return; }
+  }
+}, true);
+
 "use strict";
 // Everything here runs locally inside the app. No network: the WebView blocks all loads.
 const C = { text:"#fff", muted:"#9B9BAD", dim:"#6E7883", line:"#324050", blue:"#5282EB", green:"#67AD5B", red:"#CF5B52", saffron:"#FFB547", violet:"#8E7CF0", pink:"#FF6FA5" };

@@ -1673,6 +1673,7 @@ class ChatView(
             ResultCards.build(context, k, e.name, e.resultJson, ::openUrl)?.let { card ->
                 cards.removeAllViews()          // newest result replaces older ones in this turn
                 cards.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(10) })
+                Tickers.wire(card)              // every ticker in any card opens the wheel
             }
         }
 

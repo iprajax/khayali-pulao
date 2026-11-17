@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2
+
+- **Every ticker opens the wheel, in any reply** — calendar, IPOs, holdings, web results and every terminal card, plus stock labels inside charts. Cards are wired as they appear, so new cards get it automatically; a label must be a stock the phone knows, so headings never trigger it.
+- **A more compact wheel** — a smaller ring, tighter icons and labels, the same quiet style everywhere (the website replay matches).
+
 ## 0.9.1
 
 - **One-tap setup** — `/setup` (also the first starter in an empty chat, and ⋮ → Setup): pick the AI model, three years of market history, the knowledge bank, web lookups and Kite, then **Set up everything** starts it all at once. One life cycle — not started → running → needs you → done (or failed, with retry) — and each step's status is read from the real download states, so it picks up where it was after a restart.
