@@ -61,7 +61,10 @@ class AdvisorTest {
 
     @Test fun plainQuestionsRouteToTheAdvisorWithoutTheModelOrWeb() {
         val env = ChatFlow.Env(modelReady = false, kite = ChatFlow.Kite.OFF, webOn = false)
-        for ((q, id) in listOf("what should I do today?" to "brief", "what should I do today ?" to "brief", "  What  should I do today !" to "brief", "How can I make profit" to "brief", "hidden patterns" to "anomalies",
+        // broad questions become plans (see PlannerTest); short specific ones still run one command
+        for (q in listOf("what should I do today?", "what should I do today ?", "  What  should I do today !", "How can I make profit"))
+            assertTrue(q, ChatFlow.route(q, env) is ChatFlow.Action.Plan)
+        for ((q, id) in listOf("hidden patterns" to "anomalies",
                 "which strategy works?" to "strategies", "market regime" to "regime", "explain momentum strategy" to "learn", "download market data" to "data")) {
             assertEquals(q, ChatFlow.Action.Term(id, ChatFlow.route(q, env).let { (it as? ChatFlow.Action.Term)?.arg ?: "" }), ChatFlow.route(q, env))
         }

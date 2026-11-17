@@ -137,6 +137,7 @@ class ChatView(
         col.addView(buildInputBar(), k.lp(MATCH_PARENT))
         addView(col, LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
+        refreshTickers()
         restore()
         renderWebPill()
         scope.launch {
@@ -177,6 +178,7 @@ class ChatView(
 
     /** Called by the host when the screen comes back: a Kite login may have lapsed while away. */
     fun onResume() {
+        refreshTickers()
         kite.checkFresh()
         renderWebPill()
     }
@@ -389,6 +391,20 @@ class ChatView(
         }
         list.addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false; addView(pr) }, k.lp(WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
         list.addView(k.text(persona.tagline, 12f, Pal.DIM).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(6), 0, 0) }, k.lp(MATCH_PARENT))
+        // Task-driven starters: tap one and the chat plans and runs it
+        if (s == null) {
+            val tasks = k.column().apply { setPadding(0, k.dp(18), 0, 0) }
+            Asks.starters(kite.knownSymbols.map { it.uppercase() }, watch.symbols.map { it.uppercase() }, kite.connected).forEach { t ->
+                tasks.addView(k.row().apply {
+                    setPadding(k.dp(14), k.dp(11), k.dp(14), k.dp(11))
+                    background = k.press(null, 12f)
+                    addView(k.text(t.icon, 18f, Pal.TEXT), k.lp(k.dp(34)))
+                    addView(k.text(t.text, 14.5f, Pal.TEXT).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
+                    setOnClickListener { runAction(t.run) }
+                }, k.lp(MATCH_PARENT))
+            }
+            list.addView(tasks, k.lp(MATCH_PARENT))
+        }
         val mem = memoryStore.playbook.bullets.size
         list.addView(k.text("🔒 ${ModelSpec.DISPLAY_NAME} · runs on your phone" + (if (memoryStore.enabled && mem > 0) " · 🧠 $mem remembered" else "") + "\n${Persona.DISCLAIMER}", 11f, Pal.DIM).apply {
             gravity = Gravity.CENTER; setPadding(k.dp(8), k.dp(20), k.dp(8), 0); setLineSpacing(0f, 1.3f)
@@ -397,7 +413,7 @@ class ChatView(
             v.alpha = 0f; v.translationY = k.dpf(12)
             v.animate().alpha(1f).translationY(0f).setStartDelay(150L + n * 90L).setDuration(420).setInterpolator(DecelerateInterpolator(2f)).start()
         }
-        setPills(if (s == null) startersNow() else suggestions(s).map { (icon, label) -> "$icon  $label" })
+        setPills(if (s == null) emptyList() else suggestions(s).map { (icon, label) -> "$icon  $label" })
     }
 
     private fun choosePersona(p: Persona) {
@@ -593,7 +609,7 @@ class ChatView(
         pillRow.removeAllViews()
         pills.visibility = if (items.isEmpty()) GONE else VISIBLE
         items.forEachIndexed { i, s ->
-            val p = k.chip(s) { (onTap ?: { x -> submit(x.replace(Regex("^\\S+\\s{2}"), "")) })(s) }.apply {
+            val p = k.chip(Labels.of(s)) { (onTap ?: { x -> submit(x.replace(Regex("^\\S+\\s{2}"), "")) })(s) }.apply {
                 background = k.press(k.rounded(Pal.BG, 999f, Pal.LINE), 999f); setPadding(k.dp(14), k.dp(9), k.dp(14), k.dp(9))
                 alpha = 0f; translationX = k.dpf(24)
             }
@@ -613,13 +629,19 @@ class ChatView(
                 if (t.trim() == "/") showSuggestions(emptyList(), sections = Commands.sections()) else showSuggestions(Commands.rank(t))
             }
             Commands.isCommand(t) -> {
-                // after the command name: what it expects, and completions for the word being typed
+                // after the command name: ask for the next parameter, with choices to tap; run when the last one is picked
                 val name = t.trimStart().removePrefix("/").substringBefore(' ').lowercase()
                 val cmd = (Commands.ALL + Commands.TERMINAL).firstOrNull { it.name == name }
-                showSuggestions(emptyList(), cmd)
-                val symbols = (kiteHoldings().map { it.name } + watch.symbols + kite.knownSymbols).map { it.uppercase() }.distinct()
-                val hints = Commands.argHints(t, symbols)
-                setPills(hints, remember = false) { pick -> input.setText(Commands.completeArg(input.text.toString(), pick)); input.setSelection(input.text.length) }
+                val step = Params.step(t, tickerChoices())
+                showSuggestions(emptyList(), cmd, prompt = step?.takeIf { !it.complete }?.ask)
+                if (step == null || step.complete) { setPills(emptyList(), remember = false); return }
+                val options = (if (step.canRun) listOf(Params.RUN) else emptyList()) + step.choices
+                setPills(options, remember = false) { pick ->
+                    if (pick == Params.RUN) { val c = input.text.toString().trim(); input.setText(""); submit(c); return@setPills }
+                    val next = Params.pick(input.text.toString(), pick)
+                    if (Params.step(next, tickerChoices())?.complete == true) { input.setText(""); submit(next.trim()) }
+                    else { input.setText(next); input.setSelection(input.text.length) }
+                }
             }
             mention != null -> {
                 val syms = Commands.matching(mention, kite.knownSymbols)
@@ -640,7 +662,10 @@ class ChatView(
     }
 
 
-    private fun showSuggestions(cmds: List<Commands.Cmd>, usageOf: Commands.Cmd? = null, sections: List<Pair<String, List<Commands.Cmd>>> = emptyList()) {
+    /** Stocks to offer when a command asks for one: holdings first, then the watch list. */
+    private fun tickerChoices(): List<String> = (kiteHoldings().map { it.name } + watch.symbols + kite.knownSymbols).map { it.uppercase() }.distinct()
+
+    private fun showSuggestions(cmds: List<Commands.Cmd>, usageOf: Commands.Cmd? = null, sections: List<Pair<String, List<Commands.Cmd>>> = emptyList(), prompt: String? = null) {
         suggestBox.removeAllViews(); suggestScroll.removeAllViews()
         val card = k.column().apply { setPadding(0, k.dp(4), 0, k.dp(4)) }
         fun row(c: Commands.Cmd) = k.row().apply {
@@ -649,7 +674,9 @@ class ChatView(
             addView(k.text("/" + c.name, 14f, Pal.TEXT, 600).apply { typeface = android.graphics.Typeface.MONOSPACE }, k.lp(k.dp(132)))
             addView(k.text(c.help, 12.5f, Pal.MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
             setOnClickListener {
-                if (c.usage.contains(' ')) { input.setText("/${c.name} "); input.setSelection(input.text.length) } else submit("/${c.name}")
+                // nothing to fill in: run it now; otherwise fill the name and ask for each parameter in turn
+                if (Params.slots(c.name, tickerChoices()).isEmpty()) { input.setText(""); submit("/${c.name}") }
+                else { input.setText("/${c.name} "); input.setSelection(input.text.length) }
             }
         }
         for ((title, list) in sections) {
@@ -661,6 +688,7 @@ class ChatView(
                 setPadding(k.dp(14), k.dp(8), k.dp(14), k.dp(8))
                 addView(k.text(usageOf.usage, 13.5f, Pal.BLUE, 600).apply { typeface = android.graphics.Typeface.MONOSPACE })
                 addView(k.text(usageOf.help, 12f, Pal.MUTED).apply { setPadding(0, k.dp(2), 0, 0); maxLines = 2 })
+                if (!prompt.isNullOrBlank()) addView(k.text("Next: $prompt ↓", 13f, Pal.TEXT, 600).apply { setPadding(0, k.dp(6), 0, 0) })
             })
         }
         cmds.forEachIndexed { i, c ->
@@ -700,7 +728,6 @@ class ChatView(
     private fun preloadKite() {
         if (kite.connected && kiteRows.isEmpty()) scope.launch {
             rememberKite("holdings", kite.account("holdings"))
-            if (messageCount == 0 && stockProvider() == null && mm.isReady()) setPills(startersNow())   // refresh with live holdings
         }
     }
 
@@ -757,6 +784,7 @@ class ChatView(
             is ChatFlow.Action.Term -> { input.setText(""); runTerm(a.id, a.arg, text)
                 if (a.id == "data") { if (a.arg.trim().startsWith("knowledge", true)) watchKnowledge() else watchDownload() } }
             is ChatFlow.Action.NeedArtifact -> { input.setText(""); offerArtifact(a.artifact, a.pending) }
+            is ChatFlow.Action.Plan -> { input.setText(""); runPlan(a.plan, text) }
             ChatFlow.Action.ForgetAll -> {
                 input.setText("")
                 dialog().setTitle("Erase memory?").setMessage("Deletes everything the chat has remembered about you and the lessons it learned. This can't be undone.")
@@ -840,7 +868,7 @@ class ChatView(
         val message = ToolJson.error(json) ?: "That didn't work."
         val expired = json.contains("\"expired\":true")
         if (expired) pending = label
-        val fixes = ToolJson.actions(json).map { cmd -> cmd to { submit(cmd) } }
+        val fixes = ToolJson.actions(json).map { cmd -> Labels.of(cmd) to { submit(cmd) } }
         return Outcome("⚠️ $message", chips = when { expired -> listOf("Reconnect Kite" to { onKitePill(kite.state.value) }); fixes.isNotEmpty() -> fixes + ("Try again" to { submit(label) }); else -> listOf("Try again" to { submit(label) }) })
     }
 
@@ -1009,6 +1037,99 @@ class ChatView(
         }
     }
 
+    /** Symbols the tap targets recognise: market history, Kite holdings, the watch list. */
+    private fun refreshTickers() {
+        // the snapshot header is a few KB, so this is quick enough to run before the thread renders
+        Tickers.known = com.khayali.pulao.ai.data.MarketPack.get(context).symbols() + kite.knownSymbols.map { it.uppercase() } + watch.symbols.map { it.uppercase() }
+        Tickers.onTap = { sym -> symbolMenu(sym) }
+        Actions.onRun = { c -> runAction(c) }
+    }
+
+    /** A tapped action anywhere in the chat: a command, a fix, or a sentence to finish in the box. */
+    private fun runAction(c: String) {
+        when {
+            c == "Allow web access" -> { pending = lastQuestion; askWeb(null) }
+            c.endsWith("…") -> { input.setText(c.removeSuffix("…").trimEnd() + " "); input.setSelection(input.text.length); input.requestFocus() }
+            phase.busy -> android.widget.Toast.makeText(context, "One moment — finishing the current answer", android.widget.Toast.LENGTH_SHORT).show()
+            else -> submit(c)
+        }
+    }
+
+    /** Tap or long-press a ticker anywhere in the chat: what can be done with it. */
+    private fun symbolMenu(sym: String) {
+        val items = Tickers.menu(sym, prefs.webOn, "market" in readyArtifacts())
+        android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(sym)
+            .setItems(items.map { it.first }.toTypedArray()) { _, i ->
+                val c = items[i].second
+                if (c.startsWith("ask:")) { input.setText(c.removePrefix("ask:")); input.setSelection(input.text.length); input.requestFocus() }
+                else submit(c)
+            }.show()
+    }
+
+    /** Whether a plan step's need is met right now, or why not. */
+    private fun unmet(need: String?): Pair<String, () -> Unit>? = when (need) {
+        "kite" -> if (kite.connected) null else ("needs Kite connected (read-only)" to { onKitePill(kite.state.value) })
+        "web" -> if (prefs.webOn) null else ("needs web access" to { pending = lastQuestion; askWeb(null) })
+        "market" -> if ("market" in readyArtifacts()) null else ("needs market history" to { submit("/data 3y") })
+        "knowledge" -> if ("knowledge" in readyArtifacts()) null else ("needs the knowledge bank" to { submit("/data knowledge") })
+        else -> null
+    }
+
+    /**
+     * Runs a plan as one turn: a plan card whose steps tick off as they run, each step's own card as it lands,
+     * then a wrap-up of what it shows and what to do next. Steps that can't run say why and offer the fix.
+     */
+    private fun runPlan(plan: Planner.Plan, label: String) {
+        startThread(); setPills(emptyList()); addUser(label)
+        pillJobCancel()
+        dispatch(ChatFlow.Ev.StartApp)
+        val marks = plan.steps.map { k.text("○", 14f, Pal.DIM, 600) }
+        val card = k.card {
+            addView(k.text("PLAN", 10.5f, Pal.BLUE, 700).apply { letterSpacing = 0.08f })
+            addView(k.text(plan.goal, 15.5f, Pal.TEXT, 600).apply { setPadding(0, k.dp(2), 0, k.dp(8)) })
+            plan.steps.forEachIndexed { i, st ->
+                addView(k.row().apply {
+                    setPadding(0, k.dp(5), 0, k.dp(5))
+                    addView(marks[i], k.lp(k.dp(26)))
+                    addView(k.text("${i + 1}. ${st.title}", 13.5f, Pal.TEXT), k.lp(0, WRAP_CONTENT, 1f))
+                }, k.lp(MATCH_PARENT))
+            }
+        }
+        list.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); scrollToEnd()
+        fun mark(i: Int, s: String, c: Int) { marks[i].text = s; marks[i].setTextColor(c) }
+        turnJob = scope.launch {
+            val results = mutableListOf<String>(); val done = mutableListOf<Planner.Done>(); val ran = mutableSetOf<String>()
+            try {
+                for ((i, st) in plan.steps.withIndex()) {
+                    unmet(st.needs)?.let { (why, _) -> mark(i, "–", Pal.DIM); done += Planner.Done(st, null, null, why); continue }
+                    val cmd = Planner.resolve(st.command, results)
+                    if (cmd == null) { mark(i, "–", Pal.DIM); done += Planner.Done(st, null, null, "nothing to look up"); continue }
+                    mark(i, "◔", Pal.BLUE)
+                    val e = runForModel(cmd)
+                    if (e.ok) {
+                        mark(i, "✓", Pal.GREEN); results += e.resultJson; ran += cmd
+                        val bot = newBot(); bot.tool(e); bot.done(ToolJson.summary(e.resultJson).orEmpty(), null, null, question = cmd)
+                        remember(cmd, ToolJson.summary(e.resultJson).orEmpty(), e, seenByModel = false)
+                        done += Planner.Done(st, cmd, ToolJson.summary(e.resultJson).orEmpty(), null)
+                    } else {
+                        mark(i, "⚠", Pal.SAFFRON); done += Planner.Done(st, cmd, null, ToolJson.error(e.resultJson) ?: "didn't work")
+                    }
+                    scrollToEnd()
+                }
+                val next = Planner.next(results, ran)
+                // next steps and fixes are action links inside the wrap-up itself
+                val wrap = newBot(); wrap.done(Planner.wrapUp(plan, done, next), null, null, question = label)
+                remember(label, Planner.wrapUp(plan, done, next), null, seenByModel = false)
+                lastQuestion = label
+                finishTurn()
+                setPills(next); scrollToEnd()
+            } catch (c: CancellationException) {
+                withContext(NonCancellable) { finishTurn(ChatFlow.Ev.Stopped); setPills(lastPills, remember = false) }
+            }
+        }
+    }
+
     /** A terminal feature: fetch, build its card, show it. Same turn life cycle as every other app-only command. */
     private fun runTerm(id: String, arg: String, label: String) {
         val feature = com.khayali.pulao.ai.term.Terminal.find(id) ?: return showHelp()
@@ -1088,6 +1209,7 @@ class ChatView(
             is ChatFlow.Action.Term -> termOutcome(a.id, a.arg, cmd)
             is ChatFlow.Action.ConnectKite -> return fail(if (a.expired) "The user's Kite login has expired; ask them to tap Reconnect Kite." else "Kite is not connected; ask the user to tap Connect Kite.")
             is ChatFlow.Action.EnableWeb -> return fail("Web access is off; ask the user to turn it on with the Web pill.")
+            is ChatFlow.Action.Plan -> return fail("That's a broad question; run its parts as separate commands.")
             is ChatFlow.Action.NeedArtifact -> return fail("That needs the ${a.artifact} download, which isn't on the phone yet. Tell the user to type ${if (a.artifact == "market") "/data 3y" else "/screens"} to get it.")
             else -> return fail("$cmd is not a data command. Use one of the commands listed in the tool description.")
         }

@@ -105,9 +105,9 @@ object Commands {
     /** Shown when only "/" has been typed. */
     val FEATURED = listOf("report", "holdings", "calendar", "ipo", "chart", "heatmap", "flow", "sip", "help")
 
-    private val PERIODS = listOf("1w", "1m", "3m", "6m", "1y", "5y")
-    private val INDEX_ARGS = listOf("NIFTY BANK", "NIFTY IT", "NIFTY AUTO", "NIFTY PHARMA", "NIFTY FMCG", "NIFTY METAL", "NIFTY REALTY", "NIFTY ENERGY")
-    private val SYMBOL_COMMANDS = WatchStore.STOCK_COMMANDS + setOf("compare", "gmp", "insider", "scorecard")
+    internal val PERIODS = listOf("1w", "1m", "3m", "6m", "1y", "5y")
+    internal val INDEX_ARGS = listOf("NIFTY BANK", "NIFTY IT", "NIFTY AUTO", "NIFTY PHARMA", "NIFTY FMCG", "NIFTY METAL", "NIFTY REALTY", "NIFTY ENERGY")
+    internal val SYMBOL_COMMANDS = WatchStore.STOCK_COMMANDS + setOf("compare", "gmp", "insider", "scorecard")
 
     /**
      * Completions for the argument being typed after a command name: the user's own symbols for stock

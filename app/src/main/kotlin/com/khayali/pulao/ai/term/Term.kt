@@ -75,7 +75,8 @@ interface Feature {
 
 /** Builder for the one JSON shape every feature returns. Keep cards short: a headline, 1–3 charts, a few rows. */
 class Card(private val kicker: String, private val accent: String = "blue") {
-    data class Row(val title: String, val sub: String = "", val value: String = "", val tone: String = "")
+    /** [action]: a command the row runs when tapped (a value that is itself a command counts too). */
+    data class Row(val title: String, val sub: String = "", val value: String = "", val tone: String = "", val action: String = "")
 
     private var headline: String? = null
     private var sub: String? = null
@@ -92,7 +93,7 @@ class Card(private val kicker: String, private val accent: String = "blue") {
     /** Up to ~6 labelled figures in a grid. */
     fun stats(vararg items: Pair<String, String>) = apply { if (items.isNotEmpty()) blocks += mapOf("type" to "stats", "items" to items.map { mapOf("label" to it.first, "value" to it.second) }) }
     /** A short list (keep to ≤ 10 rows). Row.tone = "up" | "down" | "warn" | "" colours the value. */
-    fun rows(title: String?, rows: List<Row>) = apply { if (rows.isNotEmpty()) blocks += mapOf("type" to "rows", "title" to title, "rows" to rows.map { mapOf("title" to it.title, "sub" to it.sub, "value" to it.value, "tone" to it.tone) }) }
+    fun rows(title: String?, rows: List<Row>) = apply { if (rows.isNotEmpty()) blocks += mapOf("type" to "rows", "title" to title, "rows" to rows.map { mapOf("title" to it.title, "sub" to it.sub, "value" to it.value, "tone" to it.tone, "action" to it.action) }) }
     fun note(text: String) = apply { blocks += mapOf("type" to "note", "text" to text) }
 
     // ---- native blocks: drawn by the app itself (crisp text, colour-coded), not by a web chart ----

@@ -84,6 +84,9 @@ object Md {
     }
 
     /** Inline: **bold**, *italic*, `code`. Unfinished markers while streaming are hidden, not shown raw. */
+    /** [label](cmd:/command) — written by the planner and the model for next steps. */
+    val ACTION = Regex("""\[([^\]\n]{1,80})]\(cmd:([^)\n]{1,120})\)""")
+
     fun inline(src: String, accent: Int = Pal.TEXT): SpannableStringBuilder {
         val out = SpannableStringBuilder(); var i = 0
         while (i < src.length) {
@@ -93,6 +96,12 @@ object Md {
                     if (end > i) { val s = out.length; out.append(src, i + 2, end)
                         out.setSpan(StyleSpan(Typeface.BOLD), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                         out.setSpan(ForegroundColorSpan(accent), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); i = end + 2 } else i += 2
+                }
+                // action links: [label](cmd:/command) — a next step the user can tap
+                src[i] == '[' && ACTION.find(src, i)?.range?.first == i -> {
+                    val m = ACTION.find(src, i)!!; val s = out.length
+                    out.append("▸ ").append(m.groupValues[1])
+                    out.setSpan(Actions.span(m.groupValues[2].trim()), s, out.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); i = m.range.last + 1
                 }
                 // citation markers like [2] point at the numbered sources card
                 src[i] == '[' && Regex("""^\[\d{1,2}]""").containsMatchIn(src.substring(i, minOf(src.length, i + 4))) -> {
@@ -115,7 +124,7 @@ object Md {
                 else -> { out.append(src[i]); i++ }
             }
         }
-        return out
+        return Tickers.linkify(out) as SpannableStringBuilder
     }
 }
 
@@ -149,7 +158,12 @@ class MarkdownView(ctx: Context, private val k: Kit) : LinearLayout(ctx) {
     val plain: String get() = full
 
     private fun tv(s: CharSequence, size: Float = 15.5f, color: Int = Pal.TEXT, weight: Int = 400) =
-        k.text(s, size, color, weight).apply { setLineSpacing(0f, 1.38f); setTextIsSelectable(true) }
+        k.text(s, size, color, weight).apply {
+            setLineSpacing(0f, 1.38f)
+            // tickers are tap targets; text with them uses link handling, the rest stays selectable
+            if (s is Spanned && s.getSpans(0, s.length, android.text.style.ClickableSpan::class.java).isNotEmpty()) movementMethod = android.text.method.LinkMovementMethod.getInstance()
+            else setTextIsSelectable(true)
+        }
 
     private fun view(b: Md.Block): View = when (b) {
         is Md.Block.Para -> tv(Md.inline(b.text))

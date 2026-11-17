@@ -2,6 +2,14 @@
 
 ## 0.9.0 (unreleased)
 
+**A harness that plans, not just looks up**
+- Broad questions become a visible plan of 3-5 steps that run in order, each with its own card, ticking ✓ as they finish: your day ("what should I do today?"), one stock ("should I buy INFY?", "what's happening with ZEEL"), your portfolio, why the market moved, which strategy to follow, whether to apply for an IPO. Later steps use what earlier ones found — news on the stock the scan flagged, picks of the rule that tested best. A wrap-up says what it shows and what to do next; steps that need Kite, web or a download are skipped with the fix. Buy/sell questions carry a plain note that the app doesn't make calls.
+- Every suggested next step is tappable: commands mentioned in answers, notes and takeaways (`/screen momentum`, `/data 3y`), the brief's Next steps, strategy rows (open today's picks), the playbook list, and the wrap-up's action links. Gemma is asked to write its own suggestions the same way.
+- Tickers are tappable everywhere — movers, rows, bars, takeaways and answer text: trend & risk, chart, news, events, quote, a deep-dive plan, or ask about it.
+- Guided parameters: tap any command in the `/` list; if it needs nothing it runs, otherwise the chat asks for each parameter in turn (stock, period, amount, strategy…) with choices to tap, and runs when the last is picked. Optional parameters offer "Run now".
+- An empty chat opens with task-driven starters, personalised with your own stocks: plan my day, what's happening with your top holding, review my portfolio (or connect Kite), find a strategy, this week's events, quality companies with low debt.
+- Pills read as actions ("🩺 Check BLISSGVS's trend") and run the exact command.
+
 **Personal advisor on your own market data**
 - `/data` — models and data on this phone in one place, with a live progress card (bar, days done, time left, Stop) while it downloads, each with an explicit life cycle (not installed → downloading → verifying → building → ready → update available → updating; paused; failed). Download 1, 3 or 5 years of NSE daily history (about 25 MB a year), update, stop or delete.
 - The history comes straight from NSE's public archive (nsearchives.nseindia.com) to your phone, in both of NSE's file formats (the original one to 5 Jul 2024 and the newer UDiFF one since 8 Jul 2024). It is never redistributed: every user's phone fetches its own copy. Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes. ETFs and fund units are left out.

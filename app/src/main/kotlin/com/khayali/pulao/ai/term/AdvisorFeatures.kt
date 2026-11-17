@@ -70,7 +70,7 @@ object BriefFeature : Feature {
         card.section("What each strategy flags now")
         card.rows(null, tests.sortedByDescending { it.second.rate - it.second.benchRate }.map { (st, b) ->
             val fit = when { cautious && st.id == "lowvol" -> " · fits your low-risk note"; longHorizon && (st.id == "momentum" || st.id == "trend") -> " · long-horizon rule"; else -> "" }
-            Card.Row(st.name, "${Local.verdict(b)} · now: ${b.current.take(3).joinToString(", ")}$fit", Local.p(b.rate), N.tone(b.rate)) })
+            Card.Row(st.name, "${Local.verdict(b)} · now: ${b.current.take(3).joinToString(", ")}$fit", Local.p(b.rate), N.tone(b.rate), action = "/screen ${st.id}") })
         card.rows("Worth reviewing", review)
         // Next steps: concrete actions, most useful first, each tied to a number above and to one command
         val best0 = tests.maxByOrNull { it.second.rate - it.second.benchRate }
@@ -155,7 +155,7 @@ object StrategiesFeature : Feature {
             .viz("multiline", 220, mapOf("t" to b0.curve.map { it.first.toString() }, "base" to 100, "yLabel" to "Value of ₹100", "xLabel" to "Month",
                 "series" to (tests.mapIndexed { i, (st, b) -> mapOf("name" to st.name, "color" to listOf("blue", "green", "saffron", "violet", "pink", "teal", "red", "yellow")[i % 8], "v" to b.curve.map { it.second * 100 }) } +
                     listOf(mapOf("name" to "Market", "color" to "muted", "v" to b0.bench.map { it.second * 100 })))), "Value of ₹100 in each strategy, rebalanced monthly, vs the equal-weight market.")
-            .rows("Results · vs the market's ${Local.rate(b0.benchRate, b0)}", tests.sortedByDescending { it.second.rate }.map { (st, b) -> Card.Row(st.name, Local.verdict(b) + " · worst fall ${Local.p(b.maxDrawdown)}", Local.rate(b.rate, b), N.tone(b.rate)) })
+            .rows("Results · vs the market's ${Local.rate(b0.benchRate, b0)}", tests.sortedByDescending { it.second.rate }.map { (st, b) -> Card.Row(st.name, Local.verdict(b) + " · worst fall ${Local.p(b.maxDrawdown)}", Local.rate(b.rate, b), N.tone(b.rate), action = "/screen ${st.id}") })
         val skipped = Market.STRATEGIES.filter { st -> tests.none { it.first == st } }
         if (skipped.isNotEmpty()) c.rows("Need more history", skipped.map { Card.Row(it.name, "needs ${it.need} trading days of warm-up plus 3 months to test; you have ${p.days}", "/data 3y", "warn") })
         if (skipped.isNotEmpty()) c.pills("/data 3y")

@@ -198,6 +198,10 @@ It explains what the data and each rule show. It never says buy or sell and is n
 
 It ends with **Next steps** — concrete actions tied to its numbers (review a flagged holding, reduce concentration, see the best rule's picks, find out why a stock moved). While you type, the chat suggests the next useful question.
 
+### 🗺 Plans, not one lookup
+
+Ask a broad question and the chat makes a plan and works through it: **"What should I do today?"** runs the brief, then the news behind the most unusual stock it found, then this week's calendar, then today's picks of the strategy that tested best — each step's card in turn, ticking off as it goes — and ends with what it all shows and what to do next. The same for one stock ("should I buy INFY?"), your portfolio, why the market moved, which strategy to follow, or an IPO. Every suggested next step, every command mentioned in an answer and every ticker is tappable (tickers open a menu: trend, chart, news, events, quote, deep dive). Commands that need parameters ask for them one at a time with choices to tap.
+
 ### 📦 Light app, everything on demand
 
 The app ships small. The AI model, market history and the strategy knowledge bank are downloaded only when you ask, straight to the phone, each checked before use, and managed in one place: **⋮ → Models & data** (status, size, live progress, which commands need each one, download / update / delete). Commands declare what they need: ask for `/brief` without market history and the chat says what's needed, downloads it with a live progress card, then runs what you asked.

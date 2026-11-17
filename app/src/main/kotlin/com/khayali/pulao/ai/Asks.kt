@@ -32,6 +32,24 @@ object Asks {
         Ask("Download market history", "/data 3y", null, "download data history market nse setup"),
     )
 
+    /** A task for the empty chat: what it does, in words, and what tapping it runs (a plan, a command or a fix). */
+    data class Starter(val icon: String, val text: String, val run: String)
+
+    /** Task-driven starters for an empty chat, personalised with the user's own stocks when known. */
+    fun starters(holdings: List<String>, watched: List<String>, kite: Boolean): List<Starter> {
+        val focus = (holdings + watched).firstOrNull()
+        return listOf(
+            Starter("🧭", "Plan my day — what should I do today?", "what should I do today?"),
+            focus?.let { Starter("📰", "What's happening with $it — trend, news and results", "what's happening with $it") }
+                ?: Starter("📰", "Why is the market moving today?", "why is the market moving today"),
+            if (kite) Starter("💼", "Review my portfolio — trend, concentration, risk", "review my portfolio")
+            else Starter("🔌", "Connect Kite to review your own portfolio (read-only)", "Connect Kite"),
+            Starter("🎯", "Find a strategy that's working right now", "which strategy should I follow?"),
+            Starter("📅", "What's coming up this week — results, dividends, IPOs", "/calendar"),
+            Starter("🔎", "Find quality companies with low debt", "/screens quality low debt"),
+        )
+    }
+
     private fun words(s: String) = Regex("""[a-z0-9&]+""").findAll(s.lowercase()).map { it.value }.toList()
 
     fun suggest(typed: String, ready: Set<String>, k: Int = 4): List<Ask> {

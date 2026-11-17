@@ -293,7 +293,8 @@ class ChatSession(
                     "'heatmap NIFTY BANK', 'flow INFY', 'report', 'sip 10000 12% 15y'. " +
                     "For 'what should I do', 'how can I make profit' or a plan for today, run 'brief' (market regime, the week, hidden patterns, the user's holdings, " +
                     "what each strategy flags); for strategies use 'strategies', 'screen <id>', 'learn <topic>'; for one stock's trend use 'health SYMBOL'. " +
-                    "These run on the user's own market data on the phone. Explain what the data shows and what to review — never tell the user to buy or sell.")
+                    "These run on the user's own market data on the phone. Explain what the data shows and what to review — never tell the user to buy or sell. " +
+                    "End with 1-3 next steps written as tappable links, e.g. [Check INFY's trend](cmd:/health INFY) or [See today's picks](cmd:/screen sharpe).")
                 add("parameters", JsonParser.parseString("""{"type":"object","properties":{"command":{"type":"string","description":"The command without the slash, with its arguments"}},"required":["command"]}"""))
             }.toString()
             override fun execute(paramsJsonString: String): String {

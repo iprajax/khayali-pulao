@@ -77,6 +77,8 @@ object ChatFlow {
         /** Rebuild the model's context from a short summary of the thread. */
         data object Compact : Action()
         data class Term(val id: String, val arg: String) : Action()
+        /** A broad question: run a workflow of steps, then wrap up. */
+        data class Plan(val plan: Planner.Plan, val question: String) : Action()
         /** The command needs an artifact that isn't on the phone yet; offer it, then re-run [pending]. */
         data class NeedArtifact(val artifact: String, val pending: String) : Action()
         data class Model(val prompt: String) : Action()
@@ -96,6 +98,12 @@ object ChatFlow {
         if (text.isEmpty()) return Action.Ignore
         if (text.startsWith("Connect Kite") || text.startsWith("Reconnect Kite")) return Action.ConnectKite(null, env.kite == Kite.EXPIRED)
         if (!Commands.isCommand(text)) {
+            // A broad question becomes a plan of several steps. If its first step needs a download, offer that first.
+            Planner.plan(text)?.let { p ->
+                val first = p.steps.first().needs
+                if (first in setOf("market", "knowledge") && env.ready != null && first !in env.ready) return Action.NeedArtifact(first!!, text)
+                return Action.Plan(p, text)
+            }
             // A short plain request that means one command runs it exactly as if it had been typed.
             Intents.match(text)?.let { cmd -> route(cmd, env).let { if (it !is Action.Unknown && it !is Action.Help || cmd == "/help") return it } }
             // A short question that plainly means one terminal feature runs it directly: exact, instant, no model needed.

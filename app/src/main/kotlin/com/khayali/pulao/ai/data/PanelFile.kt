@@ -34,6 +34,15 @@ object PanelFile {
         tmp.renameTo(file)
     }
 
+    /** Just the symbols, read from the header — cheap enough for the main thread. */
+    fun symbols(file: File): Set<String> = runCatching {
+        DataInputStream(file.inputStream().buffered(1 shl 14)).use { i ->
+            if (i.readInt() != MAGIC) return emptySet()
+            val n = i.readInt(); val m = i.readInt(); i.skipBytes(n * 8)
+            buildSet { repeat(m) { add(i.readUTF()) } }
+        }
+    }.getOrDefault(emptySet())
+
     fun read(file: File): Panel? = runCatching {
         DataInputStream(file.inputStream().buffered(1 shl 16)).use { i ->
             if (i.readInt() != MAGIC) return null

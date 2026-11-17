@@ -90,6 +90,9 @@ class MarketPack private constructor(private val ctx: Context) {
 
     private val snapshot get() = java.io.File(ctx.filesDir, "market_panel.bin")
 
+    /** Liquid stock symbols in the user's history (empty until the snapshot exists). */
+    fun symbols(): Set<String> = cached?.second?.symbols?.toSet() ?: PanelFile.symbols(snapshot)
+
     /**
      * Up to five years of trading days (every analysis uses the latest day, so one panel serves all), from memory,
      * else from the snapshot file if it matches the database, else rebuilt from the database and saved.

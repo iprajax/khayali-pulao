@@ -118,6 +118,7 @@ object NativeBlocks {
             val mine = r.get("mine")?.asBoolean == true
             addView(k.row().apply {
                 setPadding(0, k.dp(8), 0, k.dp(8))
+                if (Tickers.isSymbol(r.s("symbol"))) { Tickers.attach(this, r.s("symbol")); background = k.press(null, 6f) }
                 addView(k.column().apply {
                     // NSE symbols are up to ~12 characters: give them room and shrink long ones rather than cut them
                     val sym = (if (mine) "★ " else "") + r.s("symbol")
@@ -141,6 +142,7 @@ object NativeBlocks {
             val v = r.dn("value") ?: 0.0
             addView(k.row().apply {
                 setPadding(0, k.dp(4), 0, k.dp(4))
+                if (!r.s("label").contains(' ') && Tickers.isSymbol(r.s("label"))) { Tickers.attach(this, r.s("label")); background = k.press(null, 6f) }
                 addView(k.column().apply {
                     addView(k.text(r.s("label"), 12.5f, Pal.TEXT, 500).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END })
                     if (r.s("sub").isNotBlank()) addView(k.text(r.s("sub"), 10.5f, Pal.DIM).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END })
