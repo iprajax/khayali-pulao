@@ -42,6 +42,7 @@ class AdvisorTest {
         assertTrue("not advice", text.contains("not a recommendation"))
         assertTrue("profile used", text.contains("long-horizon rule"))
         assertTrue("short history warned", text.contains("too short to judge"))
+        assertTrue("sectors need their data", !text.contains("Sectors this week"))
         assertTrue("next steps", text.contains("Next steps") && text.contains("/health FADER") && text.contains("/stress"))
         assertTrue("pills lead with actions", TermTesting.card(j).getAsJsonArray("pills").first().asString.startsWith("/health"))
     }

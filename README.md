@@ -35,7 +35,7 @@
   </tr>
   <tr>
     <td align="center"><sub>Plans your day</sub></td><td align="center"><sub>Next steps you can tap</sub></td>
-    <td align="center"><sub>Every stock is a menu</sub></td><td align="center"><sub>Explains itself</sub></td>
+    <td align="center"><sub>Every stock is a wheel</sub></td><td align="center"><sub>Explains itself</sub></td>
   </tr>
 </table>
 <p align="center"><sub>Rendered from the website's replay of the chat — fictional stocks and data.</sub></p>
@@ -87,9 +87,18 @@ Ask **"What should I do today?"** and it becomes a plan: the market's trend and 
 | `/health INFY` | One stock's (or your holdings') trend and risk |
 | `/learn` | The playbook: 25 strategies — 14 that run on your data, 11 fundamental families with the thresholds most used across 500 public stock screens |
 | `/screens quality low debt` | Search those 500 community screens by idea (a 289 KB knowledge bank with EmbeddingGemma 2 vectors) |
+| `/sectorboard 1w` | All 18 NSE sector indices: 1D to 5Y returns, CAGR and P/E, sorted by any period or date range — tap one to open it |
+| `/sector bank 1m` | One sector: every period and CAGR, valuation, a year against the Nifty 50, and its gainers and losers |
+
+Sector levels are NSE's **official index closes** (from NSE's daily index file) and members come from **NSE Indices'** published lists — both fetched by your phone with the market history.
+
+### ⚡ Set up in one tap
+Type `/setup` (or tap the first starter): pick the AI model, three years of market history, the knowledge bank, web lookups and Kite, then **Set up everything** — downloads run in parallel with live status, web switches on, and Kite waits for your login on Zerodha's page. The status survives restarts.
+
+<p align="center"><img src="docs/screens/chat-setup.png" width="220" alt="One-tap setup with live status"></p>
 
 ### 👆 Everything is tappable
-Every suggested next step, every command mentioned in an answer and every **ticker** — tap a stock for its trend and risk, chart, news, results and dividends, quote, or a deep-dive plan. Tap a command and it **asks for each parameter** with choices to pick. An empty chat opens with task starters built around your own stocks.
+Every suggested next step, every command mentioned in an answer and every **ticker** — tap or long-press a stock and its actions fan out on a **wheel** around your finger: trend and risk, chart, news, results and dividends, quote, a deep-dive plan, or ask about it. Tap a command and it **asks for each parameter** with choices to pick. An empty chat opens with task starters built around your own stocks.
 
 ### 🔍 Every answer explains itself
 Under each reply, **How this was made**: why you're seeing it (you typed it, a plan step, a tapped suggestion, or the AI's choice), which data made it and how fresh it is, the exact method and parameters, its limits, the timing — and a privacy line saying what, if anything, left the phone.
@@ -239,9 +248,9 @@ Move %, vs FD (savings, FD, PPF, gold, Nifty, inflation), in hand after LTCG/STC
 ## Install
 
 1. Download the APK from [Releases](https://github.com/iprajax/khayali-pulao/releases) and install it.
-2. Open Khayali Pulao and tap **Ask**. Download the on-device AI once (2.6 GB, best on Wi-Fi) — commands work even before it arrives.
-3. Type `/data 3y` for three years of NSE history, then ask **"What should I do today?"**
-4. Optional: **Connect Kite** (read-only) for your portfolio, switch **Web** on for news and the calendar, and turn on the Kite bubble in Accessibility for the daydream sheet.
+2. Open Khayali Pulao, tap **Ask**, then **⚡ Set up everything** (or type `/setup`): the AI model (2.6 GB, on Wi-Fi), three years of NSE history and the knowledge bank download at once; tick Web and Kite if you want them. Commands work even before the AI arrives.
+3. Ask **"What should I do today?"**
+4. Optional: turn on the Kite bubble in Accessibility for the daydream sheet.
 
 ## How it works
 

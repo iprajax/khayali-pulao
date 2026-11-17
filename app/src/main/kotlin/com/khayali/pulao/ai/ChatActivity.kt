@@ -58,14 +58,15 @@ class ChatActivity : Activity() {
     private fun menu() {
         val mm = ModelManager.get(this)
         val memory = MemoryStore.get(this)
-        val items = arrayOf("New chat", "Commands & @mentions", "Memory (${memory.playbook.bullets.size} notes)", "Models & data", "Delete model (free ${DownloadText.bytes(ModelSpec.SIZE_BYTES)})")
+        val items = arrayOf("New chat", "Commands & @mentions", "Memory (${memory.playbook.bullets.size} notes)", "Setup", "Models & data", "Delete model (free ${DownloadText.bytes(ModelSpec.SIZE_BYTES)})")
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setItems(items) { _, i ->
             when (i) {
                 0 -> chat.newChat()
                 1 -> chat.showHelp()
                 2 -> startActivity(Intent(this, MemoryActivity::class.java))
-                3 -> startActivity(Intent(this, ArtifactsActivity::class.java))
-                4 -> AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                3 -> chat.showSetup()
+                4 -> startActivity(Intent(this, ArtifactsActivity::class.java))
+                5 -> AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
                     .setMessage("Delete the on-device model? You can download it again later.")
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton("Delete") { _, _ -> mm.delete() }.show()

@@ -38,6 +38,8 @@ interface Fetch {
     suspend fun spark(symbols: List<String>, range: String = "1d", interval: String = "5m"): Map<String, Spark> = emptyMap()
     /** The user's own downloaded market history (last [days] trading days), or null if it isn't installed. Local — no network. */
     suspend fun market(days: Int = 300): com.khayali.pulao.ai.data.Panel? = null
+    /** Official NSE sector index history, valuations and members, from the phone's own store (null if not downloaded). */
+    suspend fun sectors(): com.khayali.pulao.ai.data.MarketPack.SectorBook? = null
     /** The community-screens knowledge bank shipped with the app (null where assets aren't available). */
     val knowledge: com.khayali.pulao.ai.term.Knowledge? get() = null
     /** Models and data kept on the phone (null in tests without it). */

@@ -44,6 +44,7 @@ object Planner {
             Step("See which sectors led and lagged", "/sectormovers", "web"),
             Step("Check foreign and domestic fund flows", "/fiidii", "web"),
             Step("Search the news for the reason", "/web why is the Indian stock market moving today", "web"),
+            Step("Compare every sector", "/sectorboard", "market"),
             Step("Spot unusual stocks", "/anomalies", "market")))
         if (STRATEGY.matches(t)) return Plan("Finding a strategy that works now", listOf(
             Step("Backtest every strategy on your data", "/strategies", "market"),
@@ -157,7 +158,15 @@ object Labels {
             "web" -> "🌐 Search: ${arg.take(28)}"
             "ipo" -> "🆕 Open IPOs"
             "gmp" -> "📈 $arg grey-market premium"
-            else -> cmd
+            "setup" -> "⚡ Set up everything"
+            "sector" -> "🏷 ${arg.ifBlank { "Sector" }}${if (arg.isBlank()) "" else ""} sector".replace(Regex("""\s+(1d|1w|1m|3m|6m|ytd|1y|3y|5y) sector$"""), " sector · $1")
+            "sectorboard" -> "🧭 All sectors${if (arg.isBlank()) "" else " · $arg"}"
+            else -> {
+                // any other terminal command: its own short name, plus the stock or option it was given
+                val f = com.khayali.pulao.ai.term.Terminal.find(name) ?: return cmd
+                val short = f.help.substringBefore(':').substringBefore(" — ").substringBefore(" (").trim().let { if (it.length > 30) it.take(28).substringBeforeLast(' ') + "…" else it }
+                if (arg.isBlank()) short else "$short · $arg"
+            }
         }
     }
 }

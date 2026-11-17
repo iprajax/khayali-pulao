@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1
+
+- **One-tap setup** — `/setup` (also the first starter in an empty chat, and ⋮ → Setup): pick the AI model, three years of market history, the knowledge bank, web lookups and Kite, then **Set up everything** starts it all at once. One life cycle — not started → running → needs you → done (or failed, with retry) — and each step's status is read from the real download states, so it picks up where it was after a restart.
+- **Every ticker is a wheel** — tap or long-press any stock and its actions open on a ring around your finger: Trend, Chart, News, Events, Quote, Deep dive, Ask. Quiet by design: the chat blurs behind a frosted disc, thin line icons, a glass centre, a calm fade and a light haptic tick.
+- **Sector analysis from official NSE indices** — `/sectorboard [1d|1w|1m|3m|6m|ytd|1y|3y|5y|date range]`: all 18 NSE sector indices with 1D to 5Y returns, CAGR and P/E, sorted by the period you pick; tap a sector for `/sector NAME [period]`: every period and CAGR, P/E · P/B · dividend yield, a year against the Nifty 50, its members' breadth, gainers and losers (each ticker tappable). Index closes come from NSE's daily index file and members from NSE Indices' published lists, fetched by the phone with the market history (index history is backfilled once for days already downloaded). The brief now shows the week's leading and lagging sectors, and "why did the market move" plans compare every sector.
+- Pills for every command read in plain words (e.g. "Bulk and block deals · GROWW").
+
 ## 0.9.0
 
 **Private by design, and it shows its working**

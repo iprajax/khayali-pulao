@@ -76,6 +76,8 @@ object ChatFlow {
         data object ForgetAll : Action()
         /** Rebuild the model's context from a short summary of the thread. */
         data object Compact : Action()
+        /** The one-tap setup agent. */
+        data object Setup : Action()
         data class Term(val id: String, val arg: String) : Action()
         /** A broad question: run a workflow of steps, then wrap up. */
         data class Plan(val plan: Planner.Plan, val question: String) : Action()
@@ -97,6 +99,7 @@ object ChatFlow {
         val text = raw.trim()
         if (text.isEmpty()) return Action.Ignore
         if (text.startsWith("Connect Kite") || text.startsWith("Reconnect Kite")) return Action.ConnectKite(null, env.kite == Kite.EXPIRED)
+        if (Regex("""(?i)^(/setup|set ?up( everything| the app)?|get started|onboard(ing)?)\s*[.!?]*$""").matches(text)) return Action.Setup
         if (!Commands.isCommand(text)) {
             // A broad question becomes a plan of several steps. If its first step needs a download, offer that first.
             Planner.plan(text)?.let { p ->

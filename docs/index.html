@@ -240,7 +240,7 @@
     table.netmap th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; padding: 10px 14px; background: rgba(31,41,55,.7); }
     table.netmap td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
     table.netmap td.never { color: #a7d79e; font-weight: 600; background: rgba(103,173,91,.07); vertical-align: middle; }
-    .show { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 8px 0 26px; }
+    .show { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 8px 0 26px; }
     .show figure { margin: 0; } .show img { width: 100%; border-radius: 18px; border: 1px solid var(--line); box-shadow: 0 16px 40px rgba(0,0,0,.35); display: block; }
     .show figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.5; } .show figcaption b { color: var(--text); }
     @media (max-width: 860px) { .priv { grid-template-columns: 1fr; } .show { grid-template-columns: repeat(2, 1fr); } }
@@ -336,6 +336,25 @@
       opacity: 0; pointer-events: none; transition: left .5s cubic-bezier(.3,.7,.2,1), top .5s cubic-bezier(.3,.7,.2,1), opacity .25s, transform .15s; z-index: 5; }
     .cd-finger.on { opacity: 1; } .cd-finger.press { transform: scale(.75); background: rgba(255,255,255,.6); }
     .cd-pressed { background: rgba(82,130,235,.25) !important; border-radius: 10px; }
+    .cd-srow { display: grid; grid-template-columns: 20px 24px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 6px 0; border-top: 1px solid rgba(50,64,80,.6); font-size: 12px; }
+    .cd-srow b { display: block; font-size: 12.5px; font-weight: 600; } .cd-srow em { display: block; font-style: normal; color: var(--muted); font-size: 10.5px; }
+    .cd-sbar { display: none; height: 3px; background: var(--line); border-radius: 2px; margin-top: 4px; overflow: hidden; } .cd-sbar u { display: block; height: 100%; width: 0; background: var(--blue); transition: width .2s; }
+    .cd-sst { font-size: 11px; font-weight: 700; color: var(--dim); } .cd-sst.blue { color: #8fb0f7; } .cd-chk { color: var(--blue); }
+    .cd-wheel { position: absolute; inset: 0; background: rgba(0,0,0,.38); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 4; }
+    .cd-wheel.on { opacity: 1; }
+    .cd-disc { position: absolute; width: 244px; height: 244px; margin: -122px 0 0 -122px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 28%, rgba(42,54,71,.92), rgba(20,28,38,.94) 70%); border: .75px solid rgba(255,255,255,.16);
+      box-shadow: inset 0 0 0 76px transparent, 0 30px 70px rgba(0,0,0,.45); }
+    .cd-disc::after { content: ""; position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 50%; border: .75px solid rgba(255,255,255,.07); }
+    .cd-wheel.on .cd-disc { animation: cddisc .26s cubic-bezier(.2,.8,.2,1) both; } @keyframes cddisc { from { transform: scale(.92); opacity: 0; } }
+    .cd-hub { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: rgba(255,255,255,.08); border: .75px solid rgba(255,255,255,.22);
+      display: grid; place-items: center; font-weight: 600; font-size: 11px; letter-spacing: .02em; color: rgba(255,255,255,.95); }
+    .cd-wheel.on .cd-hub { animation: cdhub .24s .04s cubic-bezier(.2,.8,.2,1) both; } @keyframes cdhub { from { transform: scale(.85); opacity: 0; } }
+    .cd-spoke { position: absolute; width: 66px; margin: -21px 0 0 -33px; text-align: center; font-size: 9px; font-weight: 500; letter-spacing: .04em; color: rgba(255,255,255,.72); }
+    .cd-spoke b { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 auto 3px; border-radius: 50%; background: rgba(255,255,255,.05); border: .75px solid rgba(255,255,255,.16); }
+    .cd-spoke svg { width: 17px; height: 17px; fill: none; stroke: rgba(255,255,255,.9); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .cd-wheel.on .cd-spoke { animation: cdspoke .26s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes cdspoke { from { transform: translate(var(--dx), var(--dy)) scale(.85); opacity: 0; } }
     .cd-foot { font-size: 11px; color: var(--dim); padding: 0 4px; } .cd-foot u { text-decoration: none; color: #8fb0f7; }
     .cd-how { border-color: rgba(82,130,235,.5); } .cd-why { padding: 6px 0; border-top: 1px solid rgba(50,64,80,.6); font-size: 12px; } .cd-why b { display: block; font-size: 9.5px; letter-spacing: .06em; color: var(--muted); }
     @media (max-width: 860px) {
@@ -400,6 +419,7 @@
           <div class="cd-pills"></div>
           <div class="cd-input"><span class="cd-typed"></span><span class="cd-caret"></span><span class="cd-ph">Ask Khayali Pulao</span><span class="cd-send">↑</span></div>
           <div class="cd-sheet"></div>
+          <div class="cd-wheel"></div>
           <div class="cd-finger" aria-hidden="true"></div>
         </div>
         <p class="note">Live replay of the app's chat · fictional data · <button id="cd-toggle" class="linkbtn" type="button">Pause</button></p>
@@ -446,12 +466,14 @@
       <p class="sub">Every answer is built on the phone, from your own data. It shows what the data and each rule say, suggests what to look at next — and never tells you to buy or sell.</p>
       <div class="show">
         <figure><img src="screens/chat-plan.png" alt="A plan for the day running step by step" loading="lazy"><figcaption><b>Plans your day.</b> “What should I do today?” becomes a plan: the market's trend and hidden patterns, the news behind the most unusual stock, the week ahead, and today's picks of the strategy that tested best.</figcaption></figure>
+        <figure><img src="screens/chat-setup.png" alt="One-tap setup with live status" loading="lazy"><figcaption><b>Sets itself up in one tap.</b> Pick what you want — AI, your own market data, the knowledge bank, web, Kite — and it all starts at once, with live status that survives restarts.</figcaption></figure>
         <figure><img src="screens/chat-next-steps.png" alt="Next steps you can tap" loading="lazy"><figcaption><b>Ends with what to do next.</b> Every suggestion — in the wrap-up, a card's rows or the AI's text — is one tap away.</figcaption></figure>
-        <figure><img src="screens/chat-ticker-menu.png" alt="A ticker's menu" loading="lazy"><figcaption><b>Every stock is a menu.</b> Tap any ticker for its trend and risk, chart, news, results and dividends, quote or a deep-dive plan.</figcaption></figure>
+        <figure><img src="screens/chat-ticker-menu.png" alt="A ticker's circular menu" loading="lazy"><figcaption><b>Every stock is a wheel.</b> Tap any ticker and its actions fan out around your finger: trend and risk, chart, news, results, quote, a deep-dive plan.</figcaption></figure>
         <figure><img src="screens/chat-how-made.png" alt="How this was made" loading="lazy"><figcaption><b>Explains itself.</b> Every reply says why you're seeing it, which data and method made it, how fresh it is — and that nothing left the phone.</figcaption></figure>
       </div>
       <div class="grid">
         <div class="card spot"><h3>📊 Tests strategies on real history</h3><p>14 rules — momentum, 52-week high, low volatility, trend, breakout on volume, steady compounders, RSI pullback… — backtested on up to 5 years of your NSE data from one start date.</p></div>
+        <div class="card spot"><h3>🏷 Every sector, officially</h3><p>All 18 NSE sector indices with 1D to 5Y returns, CAGR and P/E, for any date range — from NSE's own index closes. Tap a sector for its gainers and losers.</p></div>
         <div class="card spot"><h3>📘 Teaches 25 strategies</h3><p><code>/learn</code> explains each: the idea, why it has worked, when it fails. Eleven fundamental families carry the thresholds most used across 500 public stock screens.</p></div>
         <div class="card spot"><h3>💼 Your portfolio, read-only</h3><p>Connect Kite (optional) and it reviews each holding's trend, concentration and risk — plus what-ifs, FD comparison and money in hand after tax.</p></div>
         <div class="card spot"><h3>📟 81 commands, asked for you</h3><p>A full market terminal in the chat. Tap a command and it asks for each parameter with choices; ask in plain words and the right one runs.</p></div>
@@ -600,9 +622,9 @@
       <h2>Install</h2>
       <ol class="steps">
         <li>Download the APK from <a href="https://github.com/iprajax/khayali-pulao/releases">Releases</a> and install it.</li>
-        <li>Open Khayali Pulao and tap <b>Ask</b>. Download the on-device AI once (2.6 GB, best on Wi-Fi) — commands work even before it arrives.</li>
-        <li>Type <code>/data 3y</code> for three years of NSE history (about 75 MB, straight from NSE's archive), then ask <b>“What should I do today?”</b></li>
-        <li>Optional: <b>Connect Kite</b> (read-only) for your portfolio, switch <b>Web</b> on for news and the calendar, and turn on the Kite bubble in Accessibility for the daydream sheet.</li>
+        <li>Open Khayali Pulao, tap <b>Ask</b>, then <b>⚡ Set up everything</b> (or type <code>/setup</code>): the AI model (2.6 GB, on Wi-Fi), three years of NSE history and the knowledge bank download at once; tick Web and Kite if you want them.</li>
+        <li>Ask <b>“What should I do today?”</b></li>
+        <li>Optional: turn on the Kite bubble in Accessibility for the daydream sheet.</li>
       </ol>
       <p class="sub" style="margin:0">Everything is optional and can be undone in <b>⋮ → Models &amp; data</b>. Building from source: <code>./gradlew assembleDebug</code></p>
     </section>

@@ -6,6 +6,7 @@ object Commands {
     data class Cmd(val name: String, val usage: String, val help: String, val kiteSection: String? = null)
 
     val ALL = listOf(
+        Cmd("setup", "/setup", "Set up everything in one tap: AI model, market history, knowledge bank, web, Kite"),
         Cmd("holdings", "/holdings", "Your Kite holdings with P&L", "holdings"),
         Cmd("pnl", "/pnl", "Portfolio P&L at a glance", "holdings"),
         Cmd("positions", "/positions", "Open positions today", "positions"),

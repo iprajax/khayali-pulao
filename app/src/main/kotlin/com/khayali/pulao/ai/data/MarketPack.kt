@@ -40,6 +40,8 @@ class MarketPack private constructor(private val ctx: Context) {
 
     val installed get() = store.lastDay() != null
     val busy get() = job?.isActive == true
+    /** True when the next install would fetch index history or member lists (counted as work, not as new trading days). */
+    val sectorsStale get() = store.daysWithoutIndices().isNotEmpty() || System.currentTimeMillis() - prefs.getLong("members_at", 0) > 30L * 86_400_000
 
     /** Rebuilds the analysis snapshot from the database (the monthly refresh of the stock universe). */
     fun rebuild() { cached = null; snapshot.delete(); warm() }
@@ -83,9 +85,12 @@ class MarketPack private constructor(private val ctx: Context) {
         if (job?.isActive == true) return -1
         val start = store.firstDay()?.takeIf { it <= latest().minusYears(tier.years) } ?: latest().minusYears(tier.years)
         val days = todo(start)
-        if (days.isEmpty()) { refresh(); return 0 }
+        // index history for days already stored (sector analysis), and member lists once a month
+        val backfill = store.daysWithoutIndices()
+        val membersDue = System.currentTimeMillis() - prefs.getLong("members_at", 0) > 30L * 86_400_000
+        if (days.isEmpty() && backfill.isEmpty() && !membersDue) { refresh(); return 0 }
         // extending or updating existing data keeps it usable while new days arrive; a first install downloads
-        _state.value = if (store.lastDay() != null) Artifacts.State.Updating(0, days.size) else Artifacts.State.Downloading(0, days.size.toLong())
+        _state.value = if (store.lastDay() != null) Artifacts.State.Updating(0, days.size + backfill.size) else Artifacts.State.Downloading(0, days.size.toLong())
         job = scope.launch {
             try {
                 var done = 0
@@ -97,6 +102,20 @@ class MarketPack private constructor(private val ctx: Context) {
                     done += chunk.size
                     _state.value = Artifacts.next(_state.value, Artifacts.Ev.Progress(done.toLong(), days.size.toLong()))
                 }
+                // the same evening's index file comes with each new day; older days get theirs in the backfill
+                val idxDays = (days.filter { it !in store.missingDays() } + backfill).distinct().sorted()
+                for (chunk in idxDays.chunked(8)) {
+                    if (!isActive) return@launch
+                    chunk.map { d -> async { d to com.khayali.pulao.ai.MarketFetcher.indices(d) } }.awaitAll().forEach { (d, rows) -> store.addIndices(d, rows) }
+                    done += chunk.size
+                    _state.value = Artifacts.next(_state.value, Artifacts.Ev.Progress(done.toLong(), (days.size + idxDays.size).toLong()))
+                }
+                if (membersDue) {
+                    Sectors.ALL.map { s -> async { s to runCatching { com.khayali.pulao.ai.MarketFetcher.members(s) }.getOrDefault(emptyList()) } }.awaitAll()
+                        .forEach { (s, m) -> if (m.isNotEmpty()) store.setMembers(s.index, m) }
+                    prefs.edit().putLong("members_at", System.currentTimeMillis()).apply()
+                }
+                sectorBook = null
                 cached = null                                     // the snapshot is extended with the new days on next use
                 _state.value = Artifacts.State.Ready(version(), store.bytes(ctx), System.currentTimeMillis(), "${store.dayCount()} days")
                 prefs.edit().putString("market_summary", "${store.firstDay()}|${store.lastDay()}|${store.dayCount()}|${store.bytes(ctx)}").apply()
@@ -105,7 +124,16 @@ class MarketPack private constructor(private val ctx: Context) {
                 _state.value = Artifacts.State.Failed(com.khayali.pulao.ai.Net.friendly(t, "NSE's archive"))
             }
         }
-        return days.size
+        return days.size + backfill.size
+    }
+
+    @Volatile private var sectorBook: SectorBook? = null
+    /** Official sector index history, latest valuations and members, from the phone's own store. */
+    data class SectorBook(val series: Map<String, Sectors.Series>, val meta: Map<String, Triple<Double?, Double?, Double?>>, val members: Map<String, List<String>>)
+    fun sectors(): SectorBook? = sectorBook ?: run {
+        val names = Sectors.ALL.map { it.index } + Sectors.BENCHMARK
+        val series = store.indexSeries(names); if (series.isEmpty()) return null
+        SectorBook(series, store.indexMeta(names), store.members()).also { sectorBook = it }
     }
 
     fun cancel() { job?.cancel(); cached = null; refresh() }

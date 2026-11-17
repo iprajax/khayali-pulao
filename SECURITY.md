@@ -9,7 +9,8 @@ Khayali Pulao handles your portfolio and runs an AI on your phone (and, optional
    | Host | Why | When |
    |---|---|---|
    | `huggingface.co` | The on-device AI model (pinned file + SHA-256; a mismatching file is deleted, never loaded) | When you download it |
-   | `nsearchives.nseindia.com` | NSE's daily price files, fetched by the phone itself | `/data`, or the refresh schedule once installed |
+   | `nsearchives.nseindia.com` | NSE's daily price and index-close files, fetched by the phone itself | `/data`, or the refresh schedule once installed |
+   | `www.niftyindices.com` | NSE Indices' published member lists of the sector indices | With the market history, refreshed monthly |
    | `iprajax.github.io` | The strategy knowledge bank (pinned SHA-256) | `/screens` or Models & data |
    | `mcp.kite.trade` | Zerodha's Kite MCP, read-only | Only after Connect Kite |
    | `html.duckduckgo.com`, `query1.finance.yahoo.com`, NSE's website, `www.moneycontrol.com`, `www.investorgain.com`, `api.worldbank.org`, `api.mfapi.in` | Web lookups: search, prices, calendar, IPOs, macro and fund data — topic words or a symbol only; amounts, quantities and IDs are stripped first | Only with Web on |

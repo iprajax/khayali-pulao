@@ -12,14 +12,69 @@ import java.time.format.DateTimeFormatter
  * Days are added in date order; each stock's price is chained from NSE's adjusted previous close
  * as it is added, so splits and bonuses never look like crashes. Never backed up, never uploaded.
  */
-class MarketStore private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "market.db", null, 1) {
+class MarketStore private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "market.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE syms (id INTEGER PRIMARY KEY, sym TEXT UNIQUE NOT NULL, last_adj REAL, last_d INTEGER)")
         db.execSQL("CREATE TABLE bars (d INTEGER NOT NULL, s INTEGER NOT NULL, adj REAL, ret REAL, val REAL, vol REAL, PRIMARY KEY (d, s)) WITHOUT ROWID")
         db.execSQL("CREATE TABLE days (d INTEGER PRIMARY KEY, n INTEGER)")
         db.execSQL("CREATE TABLE missing (d INTEGER PRIMARY KEY)")
+        sectorTables(db)
     }
-    override fun onUpgrade(db: SQLiteDatabase, a: Int, b: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, a: Int, b: Int) { if (a < 2) sectorTables(db) }
+
+    /** Official index closes (with P/E, P/B, dividend yield) per day, and each sector index's members. */
+    private fun sectorTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS idx (d INTEGER NOT NULL, name TEXT NOT NULL, close REAL, pe REAL, pb REAL, dy REAL, PRIMARY KEY (d, name)) WITHOUT ROWID")
+        db.execSQL("CREATE TABLE IF NOT EXISTS members (idx TEXT NOT NULL, sym TEXT NOT NULL, PRIMARY KEY (idx, sym)) WITHOUT ROWID")
+    }
+
+    /** Stores one day's index closes; an empty list marks the day as checked (no file). */
+    @Synchronized fun addIndices(d: LocalDate, rows: List<Bhavcopy.IndexClose>) {
+        val db = writableDatabase; val k = key(d).toLong()
+        db.beginTransaction()
+        try {
+            val st = db.compileStatement("INSERT OR REPLACE INTO idx (d, name, close, pe, pb, dy) VALUES (?, ?, ?, ?, ?, ?)")
+            if (rows.isEmpty()) { st.bindLong(1, k); st.bindString(2, ""); st.bindNull(3); st.bindNull(4); st.bindNull(5); st.bindNull(6); st.executeInsert() }
+            for (r in rows) {
+                st.clearBindings(); st.bindLong(1, k); st.bindString(2, r.name); st.bindDouble(3, r.close)
+                r.pe?.let { st.bindDouble(4, it) } ?: st.bindNull(4); r.pb?.let { st.bindDouble(5, it) } ?: st.bindNull(5); r.dy?.let { st.bindDouble(6, it) } ?: st.bindNull(6)
+                st.executeInsert()
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    /** Trading days already in the store that don't have their index file yet. */
+    fun daysWithoutIndices(): List<LocalDate> = readableDatabase.rawQuery("SELECT d FROM days WHERE d NOT IN (SELECT DISTINCT d FROM idx) ORDER BY d", null)
+        .use { c -> buildList { while (c.moveToNext()) add(day(c.getInt(0))) } }
+
+    fun indexSeries(names: Collection<String>): Map<String, Sectors.Series> {
+        val out = HashMap<String, MutableList<Pair<LocalDate, Double>>>()
+        val qs = names.joinToString(",") { "?" }
+        readableDatabase.rawQuery("SELECT name, d, close FROM idx WHERE name IN ($qs) AND close IS NOT NULL ORDER BY d", names.toTypedArray()).use { c ->
+            while (c.moveToNext()) out.getOrPut(c.getString(0)) { mutableListOf() } += day(c.getInt(1)) to c.getDouble(2)
+        }
+        return out.mapValues { Sectors.Series(it.value) }
+    }
+
+    /** Latest P/E, P/B and dividend yield for each index. */
+    fun indexMeta(names: Collection<String>): Map<String, Triple<Double?, Double?, Double?>> {
+        val qs = names.joinToString(",") { "?" }
+        return readableDatabase.rawQuery("SELECT name, pe, pb, dy FROM idx WHERE name IN ($qs) AND d = (SELECT MAX(d) FROM idx WHERE name <> '') ", names.toTypedArray()).use { c ->
+            buildMap { while (c.moveToNext()) put(c.getString(0), Triple(c.dn(1), c.dn(2), c.dn(3))) }
+        }
+    }
+    private fun android.database.Cursor.dn(i: Int) = if (isNull(i)) null else getDouble(i)
+
+    @Synchronized fun setMembers(index: String, syms: List<String>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try { db.delete("members", "idx = ?", arrayOf(index)); syms.forEach { db.insert("members", null, ContentValues().apply { put("idx", index); put("sym", it) }) }; db.setTransactionSuccessful() }
+        finally { db.endTransaction() }
+    }
+
+    fun members(): Map<String, List<String>> = readableDatabase.rawQuery("SELECT idx, sym FROM members ORDER BY idx, sym", null).use { c ->
+        val m = LinkedHashMap<String, MutableList<String>>(); while (c.moveToNext()) m.getOrPut(c.getString(0)) { mutableListOf() } += c.getString(1); m }
 
     private fun key(day: LocalDate) = day.format(DateTimeFormatter.BASIC_ISO_DATE).toInt()
     private fun day(k: Int) = LocalDate.parse(k.toString(), DateTimeFormatter.BASIC_ISO_DATE)

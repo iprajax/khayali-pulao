@@ -3,7 +3,7 @@ package com.khayali.pulao.ai.term
 /** Every terminal feature, in one place. Adding a feature = one object + one line here. */
 object Terminal {
     val FEATURES: List<Feature> = listOf(
-        BriefFeature, RegimeFeature, AnomaliesFeature, StrategiesFeature, ScreenFeature, HealthFeature, LearnFeature, DataFeature, ScreensFeature,
+        BriefFeature, RegimeFeature, AnomaliesFeature, StrategiesFeature, ScreenFeature, HealthFeature, LearnFeature, DataFeature, ScreensFeature, SectorBoardFeature, SectorFeature,
         MarketReportFeature, SectorMoversFeature, PreopenFeature, WatchFeature,
         HeatmapFeature, ResultsFlowFeature,
         PulseIndicesFeature, PulseSectorsFeature, PulseMoversFeature, PulseBreadthFeature, PulseActiveFeature, PulseStatusFeature, PulseHighsFeature, PulseBandsFeature, PulseVolumeFeature,

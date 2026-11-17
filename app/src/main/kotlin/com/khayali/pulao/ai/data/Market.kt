@@ -57,6 +57,17 @@ object Market {
     private fun mean(xs: List<Double>) = if (xs.isEmpty()) 0.0 else xs.sum() / xs.size
     private fun sd(xs: List<Double>): Double { if (xs.size < 2) return 0.0; val m = mean(xs); return sqrt(xs.sumOf { (it - m).pow(2) } / (xs.size - 1)) }
 
+    /** The last trading-day index at or before [date], or -1. */
+    fun dayAt(p: Panel, date: java.time.LocalDate): Int { var lo = 0; var hi = p.days - 1; var a = -1
+        while (lo <= hi) { val m = (lo + hi) / 2; if (p.dates[m] <= date) { a = m; lo = m + 1 } else hi = m - 1 }; return a }
+
+    /** A stock's change between two dates (nearest earlier closes), or null when it didn't trade over the span. */
+    fun changeBetween(p: Panel, s: Int, from: java.time.LocalDate, to: java.time.LocalDate): Double? {
+        val a = dayAt(p, from); val b = dayAt(p, to); if (a < 0 || b <= a) return null
+        val x = p.adj[s].asOf(a); val y = p.adj[s].asOf(b)
+        return if (x.isNaN() || y.isNaN() || x <= 0f) null else y / x - 1.0
+    }
+
     /** Change in the adjusted price over [back] trading days ending at [d], or null. */
     fun change(p: Panel, s: Int, d: Int, back: Int): Double? {
         val a = p.adj[s].at(d); val b = p.adj[s].asOf(d - back)

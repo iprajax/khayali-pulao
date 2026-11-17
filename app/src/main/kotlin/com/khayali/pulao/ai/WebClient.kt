@@ -150,6 +150,7 @@ class WebClient private constructor(ctx: Context) {
         override val watched = seen
         override val artifacts = com.khayali.pulao.ai.data.AndroidArtifactHub(app)
         override val knowledge get() = com.khayali.pulao.ai.data.KnowledgePack.bank(app)
+        override suspend fun sectors() = withContext(Dispatchers.IO) { com.khayali.pulao.ai.data.MarketPack.get(app).sectors() }
         override suspend fun market(days: Int) = withContext(Dispatchers.IO) { com.khayali.pulao.ai.data.MarketPack.get(app).panel(days) }
         override val profile get() = MemoryStore.get(app).let { m -> if (m.enabled) m.playbook.bullets.filter { it.section != Ace.Section.LESSON }.map { it.text } else emptyList() }
         override suspend fun spark(symbols: List<String>, range: String, interval: String) = withContext(Dispatchers.IO) {
@@ -285,6 +286,26 @@ object Net {
 /** Lives here because WebClient.kt is one of only two files allowed to open network connections. */
 object MarketFetcher {
     sealed class Day { data class Got(val bars: List<com.khayali.pulao.ai.data.Bhavcopy.Bar>) : Day(); data object NoTrading : Day() }
+
+    private fun text(url: String, allowed: String): String? {
+        require(URL(url).host == allowed) { "Blocked: only $allowed" }
+        var last: java.io.IOException? = null
+        repeat(3) { attempt ->
+            val c = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000; setRequestProperty("User-Agent", "Mozilla/5.0") }
+            try {
+                when (c.responseCode) { 404 -> return null; in 200..299 -> return c.inputStream.bufferedReader().readText(); else -> throw java.io.IOException("HTTP ${c.responseCode}") }
+            } catch (e: java.io.IOException) { last = e; Thread.sleep(800L * (attempt + 1)) } finally { c.disconnect() }
+        }
+        throw last ?: java.io.IOException("Couldn't reach $allowed")
+    }
+
+    /** One day's official closes for every NSE index (empty when there was no file, e.g. a holiday). */
+    fun indices(day: java.time.LocalDate): List<com.khayali.pulao.ai.data.Bhavcopy.IndexClose> =
+        text(com.khayali.pulao.ai.data.Bhavcopy.indexUrl(day), com.khayali.pulao.ai.data.Bhavcopy.HOST)?.let { com.khayali.pulao.ai.data.Bhavcopy.parseIndices(it) }.orEmpty()
+
+    /** A sector index's members, from NSE Indices' published list. */
+    fun members(s: com.khayali.pulao.ai.data.Sectors.Sector): List<String> =
+        text(com.khayali.pulao.ai.data.Sectors.membersUrl(s), com.khayali.pulao.ai.data.Sectors.MEMBERS_HOST)?.let { com.khayali.pulao.ai.data.Sectors.parseMembers(it) }.orEmpty()
 
     fun fetch(day: java.time.LocalDate): Day {
         val url = com.khayali.pulao.ai.data.Bhavcopy.url(day)

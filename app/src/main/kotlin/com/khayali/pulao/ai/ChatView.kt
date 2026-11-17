@@ -41,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import com.khayali.pulao.ai.data.Setup as SU
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.khayali.pulao.ai.ChatFlow.busy
@@ -406,7 +407,8 @@ class ChatView(
         // Task-driven starters: tap one and the chat plans and runs it
         if (s == null) {
             val tasks = k.column().apply { setPadding(0, k.dp(18), 0, 0) }
-            Asks.starters(kite.knownSymbols.map { it.uppercase() }, watch.symbols.map { it.uppercase() }, kite.connected).forEach { t ->
+            (listOfNotNull(if (!setupDone()) Asks.Starter("⚡", "Set up everything in one tap — AI, market data, web", "/setup") else null) +
+                Asks.starters(kite.knownSymbols.map { it.uppercase() }, watch.symbols.map { it.uppercase() }, kite.connected)).take(6).forEach { t ->
                 tasks.addView(k.row().apply {
                     setPadding(k.dp(14), k.dp(11), k.dp(14), k.dp(11))
                     background = k.press(null, 12f)
@@ -768,6 +770,7 @@ class ChatView(
         when (val a = routed) {
             ChatFlow.Action.Ignore -> return
             ChatFlow.Action.Clear -> { input.setText(""); newChat() }
+            ChatFlow.Action.Setup -> { input.setText(""); showSetup() }
             ChatFlow.Action.Help -> { input.setText(""); showHelp() }
             is ChatFlow.Action.Unknown -> { input.setText(""); showHelp() }
             is ChatFlow.Action.ConnectKite -> {
@@ -1090,8 +1093,38 @@ class ChatView(
         }
     }
 
-    /** Tap or long-press a ticker anywhere in the chat: what can be done with it. */
+    // where the last touch landed, so the ticker wheel opens around the finger
+    private var touchX = 0f; private var touchY = 0f
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { touchX = ev.x; touchY = ev.y }
+        return super.dispatchTouchEvent(ev)
+    }
+    private var wheel: TickerWheel? = null
+
+    /** Tap or long-press a ticker anywhere in the chat: its actions fan out on a wheel around the finger. */
     private fun symbolMenu(sym: String) {
+        if (wheel != null) return
+        val items = TickerWheel.items(sym, prefs.webOn, "market" in readyArtifacts())
+        val w = TickerWheel(context, k, sym, items, touchX, touchY, onPick = { c ->
+            if (c.startsWith("ask:")) { input.setText(c.removePrefix("ask:")); input.setSelection(input.text.length); input.requestFocus() }
+            else { via = "ticker:$sym"; submit(c) }
+        }, onClose = { wheel?.let { removeView(it) }; wheel = null; blurBehind(false) })
+        wheel = w
+        blurBehind(true)
+        // the keyboard would cover the lower half of the ring
+        context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
+        addView(w, LayoutParams(MATCH_PARENT, MATCH_PARENT)); w.open()
+    }
+
+    /** Softly blurs the chat behind the wheel (Android 12+; older phones get the dim alone). */
+    private fun blurBehind(on: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < 31) return
+        for (i in 0 until childCount) { val v = getChildAt(i); if (v !is TickerWheel)
+            v.setRenderEffect(if (on) android.graphics.RenderEffect.createBlurEffect(k.dpf(10), k.dpf(10), android.graphics.Shader.TileMode.CLAMP) else null) }
+    }
+
+    /** The old list menu, kept for accessibility services that prefer a plain list. */
+    @Suppress("unused") private fun symbolList(sym: String) {
         val items = Tickers.menu(sym, prefs.webOn, "market" in readyArtifacts())
         android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle(sym)
@@ -1100,6 +1133,117 @@ class ChatView(
                 if (c.startsWith("ask:")) { input.setText(c.removePrefix("ask:")); input.setSelection(input.text.length); input.requestFocus() }
                 else { via = "ticker:$sym"; submit(c) }
             }.show()
+    }
+
+    // ---------------------------------------------------------------- setup agent
+
+    private fun setupPrefs() = context.getSharedPreferences("khayali_setup", Context.MODE_PRIVATE)
+    private var setupJob: Job? = null
+
+    /** The model's download state, in the same life cycle as every other artifact. */
+    private fun modelArtifact(): com.khayali.pulao.ai.data.Artifacts.State = when (val s = mm.state.value) {
+        ModelManager.State.Ready -> com.khayali.pulao.ai.data.Artifacts.State.Ready("Gemma 4 E2B", ModelSpec.SIZE_BYTES, 0)
+        is ModelManager.State.Downloading -> if (s.paused) com.khayali.pulao.ai.data.Artifacts.State.Paused(s.reason ?: "waiting", com.khayali.pulao.ai.data.Artifacts.State.Downloading(s.done, s.total)) else com.khayali.pulao.ai.data.Artifacts.State.Downloading(s.done, s.total)
+        is ModelManager.State.Verifying -> com.khayali.pulao.ai.data.Artifacts.State.Verifying
+        is ModelManager.State.Failed -> com.khayali.pulao.ai.data.Artifacts.State.Failed(s.message)
+        is ModelManager.State.NotEnoughSpace -> com.khayali.pulao.ai.data.Artifacts.State.Failed("needs ${DownloadText.bytes(s.needBytes)} free")
+        else -> com.khayali.pulao.ai.data.Artifacts.State.NotInstalled
+    }
+
+    private fun setupFacts() = com.khayali.pulao.ai.data.Setup.Facts(modelArtifact(), com.khayali.pulao.ai.data.MarketPack.get(context).state.value,
+        com.khayali.pulao.ai.data.KnowledgePack.get(context).state.value, prefs.webOn, kite.connected)
+
+    /** True once everything the user chose is set up (the empty chat stops offering setup). */
+    private fun setupDone(): Boolean {
+        val chosen = com.khayali.pulao.ai.data.Setup.decode(setupPrefs().getString("chosen", null)) ?: return false
+        val f = setupFacts(); val started = setupPrefs().getBoolean("started", false)
+        return com.khayali.pulao.ai.data.Setup.phase(started, com.khayali.pulao.ai.data.Setup.Step.entries.associateWith { com.khayali.pulao.ai.data.Setup.status(it, it in chosen, started, f) }) == com.khayali.pulao.ai.data.Setup.Phase.DONE
+    }
+
+    /**
+     * The one-tap setup agent: pick what you want, then everything starts at once — downloads in parallel, web
+     * switched on, Kite waiting for your login. Each row shows its live status; choices are kept, so the card
+     * picks up where it was after a restart.
+     */
+    fun showSetup() {
+        startThread(); setPills(emptyList())
+        val chosen = (SU.decode(setupPrefs().getString("chosen", null)) ?: SU.Step.entries.filter { it.byDefault }.toSet()).toMutableSet()
+        var started = setupPrefs().getBoolean("started", false)
+        val head = k.text("", 16f, Pal.TEXT, 600); val sub = k.text("", 12.5f, Pal.MUTED).apply { setLineSpacing(0f, 1.3f) }
+        val rows = k.column(); val action = k.column()
+        val card = k.card {
+            addView(k.text("SETUP", 10.5f, Pal.BLUE, 700).apply { letterSpacing = 0.08f })
+            addView(head); addView(sub); addView(k.space(8)); addView(rows, k.lp(MATCH_PARENT)); addView(k.space(10)); addView(action, k.lp(MATCH_PARENT))
+            addView(k.text("Everything downloads straight to this phone and is checked before use. Change any of it later in ⋮ → Models & data.", 11f, Pal.DIM).apply { setPadding(0, k.dp(10), 0, 0) })
+        }
+        fun save() = setupPrefs().edit().putString("chosen", SU.encode(chosen)).putBoolean("started", started).apply()
+        lateinit var render: () -> Unit
+        fun startStep(step: SU.Step) {
+            when (step) {
+                SU.Step.MODEL -> mm.start(wifiOnly = true)
+                SU.Step.MARKET -> com.khayali.pulao.ai.data.MarketPack.get(context).let { it.tier = com.khayali.pulao.ai.data.MarketPack.Tier.Y3; it.install() }
+                SU.Step.KNOWLEDGE -> com.khayali.pulao.ai.data.KnowledgePack.get(context).install()
+                SU.Step.WEB -> { prefs.webOn = true; session.invalidate(); renderWebPill() }
+                SU.Step.KITE -> Unit                       // needs the user's own login on Zerodha's page
+            }
+        }
+        render = {
+            val f = setupFacts()
+            val states = SU.Step.entries.associateWith { SU.status(it, it in chosen, started, f) }
+            val phase = SU.phase(started, states)
+            head.text = SU.headline(phase, states)
+            sub.text = when { !started -> "Pick what you want; it all starts at once."; phase == SU.Phase.DONE -> "Everything you picked is ready on this phone."
+                phase == SU.Phase.NEEDS_YOU -> "Tap the highlighted step to finish."; else -> "You can keep chatting while it works." }
+            rows.removeAllViews()
+            for (step in SU.Step.entries) {
+                val st = states.getValue(step)
+                val row = k.row().apply { setPadding(0, k.dp(7), 0, k.dp(7)) }
+                val on = step in chosen
+                if (!started) row.addView(k.text(if (on) "☑" else "☐", 18f, if (on) Pal.BLUE else Pal.DIM), k.lp(k.dp(30)))
+                row.addView(k.text(step.icon, 17f, Pal.TEXT), k.lp(k.dp(30)))
+                row.addView(k.column().apply {
+                    addView(k.text(step.title, 13.5f, Pal.TEXT, 500))
+                    addView(k.text("${step.size} · ${step.why}", 11f, Pal.MUTED).apply { maxLines = 2 })
+                    if (st is SU.S.Running && st.pct != null) addView(android.widget.ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                        max = 100; progress = st.pct; progressTintList = android.content.res.ColorStateList.valueOf(Pal.BLUE)
+                        progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Pal.LINE) }, k.lp(MATCH_PARENT, k.dp(4)).apply { topMargin = k.dp(5) })
+                }, k.lp(0, WRAP_CONTENT, 1f))
+                val (label, color) = when (st) {
+                    is SU.S.Done -> "✓ Ready" to Pal.GREEN; is SU.S.Running -> (st.pct?.let { "$it%" } ?: st.note.ifBlank { "working" }) to Pal.BLUE
+                    SU.S.Waiting -> (if (started) "queued" else "") to Pal.MUTED; SU.S.Skipped -> (if (started) "skipped" else "") to Pal.DIM
+                    is SU.S.NeedsYou -> st.action to Pal.SAFFRON; is SU.S.Failed -> "Retry" to Pal.RED
+                }
+                row.addView(k.text(label, 12f, color, 600).apply {
+                    setPadding(k.dp(8), 0, 0, 0); maxLines = 1
+                    when (st) {
+                        is SU.S.NeedsYou -> setOnClickListener { onKitePill(kite.state.value) }
+                        is SU.S.Failed -> setOnClickListener { startStep(step); render() }
+                        else -> Unit
+                    }
+                })
+                if (!started && st !is SU.S.Done) row.setOnClickListener { if (on) chosen.remove(step) else chosen.add(step); save(); render() }
+                rows.addView(row, k.lp(MATCH_PARENT))
+            }
+            action.removeAllViews()
+            when (phase) {
+                SU.Phase.NOT_STARTED -> action.addView(k.button("⚡ Set up everything", primary = true) {
+                    started = true; save()
+                    SU.toStart(chosen, SU.Step.entries.associateWith { SU.status(it, it in chosen, true, setupFacts()) }).forEach { startStep(it) }
+                    render()
+                }, k.lp(MATCH_PARENT))
+                SU.Phase.FAILED -> action.addView(k.button("Retry what didn't finish", primary = true) {
+                    SU.toStart(chosen, SU.Step.entries.associateWith { SU.status(it, it in chosen, true, setupFacts()) }).forEach { startStep(it) }; render()
+                }, k.lp(MATCH_PARENT))
+                SU.Phase.DONE -> { setupJob?.cancel(); setPills(listOf("/brief", "/strategies", "/screens", "/learn")) }
+                else -> Unit
+            }
+        }
+        list.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); render(); scrollToEnd()
+        setupJob?.cancel()
+        setupJob = scope.launch {
+            combine(mm.state, com.khayali.pulao.ai.data.MarketPack.get(context).state, com.khayali.pulao.ai.data.KnowledgePack.get(context).state, kite.state) { _, _, _, _ -> }
+                .collect { render() }
+        }
     }
 
     /** Whether a terminal step used the network (for the privacy line). */
@@ -1251,6 +1395,7 @@ class ChatView(
             is ChatFlow.Action.ConnectKite -> return fail(if (a.expired) "The user's Kite login has expired; ask them to tap Reconnect Kite." else "Kite is not connected; ask the user to tap Connect Kite.")
             is ChatFlow.Action.EnableWeb -> return fail("Web access is off; ask the user to turn it on with the Web pill.")
             is ChatFlow.Action.Plan -> return fail("That's a broad question; run its parts as separate commands.")
+            ChatFlow.Action.Setup -> return fail("Setup is for the user to run: tell them to type /setup.")
             is ChatFlow.Action.NeedArtifact -> return fail("That needs the ${a.artifact} download, which isn't on the phone yet. Tell the user to type ${if (a.artifact == "market") "/data 3y" else "/screens"} to get it.")
             else -> return fail("$cmd is not a data command. Use one of the commands listed in the tool description.")
         }

@@ -66,5 +66,8 @@ class PlannerTest {
         assertEquals("📰 News on INFY", Labels.of("/news INFY"))
         assertEquals("⬇ Get 3 years of data", Labels.of("/data 3y"))
         assertEquals("Why is IT falling?", Labels.of("Why is IT falling?"))
+        assertEquals("Bulk and block deals · GROWW", Labels.of("/deals GROWW"))
+        assertTrue(Labels.of("/fiidii").let { !it.startsWith("/") && it.length <= 31 })
+        assertEquals("/nope", Labels.of("/nope"))
     }
 }

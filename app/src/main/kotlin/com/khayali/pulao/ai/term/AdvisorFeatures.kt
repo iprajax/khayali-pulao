@@ -35,10 +35,10 @@ object BriefFeature : Feature {
 
     override suspend fun run(arg: String, f: Fetch): String {
         val p = f.market(Local.HISTORY) ?: return Card.error(Local.NEED, "/data 1y", "/data 3y", "/data 5y")
-        return build(p, f.holdings.map { it.name.uppercase() to (it.current) }, f.profile)
+        return build(p, f.holdings.map { it.name.uppercase() to (it.current) }, f.profile, f.sectors())
     }
 
-    fun build(p: Panel, holdings: List<Pair<String, Double>>, profile: List<String>): String {
+    fun build(p: Panel, holdings: List<Pair<String, Double>>, profile: List<String>, sectors: com.khayali.pulao.ai.data.MarketPack.SectorBook? = null): String {
         val r = Market.regime(p); val last = p.days - 1
         val anomalies = Market.anomalies(p, last, 6)
         val u = Market.liquid(p, last)
@@ -70,6 +70,12 @@ object BriefFeature : Feature {
         card.movers("Hidden patterns today", anomalies.map { Card.Mover(it.symbol, "${it.kind} · ${it.detail}", null, it.move * 100) })
         if (health.isNotEmpty()) card.movers("Your holdings · 1 month", health.map { (h, _) ->
             Card.Mover(h.symbol, listOfNotNull(h.vs200?.let { "${Local.p(it)} vs 200-day" }, h.fromHigh?.let { "${Local.p(it)} from high" }).joinToString(" · "), null, h.r1m?.let { it * 100 }, emptyList(), null, true) })
+        // sectors this week, from NSE's official indices: leaders and laggards, each opens its own view
+        val secRows = sectors?.let { com.khayali.pulao.ai.data.Sectors.board(it.series, it.meta) }.orEmpty()
+            .filter { it.changes[com.khayali.pulao.ai.data.Sectors.Period.W1] != null }.sortedByDescending { it.changes[com.khayali.pulao.ai.data.Sectors.Period.W1] }
+        if (secRows.size >= 4) card.rows("Sectors this week · official NSE indices", (secRows.take(3) + secRows.takeLast(3)).map { r ->
+            val w = r.changes[com.khayali.pulao.ai.data.Sectors.Period.W1]!!
+            Card.Row(r.sector.short, "1D ${Local.p(r.changes[com.khayali.pulao.ai.data.Sectors.Period.D1], 2)} · 1M ${Local.p(r.changes[com.khayali.pulao.ai.data.Sectors.Period.M1])}", Local.p(w, 2), N.tone(w), action = "/sector ${r.sector.short} 1w") })
         card.section("What each strategy flags now")
         card.rows(null, tests.sortedByDescending { it.second.rate - it.second.benchRate }.map { (st, b) ->
             val fit = when { cautious && st.id == "lowvol" -> " · fits your low-risk note"; longHorizon && (st.id == "momentum" || st.id == "trend") -> " · long-horizon rule"; else -> "" }
@@ -82,6 +88,7 @@ object BriefFeature : Feature {
             next += Card.Row("Review ${h.symbol}", h.flags.first().replaceFirstChar { it.uppercase() } + " — check its trend and news", "/health ${h.symbol}") }
         if (total != null) holdings.maxByOrNull { it.second }?.let { (s, v) -> if (v / total >= 0.4) next += Card.Row("Reduce concentration risk", "$s is ${(v / total * 100).toInt()}% of your portfolio — see how a fall would hit you", "/stress") }
         best0?.let { (st, b) -> if (b.rate > b.benchRate) next += Card.Row("See today's ${st.name.lowercase()} picks", "the best rule on your data: ${Local.p(b.rate)} vs the market's ${Local.p(b.benchRate)}", "/screen ${st.id}") }
+        secRows.firstOrNull()?.let { r -> next += Card.Row("See what's driving ${r.sector.short}", "the strongest sector this week: ${Local.p(r.changes[com.khayali.pulao.ai.data.Sectors.Period.W1])}", "/sector ${r.sector.short} 1w") }
         anomalies.firstOrNull()?.let { a -> next += Card.Row("Find out why ${a.symbol} moved", "${a.kind.lowercase()}: ${a.detail}", "/news ${a.symbol}") }
         if (holdings.isEmpty()) next += Card.Row("Add your holdings", "connect Kite (read-only) and the brief reviews each of your stocks", "Connect Kite")
         if (profile.isEmpty()) next += Card.Row("Tell me your goal and horizon", "so the brief can point to rules that fit you", "/remember my goal is …")
@@ -94,6 +101,7 @@ object BriefFeature : Feature {
         val summary = buildString {
             append("${p.dates[last]}: ${r.label.lowercase()} — ${r.above50.toInt()}% of ${r.stocks} liquid stocks above their 50-day average, ${r.above200.toInt()}% above their 200-day; equal-weight market ${Local.p(r.market1w)} this week and ${Local.p(r.market1m)} this month. ")
             anomalies.firstOrNull()?.let { append("Most unusual today: ${it.symbol} (${it.kind.lowercase()}, ${it.detail}). ") }
+            if (secRows.size >= 2) append("Sectors this week: ${secRows.first().sector.short} led (${Local.p(secRows.first().changes[com.khayali.pulao.ai.data.Sectors.Period.W1])}), ${secRows.last().sector.short} lagged (${Local.p(secRows.last().changes[com.khayali.pulao.ai.data.Sectors.Period.W1])}). ")
             if (health.isNotEmpty()) append("Of your ${health.size} holdings, ${health.count { it.first.flags.isNotEmpty() }} have something worth reviewing. ")
             best?.let { (st, b) -> append("Over the last ${b.months} months the ${st.name.lowercase()} rule did best (${Local.rate(b.rate, b)} vs ${Local.p(b.benchRate)} for the market). ") }
             append("Source: NSE daily data on this phone.")

@@ -10,7 +10,7 @@
   var phone = document.getElementById("chatdemo");
   if (!phone) return;
   var body = phone.querySelector(".cd-body"), pills = phone.querySelector(".cd-pills"), typed = phone.querySelector(".cd-typed"),
-      suggest = phone.querySelector(".cd-suggest"), finger = phone.querySelector(".cd-finger"), sheet = phone.querySelector(".cd-sheet"),
+      suggest = phone.querySelector(".cd-suggest"), finger = phone.querySelector(".cd-finger"), sheet = phone.querySelector(".cd-sheet"), wheel = phone.querySelector(".cd-wheel"),
       sendBtn = phone.querySelector(".cd-send"), scenesEl = document.getElementById("scenes"), toggle = document.getElementById("cd-toggle");
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var STOP = {}, runId = 0, paused = false, fast = false, waiting = [];
@@ -158,7 +158,7 @@
 
   // ---------------------------------------------------------------- scenes
   function greet() {
-    body.innerHTML = ""; setPills([]); sheet.classList.remove("on"); hideFinger();
+    body.innerHTML = ""; setPills([]); sheet.classList.remove("on"); wheel.classList.remove("on"); hideFinger();
     var g = el("div", "cd-greet", '<div class="cd-logo">🍲</div><div class="cd-hi">What shall we cook today?</div><div class="cd-sub2">Ask anything — or start with a task</div>');
     var tasks = [["🧭", "Plan my day — what should I do today?"], ["📰", "What's happening with INFRA — trend, news and results"], ["💼", "Review my portfolio — trend, concentration, risk"],
       ["🎯", "Find a strategy that's working right now"], ["📅", "What's coming up this week — results, dividends, IPOs"], ["🔎", "Find quality companies with low debt"]];
@@ -167,7 +167,40 @@
     body.appendChild(g); body.scrollTop = 0;
   }
 
+  function setupCard() {
+    var steps = [["🧠", "On-device AI (Gemma 4 E2B)", "2.6 GB · waits for Wi-Fi"], ["📈", "Market history · 3 years", "about 75 MB, straight from NSE"],
+      ["📚", "Strategy knowledge bank", "289 KB"], ["🌐", "Web lookups", "topic words only"], ["🔌", "Connect Kite (read-only)", "your Zerodha login"]];
+    return card('<div class="cd-kick">SETUP</div><div class="cd-h cd-sh">Set up everything in one tap</div><div class="cd-sub cd-ss">Pick what you want; it all starts at once.</div>' +
+      steps.map(function (st, i) { return '<div class="cd-srow"><span class="cd-chk">' + (i < 4 ? "☑" : "☐") + '</span><span>' + st[0] + '</span><div><b>' + st[1] + '</b><em>' + st[2] + '</em><i class="cd-sbar"><u></u></i></div><span class="cd-sst"></span></div>'; }).join("") +
+      '<div class="cd-btn">⚡ Set up everything</div>');
+  }
+
   var SCENES = [
+    { title: "Sets itself up in one tap", sub: "AI model, your own market data, knowledge bank and web — all at once, with live status", run: function () {
+      body.innerHTML = ""; hideFinger(); user("/setup");
+      var c; return sleep(500).then(function () { c = setupCard(); return sleep(1300); })
+        .then(function () { return tap(c.querySelector(".cd-btn")); })
+        .then(function () {
+          hideFinger(); c.querySelector(".cd-btn").style.display = "none";
+          c.querySelector(".cd-sh").textContent = "Setting up… 0 of 4 ready"; c.querySelector(".cd-ss").textContent = "You can keep chatting while it works.";
+          var rows = c.querySelectorAll(".cd-srow"); rows[4].querySelector(".cd-sst").textContent = "skipped";
+          Array.prototype.forEach.call(rows, function (r) { r.querySelector(".cd-chk").style.visibility = "hidden"; });
+          var speed = [4, 11, 50, 100], pct = [0, 0, 0, 0], k = 0;
+          function step() {
+            var done = 0;
+            for (var i = 0; i < 4; i++) {
+              pct[i] = Math.min(100, pct[i] + speed[i]); var st = rows[i].querySelector(".cd-sst"), bar = rows[i].querySelector(".cd-sbar");
+              if (pct[i] >= 100) { st.textContent = "✓ Ready"; st.className = "cd-sst up"; bar.style.display = "none"; done++; }
+              else { st.textContent = pct[i] + "%"; st.className = "cd-sst blue"; bar.style.display = "block"; bar.firstChild.style.width = pct[i] + "%"; }
+            }
+            c.querySelector(".cd-sh").textContent = done === 4 ? "✓ You're all set" : "Setting up… " + done + " of 4 ready";
+            if (done === 4) { c.querySelector(".cd-ss").textContent = "Everything you picked is ready on this phone."; return sleep(1400); }
+            k++; if (k === 9) speed[0] = 30;
+            return sleep(260).then(step);
+          }
+          return step();
+        });
+    } },
     { title: "Starts with tasks, not a blank box", sub: "Personalised starters: plan my day, a stock you own, your portfolio", run: function () {
       greet();
       return sleep(1600).then(function () { return tap(body.querySelector(".cd-task")); });
@@ -187,16 +220,29 @@
       return sleep(1800).then(function () { return tap(body.querySelector('.cd-act[data-cmd="/health BALLIA"]')); })
         .then(function () { hideFinger(); setPills([]); user("/health BALLIA"); return sleep(700); }).then(function () { healthCard(); return sleep(2000); });
     } },
-    { title: "Every ticker is a menu", sub: "Tap or long-press any stock: trend, chart, news, events, quote", run: function () {
+    { title: "Every ticker is a wheel", sub: "Tap or long-press any stock: its actions fan out in a ring around your finger", run: function () {
       var t = Array.prototype.slice.call(body.querySelectorAll(".cd-bot .cd-tick")).pop() || body.querySelector(".cd-tick");
       // scroll only the chat, never the page
       if (t) body.scrollTo({ top: t.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - body.clientHeight / 2, behavior: fast || reduce ? "auto" : "smooth" });
       return sleep(700).then(function () { return tap(t); }).then(function () {
-        hideFinger(); sheet.innerHTML = '<div class="cd-shh">BALLIA</div>' + ["🩺  Trend & risk", "📈  Chart, 1 year", "📰  Latest news", "📅  Results, dividends & events", "💹  Full quote", "🔬  Deep dive (plan)", "💬  Ask about BALLIA…"]
-          .map(function (x) { return '<div class="cd-shi">' + x + "</div>"; }).join("");
-        sheet.classList.add("on"); return sleep(1500);
-      }).then(function () { return tap(sheet.children[2]); })
-        .then(function () { sheet.classList.remove("on"); hideFinger(); user("/chart BALLIA 1y"); return sleep(700); }).then(function () { chartCard(); return sleep(2000); });
+        hideFinger();
+        // the circular menu, as in the app: actions fan out on a ring around the finger, the symbol in the centre
+        // thin line icons, as in the app
+        var I = {
+          Trend: '<path d="M2 15l6-6 4 3.5 8-8M15 4.5h5v5"/>', Chart: '<path d="M4 20v-8M11 20V4M18 20v-12"/>',
+          News: '<rect x="3" y="3" width="17" height="17" rx="2.5"/><path d="M7.5 8.5h8M7.5 12h8M7.5 15.5h5"/>',
+          Events: '<rect x="3" y="5" width="17" height="15" rx="2.5"/><path d="M3 9.5h17M8 2.5v4M15 2.5v4"/>',
+          Quote: '<path d="M7 5h10M7 9h10M12 9c0 3-2 5-5 5h-.5l7 6"/>', "Deep dive": '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5l5.5 5.5"/>',
+          Ask: '<path d="M4 4h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>' };
+        var acts = ["Trend", "Chart", "News", "Events", "Quote", "Deep dive", "Ask"].map(function (n) { return ['<svg viewBox="0 0 23 23">' + I[n] + "</svg>", n]; });
+        var pr = phone.getBoundingClientRect(), tr = t.getBoundingClientRect(), R = 92;
+        var cx = Math.min(Math.max(tr.left - pr.left + 30, R + 44), pr.width - R - 44), cy = Math.min(Math.max(tr.top - pr.top, R + 70), pr.height - R - 90);
+        wheel.innerHTML = '<div class="cd-disc" style="left:' + cx + 'px;top:' + cy + 'px"></div><div class="cd-hub" style="left:' + cx + 'px;top:' + cy + 'px">BALLIA</div>' +
+          acts.map(function (a, i) { var ang = (-90 + i * 360 / acts.length) * Math.PI / 180;
+            return '<div class="cd-spoke" style="left:' + (cx + R * Math.cos(ang)) + 'px;top:' + (cy + R * Math.sin(ang)) + 'px;--dx:' + (-R * Math.cos(ang) * 0.28) + 'px;--dy:' + (-R * Math.sin(ang) * 0.28) + 'px;animation-delay:' + (70 + i * 22) + 'ms"><b>' + a[0] + "</b><span>" + a[1] + "</span></div>"; }).join("");
+        wheel.classList.add("on"); return sleep(1700);
+      }).then(function () { return tap(wheel.querySelectorAll(".cd-spoke")[1]); })
+        .then(function () { wheel.classList.remove("on"); hideFinger(); user("/chart BALLIA 1y"); return sleep(700); }).then(function () { chartCard(); return sleep(2000); });
     } },
     { title: "Commands ask for what they need", sub: "Tap a command; it asks each parameter with choices — then runs", run: function () {
       return type("/sip ", 14).then(function () {
