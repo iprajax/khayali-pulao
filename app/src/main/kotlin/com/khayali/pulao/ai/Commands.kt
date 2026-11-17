@@ -57,11 +57,72 @@ object Commands {
 
     fun isCommand(text: String) = text.trimStart().startsWith("/")
 
-    /** Commands that start with what the user typed after "/". */
+    /** Commands that start with what the user typed after "/" (exact prefix only). */
     fun suggest(typed: String): List<Cmd> {
         val q = typed.trimStart().removePrefix("/").substringBefore(' ').lowercase()
         return (ALL + TERMINAL).filter { it.name.startsWith(q) }
     }
+
+    /**
+     * Commands ranked for what has been typed so far: exact name, then names that start with it, then
+     * a word inside the name ("chain" → optionchain), then the description ("dividend" → calendar),
+     * then a loose subsequence of the name ("oc" → optionchain). Empty input lists the most useful first.
+     */
+    fun rank(typed: String, limit: Int = 7): List<Cmd> {
+        val q = typed.trimStart().removePrefix("/").substringBefore(' ').lowercase()
+        val all = (ALL + TERMINAL).distinctBy { it.name }
+        if (q.isEmpty()) return FEATURED.mapNotNull { n -> all.firstOrNull { it.name == n } }.take(limit)
+        fun subsequence(name: String): Boolean { var i = 0; for (c in name) if (i < q.length && c == q[i]) i++; return i == q.length }
+        fun score(c: Cmd): Int {
+            val help = c.help.lowercase()
+            return when {
+                c.name == q -> 1000
+                c.name.startsWith(q) -> 800 - c.name.length
+                q.length >= 2 && c.name.contains(q) -> 600 - c.name.indexOf(q)
+                q.length >= 3 && Regex("""\b""" + Regex.escape(q)).containsMatchIn(help) -> 400 - help.indexOf(q).coerceAtMost(200)
+                q.length >= 2 && subsequence(c.name) -> 200 - c.name.length
+                else -> 0
+            }
+        }
+        return all.map { it to score(it) }.filter { it.second > 0 }.sortedByDescending { it.second }.map { it.first }.take(limit)
+    }
+
+    /** Shown when only "/" has been typed. */
+    val FEATURED = listOf("report", "holdings", "calendar", "ipo", "chart", "heatmap", "flow", "sip", "help")
+
+    private val PERIODS = listOf("1w", "1m", "3m", "6m", "1y", "5y")
+    private val INDEX_ARGS = listOf("NIFTY BANK", "NIFTY IT", "NIFTY AUTO", "NIFTY PHARMA", "NIFTY FMCG", "NIFTY METAL", "NIFTY REALTY", "NIFTY ENERGY")
+    private val SYMBOL_COMMANDS = WatchStore.STOCK_COMMANDS + setOf("compare", "gmp", "insider", "scorecard")
+
+    /**
+     * Completions for the argument being typed after a command name: the user's own symbols for stock
+     * commands, then periods for /chart; index names for /heatmap; and so on. [symbols] = holdings and
+     * watched stocks, most relevant first.
+     */
+    fun argHints(text: String, symbols: List<String>): List<String> {
+        val t = text.trimStart().removePrefix("/")
+        val name = t.substringBefore(' ').lowercase()
+        val args = t.substringAfter(' ', "").split(' ')
+        val current = args.lastOrNull().orEmpty().uppercase(); val index = args.size - 1
+        val opts: List<String> = when {
+            name == "chart" && index >= 1 -> PERIODS
+            name == "compare" && index >= 1 && args.dropLast(1).size >= 2 -> PERIODS + symbols
+            name in SYMBOL_COMMANDS -> symbols
+            name == "heatmap" || name == "peers" -> INDEX_ARGS.map { if (name == "peers") it.removePrefix("NIFTY ") else it }
+            name == "indices" -> listOf("broad", "sectoral", "thematic", "strategy")
+            name == "sectors" -> listOf("30d", "1y")
+            name == "movers" -> listOf("bank", "next50", "fno", "all")
+            name == "calendar" || name == "results" -> listOf("today", "tomorrow", "week", "month") + if (name == "calendar") symbols.take(3) else emptyList()
+            else -> emptyList()
+        }
+        // multi-word choices ("NIFTY BANK") are matched against everything typed after the command name
+        val whole = t.substringAfter(' ', "").trimStart().uppercase()
+        return opts.filter { o -> val typed = if (o.contains(' ')) whole else current; o.uppercase().startsWith(typed) && !o.equals(typed, true) }.distinct().take(8)
+    }
+
+    /** Puts [choice] in place of what is being typed (the whole argument for a multi-word choice) and adds a space. */
+    fun completeArg(text: String, choice: String): String =
+        if (choice.contains(' ')) text.trimStart().substringBefore(' ') + " " + choice + " " else Regex("""\S*$""").replaceFirst(text, choice) + " "
 
     fun parse(text: String): Parsed {
         val t = text.trim().removePrefix("/")

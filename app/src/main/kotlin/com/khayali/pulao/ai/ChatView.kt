@@ -93,6 +93,8 @@ class ChatView(
 
     private val list = k.column().apply { setPadding(k.dp(16), k.dp(12), k.dp(16), k.dp(24)) }
     private val scroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(list) }
+    /** The list above the input while a /command is being typed: each match with its description, or the matched command's usage. */
+    private val suggestBox = k.column().apply { visibility = GONE; setPadding(k.dp(12), 0, k.dp(12), k.dp(4)) }
     private val pillRow = k.row()
     private val pills = HorizontalScrollView(ctx).apply {
         isHorizontalScrollBarEnabled = false; clipToPadding = false
@@ -126,6 +128,7 @@ class ChatView(
         val col = k.column()
         col.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; isFillViewport = true; addView(kitePillRow) }, k.lp(MATCH_PARENT))
         col.addView(scroll, k.lp(MATCH_PARENT, 0, 1f))
+        col.addView(suggestBox, k.lp(MATCH_PARENT))
         col.addView(pills, k.lp(MATCH_PARENT))
         col.addView(buildInputBar(), k.lp(MATCH_PARENT))
         addView(col, LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -594,12 +597,19 @@ class ChatView(
     private fun onTyping(t: String) {
         val mention = Commands.typingMention(t)
         when {
-            Commands.isCommand(t) && !t.contains(' ') ->
-                setPills(Commands.suggest(t).map { "${it.usage}  ·  ${it.help}" }, remember = false) { pill ->
-                    val usage = pill.substringBefore("  ·  ")
-                    val name = usage.removePrefix("/").substringBefore(' ')
-                    if (usage.contains(' ')) { input.setText("/$name "); input.setSelection(input.text.length) } else submit(usage)
-                }
+            Commands.isCommand(t) && !t.contains(' ') -> {
+                setPills(emptyList(), remember = false)
+                showSuggestions(Commands.rank(t))
+            }
+            Commands.isCommand(t) -> {
+                // after the command name: what it expects, and completions for the word being typed
+                val name = t.trimStart().removePrefix("/").substringBefore(' ').lowercase()
+                val cmd = (Commands.ALL + Commands.TERMINAL).firstOrNull { it.name == name }
+                showSuggestions(emptyList(), cmd)
+                val symbols = (kiteHoldings().map { it.name } + watch.symbols + kite.knownSymbols).map { it.uppercase() }.distinct()
+                val hints = Commands.argHints(t, symbols)
+                setPills(hints, remember = false) { pick -> input.setText(Commands.completeArg(input.text.toString(), pick)); input.setSelection(input.text.length) }
+            }
             mention != null -> {
                 val syms = Commands.matching(mention, kite.knownSymbols)
                 if (syms.isEmpty()) setPills(listOf(if (kite.connected) "No holding matches @$mention" else "Connect Kite to @mention your stocks"), remember = false) { }
@@ -607,8 +617,38 @@ class ChatView(
                     input.setText(Commands.completeMention(input.text.toString(), pill.removePrefix("@"))); input.setSelection(input.text.length)
                 }
             }
-            else -> setPills(lastPills, remember = false)
+            else -> { showSuggestions(emptyList()); setPills(lastPills, remember = false) }
         }
+        if (mention != null || !Commands.isCommand(t)) showSuggestions(emptyList())
+    }
+
+
+    private fun showSuggestions(cmds: List<Commands.Cmd>, usageOf: Commands.Cmd? = null) {
+        suggestBox.removeAllViews()
+        val card = k.column().apply { background = k.rounded(Pal.SURFACE, 14f, Pal.LINE); setPadding(0, k.dp(4), 0, k.dp(4)) }
+        if (usageOf != null) {
+            card.addView(k.column().apply {
+                setPadding(k.dp(14), k.dp(8), k.dp(14), k.dp(8))
+                addView(k.text(usageOf.usage, 13.5f, Pal.BLUE, 600).apply { typeface = android.graphics.Typeface.MONOSPACE })
+                addView(k.text(usageOf.help, 12f, Pal.MUTED).apply { setPadding(0, k.dp(2), 0, 0); maxLines = 2 })
+            })
+        }
+        cmds.forEachIndexed { i, c ->
+            if (i > 0) card.addView(View(context).apply { setBackgroundColor(Pal.alpha(Pal.LINE, 0.5f)) }, k.lp(MATCH_PARENT, 1))
+            card.addView(k.row().apply {
+                setPadding(k.dp(14), k.dp(9), k.dp(14), k.dp(9))
+                background = k.press(null, 0f)
+                addView(k.text("/" + c.name, 14f, Pal.TEXT, 600).apply { typeface = android.graphics.Typeface.MONOSPACE }, k.lp(k.dp(132)))
+                addView(k.text(c.help, 12.5f, Pal.MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
+                setOnClickListener {
+                    // commands that take an argument get "/name " and show their hints; the rest run straight away
+                    if (c.usage.contains(' ')) { input.setText("/${c.name} "); input.setSelection(input.text.length) } else submit("/${c.name}")
+                }
+            }, k.lp(MATCH_PARENT))
+        }
+        if (cmds.isEmpty() && usageOf == null) { suggestBox.visibility = GONE; return }
+        suggestBox.addView(card, k.lp(MATCH_PARENT))
+        suggestBox.visibility = VISIBLE
     }
 
     fun showHelp() {
@@ -658,6 +698,7 @@ class ChatView(
     private fun submit(raw: String) {
         if (phase.busy) return
         val text = raw.trim()
+        showSuggestions(emptyList())
         WatchStore.symbolsIn(text).forEach { watch.add(it) }
         when (val a = ChatFlow.route(text, env())) {
             ChatFlow.Action.Ignore -> return

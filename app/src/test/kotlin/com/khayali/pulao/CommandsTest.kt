@@ -24,6 +24,30 @@ class CommandsTest {
         assertTrue(Commands.suggest("/g").all { it.name.startsWith("g") })
     }
 
+    @Test fun suggestionsRankAsYouType() {
+        fun names(q: String) = Commands.rank(q).map { it.name }
+        assertEquals("report", names("/").first())                                     // nothing typed: the most useful first
+        assertEquals("chart", names("/chart").first())                                  // exact
+        assertEquals("calendar", names("/cal").first())                                 // prefix
+        assertTrue(names("/chain").contains("optionchain"))                             // a word inside the name
+        assertTrue(names("/dividend").isNotEmpty())                                     // the description
+        assertTrue(names("/ochn").contains("optionchain"))                              // loose subsequence
+        assertEquals(emptyList<String>(), names("/zzzz"))
+        assertTrue(Commands.rank("/s", limit = 7).size <= 7)
+    }
+
+    @Test fun argumentHints() {
+        val mine = listOf("INFRA", "INDIGO", "TCS")
+        assertEquals(listOf("INFRA", "INDIGO"), Commands.argHints("/chart IN", mine))
+        assertEquals(listOf("1w", "1m", "3m", "6m", "1y", "5y"), Commands.argHints("/chart INFRA ", mine))
+        assertEquals(listOf("1w", "1m", "1y"), Commands.argHints("/chart INFRA 1", mine))
+        assertTrue(Commands.argHints("/heatmap NIFTY B", mine).contains("NIFTY BANK"))
+        assertEquals(listOf("today", "tomorrow"), Commands.argHints("/calendar to", mine))
+        assertEquals(emptyList<String>(), Commands.argHints("/report ", mine))
+        assertEquals("/chart INFRA ", Commands.completeArg("/chart IN", "INFRA"))
+        assertEquals("/heatmap NIFTY BANK ", Commands.completeArg("/heatmap NIFTY B", "NIFTY BANK"))
+    }
+
     @Test fun mentions() {
         assertEquals("IN", Commands.typingMention("what if @IN"))
         assertNull(Commands.typingMention("what if @INFY goes up"))
