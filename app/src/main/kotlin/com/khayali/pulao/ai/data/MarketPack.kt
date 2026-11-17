@@ -87,7 +87,7 @@ class MarketPack private constructor(private val ctx: Context) {
         val days = todo(start)
         // index history for days already stored (sector analysis), and member lists once a month
         val backfill = store.daysWithoutIndices()
-        val membersDue = System.currentTimeMillis() - prefs.getLong("members_at", 0) > 30L * 86_400_000
+        val membersDue = System.currentTimeMillis() - prefs.getLong("members_at", 0) > 30L * 86_400_000 || store.members().isEmpty()
         if (days.isEmpty() && backfill.isEmpty() && !membersDue) { refresh(); return 0 }
         // extending or updating existing data keeps it usable while new days arrive; a first install downloads
         _state.value = if (store.lastDay() != null) Artifacts.State.Updating(0, days.size + backfill.size) else Artifacts.State.Downloading(0, days.size.toLong())
@@ -111,9 +111,12 @@ class MarketPack private constructor(private val ctx: Context) {
                     _state.value = Artifacts.next(_state.value, Artifacts.Ev.Progress(done.toLong(), (days.size + idxDays.size).toLong()))
                 }
                 if (membersDue) {
-                    Sectors.ALL.map { s -> async { s to runCatching { com.khayali.pulao.ai.MarketFetcher.members(s) }.getOrDefault(emptyList()) } }.awaitAll()
-                        .forEach { (s, m) -> if (m.isNotEmpty()) store.setMembers(s.index, m) }
-                    prefs.edit().putLong("members_at", System.currentTimeMillis()).apply()
+                    val got = Sectors.ALL.map { s -> async { s to runCatching { com.khayali.pulao.ai.MarketFetcher.members(s) }
+                        .onFailure { android.util.Log.w("KhayaliMarket", "members ${s.index}: ${it.message}") }.getOrDefault(emptyList()) } }.awaitAll()
+                    got.forEach { (s, m) -> if (m.isNotEmpty()) store.setMembers(s.index, m) }
+                    // only count the refresh as done when the lists actually arrived; otherwise the next update retries
+                    if (got.count { it.second.isNotEmpty() } >= Sectors.ALL.size / 2) prefs.edit().putLong("members_at", System.currentTimeMillis()).apply()
+                    android.util.Log.i("KhayaliMarket", "member lists: ${got.count { it.second.isNotEmpty() }} of ${Sectors.ALL.size}")
                 }
                 sectorBook = null
                 cached = null                                     // the snapshot is extended with the new days on next use
