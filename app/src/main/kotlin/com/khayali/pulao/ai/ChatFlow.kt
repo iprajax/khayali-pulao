@@ -53,7 +53,8 @@ object ChatFlow {
     // ------------------------------------------------------------------ routing
 
     enum class Kite { OFF, CONNECTED, EXPIRED }
-    data class Env(val modelReady: Boolean, val kite: Kite, val webOn: Boolean)
+    /** [ready]: installed artifacts ("market", "knowledge"); null = not tracked (everything counts as installed). */
+    data class Env(val modelReady: Boolean, val kite: Kite, val webOn: Boolean, val ready: Set<String>? = null)
     enum class WebKind { SEARCH, PRICE, EVENTS, CALENDAR, IPO, GMP }
     enum class Source { KITE, WEB }
 
@@ -76,10 +77,18 @@ object ChatFlow {
         /** Rebuild the model's context from a short summary of the thread. */
         data object Compact : Action()
         data class Term(val id: String, val arg: String) : Action()
+        /** The command needs an artifact that isn't on the phone yet; offer it, then re-run [pending]. */
+        data class NeedArtifact(val artifact: String, val pending: String) : Action()
         data class Model(val prompt: String) : Action()
         /** Free-form question but the model isn't downloaded. */
         data object NeedModel : Action()
         data class Unknown(val name: String) : Action()
+    }
+
+    /** The artifact a feature needs that isn't installed, if any. */
+    fun missing(featureId: String, env: Env): String? {
+        val need = com.khayali.pulao.ai.term.Terminal.find(featureId)?.requires ?: return null
+        return if (env.ready == null || need in env.ready) null else need
     }
 
     fun route(raw: String, env: Env): Action {
@@ -87,8 +96,12 @@ object ChatFlow {
         if (text.isEmpty()) return Action.Ignore
         if (text.startsWith("Connect Kite") || text.startsWith("Reconnect Kite")) return Action.ConnectKite(null, env.kite == Kite.EXPIRED)
         if (!Commands.isCommand(text)) {
+            // A short plain request that means one command runs it exactly as if it had been typed.
+            Intents.match(text)?.let { cmd -> route(cmd, env).let { if (it !is Action.Unknown && it !is Action.Help || cmd == "/help") return it } }
             // A short question that plainly means one terminal feature runs it directly: exact, instant, no model needed.
-            com.khayali.pulao.ai.term.Terminal.match(text)?.let { (f, arg) -> if (env.webOn || !f.needsWeb) return Action.Term(f.id, arg) else if (!env.modelReady) return Action.EnableWeb("/${f.id} $arg".trim()) }
+            com.khayali.pulao.ai.term.Terminal.match(text)?.let { (f, arg) ->
+                missing(f.id, env)?.let { return Action.NeedArtifact(it, text) }
+                if (env.webOn || !f.needsWeb) return Action.Term(f.id, arg) else if (!env.modelReady) return Action.EnableWeb("/${f.id} $arg".trim()) }
             return if (env.modelReady) Action.Model(text) else Action.NeedModel
         }
         return when (val c = Commands.parse(text)) {
@@ -107,7 +120,7 @@ object ChatFlow {
             Commands.Parsed.Memory -> Action.ShowMemory
             Commands.Parsed.Forget -> Action.ForgetAll
             Commands.Parsed.Compact -> Action.Compact
-            is Commands.Parsed.Term -> if (!env.webOn && com.khayali.pulao.ai.term.Terminal.find(c.id)?.needsWeb != false) Action.EnableWeb(text) else Action.Term(c.id, c.arg)
+            is Commands.Parsed.Term -> if (missing(c.id, env) != null) Action.NeedArtifact(missing(c.id, env)!!, text) else if (!env.webOn && com.khayali.pulao.ai.term.Terminal.find(c.id)?.needsWeb != false) Action.EnableWeb(text) else Action.Term(c.id, c.arg)
             is Commands.Parsed.Prompt -> if (env.modelReady) Action.Model(c.text) else Action.NeedModel
         }
     }

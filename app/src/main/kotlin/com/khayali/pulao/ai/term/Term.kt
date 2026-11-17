@@ -36,6 +36,14 @@ interface Fetch {
      * Missing symbols are simply absent from the result.
      */
     suspend fun spark(symbols: List<String>, range: String = "1d", interval: String = "5m"): Map<String, Spark> = emptyMap()
+    /** The user's own downloaded market history (last [days] trading days), or null if it isn't installed. Local — no network. */
+    suspend fun market(days: Int = 300): com.khayali.pulao.ai.data.Panel? = null
+    /** The community-screens knowledge bank shipped with the app (null where assets aren't available). */
+    val knowledge: com.khayali.pulao.ai.term.Knowledge? get() = null
+    /** Models and data kept on the phone (null in tests without it). */
+    val artifacts: com.khayali.pulao.ai.data.ArtifactHub? get() = null
+    /** What the user told the chat about themselves (goal, horizon, risk), from memory. */
+    val profile: List<String> get() = emptyList()
 }
 
 /** A small price series for a sparkline: closes in order, the previous session's close, and the latest price. */
@@ -57,6 +65,8 @@ interface Feature {
     val group: Group
     /** False for features that work fully offline (pure calculators, or ones that only need the user's holdings). */
     val needsWeb: Boolean get() = true
+    /** The artifact it can't work without ("market", "knowledge"), or null. The chat offers that download first. */
+    val requires: String? get() = null
     /** Plain-language phrases that mean this feature; used to route short questions without the model. */
     val triggers: List<Regex> get() = emptyList()
     /** Returns card JSON built with [Card], or [Card.error]. Must not throw for expected failures (no data, bad symbol). */
@@ -123,6 +133,8 @@ class Card(private val kicker: String, private val accent: String = "blue") {
     companion object {
         private val gson = Gson()
         fun error(message: String): String = gson.toJson(mapOf("error" to message))
+        /** An error with buttons that fix it, e.g. error("Needs market history", "/data 1y", "/data 3y"). Shown as tappable actions under the message. */
+        fun error(message: String, vararg actions: String): String = gson.toJson(mapOf("error" to message, "actions" to actions.toList()))
     }
 }
 

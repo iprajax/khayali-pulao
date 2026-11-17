@@ -46,6 +46,8 @@ class ChatSession(
     private val scope: CoroutineScope,
     private val webOn: () -> Boolean = { false },
     private val memory: (query: String) -> List<Ace.Bullet> = { emptyList() },
+    /** Runs one app command exactly as if the user had typed it (see ChatView.runForModel). */
+    private val commands: (suspend (String) -> ToolEvent)? = null,
 ) {
     interface Listener {
         fun onThinking(warming: Boolean)
@@ -110,7 +112,7 @@ class ChatSession(
             ChatFlow.Kite.EXPIRED -> "The user's Kite login has expired; if they ask about their real account, tell them to tap 'Reconnect Kite'."
             ChatFlow.Kite.OFF -> "Kite is not connected; if they ask about their real account, suggest tapping 'Connect Kite'."
         }
-        val webLine = if (webOn()) "Web access is ON: use the web tool for news, the market calendar (results, dividends, splits, bonus, AGM dates, IPOs, holidays — action=calendar or ipo), facts you don't know, and prices Kite can't give. Answer only from what it returns and cite sources like [1]. Never put the user's amounts or holdings in a web query."
+        val webLine = if (webOn()) "Web access is ON: use run_command for any of the app's commands (account, prices, charts, calendar, IPOs, market reports, terminal views) and the web tool for news, the market calendar (results, dividends, splits, bonus, AGM dates, IPOs, holidays — action=calendar or ipo), facts you don't know, and prices Kite can't give. Answer only from what it returns and cite sources like [1]. Never put the user's amounts or holdings in a web query."
             else "Web access is OFF: for news, results dates or live prices you can't get, say they can switch on Web with the globe pill at the top. Never invent such facts."
         val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.ENGLISH))
         return """
@@ -174,7 +176,7 @@ class ChatSession(
                 override fun getToolDescriptionJsonString() = tools.schemaJson(d)
                 override fun execute(paramsJsonString: String) = ToolJson.compact(tools.execute(d.name, paramsJsonString))
             })
-        } + kiteTools() + webTools()
+        } + kiteTools() + webTools() + commandTools()
         val bullets = memory(query)
         needsCompaction = false
         val seed = synchronized(turns) { unseen.clear(); turns.takeLast(SEED_TURNS) }.flatMap { listOf(Message.user(it.user), Message.model(it.answer)) }
@@ -271,26 +273,42 @@ class ChatSession(
                 }
             }
         }
-        // One tool for the whole terminal: the model picks a command, exactly as the user would type it.
-        val terminal = object : OpenApiTool {
+        return listOf(tool(t))
+    }
+
+    /**
+     * One tool for every command in the app: the model types a command exactly as the user would, and it runs
+     * through the same code — same checks, same card. Present whenever the view provides a runner.
+     */
+    private fun commandTools(): List<ToolProvider> {
+        val run = commands ?: return emptyList()
+        val names = (Commands.ALL.map { it.name }.filter { it !in setOf("clear", "help", "remember", "memory", "forget", "compact") } +
+            com.khayali.pulao.ai.term.Terminal.FEATURES.map { it.id }).distinct()
+        val c = object : OpenApiTool {
             override fun getToolDescriptionJsonString() = com.google.gson.JsonObject().apply {
-                addProperty("name", "terminal")
-                addProperty("description", "Run a market-terminal command and show its chart card. Commands — " + com.khayali.pulao.ai.term.Terminal.catalogue() +
-                    ". Add a symbol, index or period after the name when it needs one.")
-                add("parameters", JsonParser.parseString("""{"type":"object","properties":{"command":{"type":"string","description":"e.g. 'heatmap NIFTY BANK' or 'flow INFY'"}},"required":["command"]}"""))
+                addProperty("name", "run_command")
+                addProperty("description", "Run one of the app's commands and show its chart card — the same as the user typing it. " +
+                    "Use for the user's account, prices, charts, the market calendar, IPOs, market reports and every terminal view. " +
+                    "Commands: " + names.joinToString(", ") + ". Examples: 'holdings', 'chart INFY 1y', 'price TCS', 'calendar tomorrow', 'ipo', 'gmp Crystal Crop', " +
+                    "'heatmap NIFTY BANK', 'flow INFY', 'report', 'sip 10000 12% 15y'. " +
+                    "For 'what should I do', 'how can I make profit' or a plan for today, run 'brief' (market regime, the week, hidden patterns, the user's holdings, " +
+                    "what each strategy flags); for strategies use 'strategies', 'screen <id>', 'learn <topic>'; for one stock's trend use 'health SYMBOL'. " +
+                    "These run on the user's own market data on the phone. Explain what the data shows and what to review — never tell the user to buy or sell.")
+                add("parameters", JsonParser.parseString("""{"type":"object","properties":{"command":{"type":"string","description":"The command without the slash, with its arguments"}},"required":["command"]}"""))
             }.toString()
             override fun execute(paramsJsonString: String): String {
                 val cmd = arg(paramsJsonString, "command").orEmpty().trim().removePrefix("/")
-                val f = com.khayali.pulao.ai.term.Terminal.find(cmd.substringBefore(' ')) ?: return """{"error":"Unknown terminal command. Use one of: ${com.khayali.pulao.ai.term.Terminal.FEATURES.joinToString(", ") { it.id }}"}"""
-                starting(f.help.take(40) + "…")
+                if (cmd.isBlank()) return """{"error":"Give a command, e.g. 'holdings' or 'chart INFY 1y'."}"""
+                starting("Running /${cmd.substringBefore(' ')}…")
                 val t0 = System.nanoTime()
-                val json = runBlocking { web.term(f, cmd.substringAfter(' ', "").trim(), host.holdings, WatchStore.get(ctx).symbols) }
-                emit(ToolEvent("term_${f.id}", f.help.take(28), ToolJson.ok(json), json, paramsJsonString, since(t0)))
-                return ToolJson.compact(ToolJson.withoutCard(json))
+                val e = runBlocking(Dispatchers.IO) { run(cmd) }
+                emit(e.copy(ms = since(t0)))
+                return ToolJson.compact(ToolJson.withoutCard(e.resultJson))
             }
         }
-        return listOf(tool(t), tool(terminal))
+        return listOf(tool(c))
     }
+
 
     fun send(text: String, listener: Listener, retried: Boolean = false) {
         if (busy) return

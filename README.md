@@ -59,7 +59,7 @@
 Tap **Connect Kite** in the chat to let it read your real holdings, positions, margins and orders through **Zerodha's official [Kite MCP](https://github.com/zerodha/kite-mcp-server)** (`mcp.kite.trade`), using standard MCP OAuth 2.1 (PKCE + a one-time loopback redirect on the phone). You log in on Zerodha's own page in your browser — if you're already logged in to Kite in Chrome it's usually a one-tap "Authorize". The app **only allows read tools**: every order/GTT tool is blocked in code (and tested), on top of Zerodha's hosted server excluding them. Your Kite data comes from Zerodha to your phone and is used only by the on-device model.
 
 <!-- terminal-commands -->
-## 📟 Market terminal — 72 commands
+## 📟 Market terminal — 80 commands
 
 Chart cards built from public, no-login data: NSE's own feeds and exchange filings, public price feeds, World Bank and mfapi.in open data. Web access is opt-in; the calculators and portfolio views marked *works offline* never touch the network. Your holdings are matched on the phone and never sent. Type `/` in the chat to browse, or just ask — short questions like "show me the heatmap" run the matching card directly, and the AI can call any of them.
 
@@ -171,13 +171,48 @@ Chart cards built from public, no-login data: NSE's own feeds and exchange filin
 | `/lumpsum 12 lakh 12% 10y` | Lump sum vs SIP: the same total invested at once or monthly, at a given return · works offline |
 <!-- /terminal-commands -->
 
+## 🧭 Personal advisor on your own data (0.9)
+
+Ask **"what should I do today?"** or type `/brief`. The app reads its own copy of NSE's daily data (downloaded by your phone with `/data`, never redistributed) and returns one action brief:
+
+- **Market regime** — how many liquid stocks are above their 50- and 200-day averages, new highs and lows, volatility against the past year.
+- **The week** — the biggest moves among liquid stocks.
+- **Hidden patterns** — volume spikes, outsized moves, streaks and breakouts, each measured against that stock's own history.
+- **Your holdings** (Kite connected) — trend, distance from the 52-week high, concentration.
+- **Strategies** — 14 rules (momentum, 52-week high, low volatility, trend, pullback, breakout on volume, steady compounders, low beta, accumulation, RSI pullback, no lottery tickets, largest traded, weekly reversal…), each backtested on your data with what it flags today.
+- **Worth reviewing** — every item tied to a number above.
+
+It explains what the data and each rule show. It never says buy or sell and is not investment advice.
+
+| Command | What it does |
+|---|---|
+| `/data` | Models and data on the phone: download 1, 3 or 5 years of NSE history, update, stop, delete |
+| `/brief` | The action brief |
+| `/regime` | Breadth, trend, new highs/lows, volatility |
+| `/anomalies` | Hidden patterns today |
+| `/strategies` | 14 rules backtested side by side |
+| `/screen momentum` | One rule's picks today and its backtest |
+| `/health INFY` | One stock's (or your holdings') trend and risk |
+| `/learn` | The playbook: 25 strategies — 14 that run on your data, 11 fundamental families with the thresholds most used in public screens |
+| `/screens quality low debt` | Search 500 community stock screens by idea (knowledge bank, downloaded on demand) |
+
+It ends with **Next steps** — concrete actions tied to its numbers (review a flagged holding, reduce concentration, see the best rule's picks, find out why a stock moved). While you type, the chat suggests the next useful question.
+
+### 📦 Light app, everything on demand
+
+The app ships small. The AI model, market history and the strategy knowledge bank are downloaded only when you ask, straight to the phone, each checked before use, and managed in one place: **⋮ → Models & data** (status, size, live progress, which commands need each one, download / update / delete). Commands declare what they need: ask for `/brief` without market history and the chat says what's needed, downloads it with a live progress card, then runs what you asked.
+
+**No computer is needed.** Downloads, analysis, backtests and the brief all run on the phone. The Mac tools below are optional, for research.
+
+**On a Mac (optional):** `python3 tools/market/fetch.py --from 2016-01-01` fetches your own copy of the history; `uv run tools/research/research.py build`, then `ask "breakout to a new high on heavy volume"`, searches past situations by meaning with [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2) (candidates from a 4-bit [turbovec](https://pypi.org/project/turbovec/) index, re-ranked exactly) and shows how they went the next month. `research.py bank` / `find` / `export` build the screens knowledge bank the app downloads (`docs/knowledge/screens-v1.kb`: rules, names, themes and links to the original screens, with int8 EmbeddingGemma 2 vectors). On the phone, where EmbeddingGemma 2 can't run, search is hybrid: keywords pick anchor screens and the vectors add the ones closest in meaning.
+
 ## What's new in 0.8
 
 - **A chat that doesn't get stuck** — one explicit state machine behind typing, pills, /commands, retries and reconnects. Came back next morning and `/holdings` failed? Zerodha signs you out daily and Android may have unloaded the model; the app now detects both, offers **Reconnect**, keeps your command and runs it when you're back.
 - **Commands need no model** — `/holdings` `/chart` `/fd` `/goal` `/grow` `/move` `/tax` are run by the app: exact and instant, even before the 2.6 GB model is downloaded.
 - **Web, with sources (opt-in)** — `/price INFY`, `/events INFY`, `/results INFY`, `/news INFY`, `/web …`, and the model can look things up too. DuckDuckGo search + a public quote feed. Answers cite numbered sources; figures that aren't in a source are removed. Only topic words are sent — amounts, quantities and identifiers are stripped from every query.
 - **Market calendar & IPOs** — `/calendar` (results, dividends, splits, bonus, buybacks, AGMs, IPOs and holidays for the week, your holdings starred), `/ipo` and `/gmp NAME` (grey-market premium trend and implied listing price, clearly labelled unofficial).
-- **Market terminal — 72 commands** — `/report` (the whole market on one card), `/preopen`, `/sectormovers`, `/heatmap`, `/flow INFY` (results as a Sankey from the XBRL filing), `/mindmap INFY`, `/shareholding INFY` (streamgraph), option chain, technicals, portfolio X-ray, global markets, mutual funds and planners — [full list](#-market-terminal--72-commands).
+- **Market terminal — 80 commands** — `/report` (the whole market on one card), `/preopen`, `/sectormovers`, `/heatmap`, `/flow INFY` (results as a Sankey from the XBRL filing), `/mindmap INFY`, `/shareholding INFY` (streamgraph), option chain, technicals, portfolio X-ray, global markets, mutual funds and planners — [full list](#-market-terminal--80-commands).
 - **Memory that learns, on your phone** — a small playbook of notes (your goals and preferences, plus lessons from the chat's own mistakes) that is reflected on and curated after each answer, in the style of [agentic context engineering](https://arxiv.org/abs/2510.04618). Read, delete or erase it with `/memory`.
 - **Readable on a phone** — market cards use native, colour-coded blocks: a scrolling ticker tape, sparkline rows with green/red change pills, sector bars, stat tiles and a breadth bar. `/report` puts indices, breadth, sectors, top gainers and losers, FII/DII flows and your stocks on one card with a written read-out; `/preopen`, `/sectormovers` and `/watch` (stocks you've looked at in chat) work the same way.
 - **Charts with labelled axes** — and new ones: candlesticks with volume, what-if curve, goal paths, tax waterfall, allocation donut, company-events calendar.

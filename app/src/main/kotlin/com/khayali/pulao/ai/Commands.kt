@@ -68,7 +68,7 @@ object Commands {
      * a word inside the name ("chain" → optionchain), then the description ("dividend" → calendar),
      * then a loose subsequence of the name ("oc" → optionchain). Empty input lists the most useful first.
      */
-    fun rank(typed: String, limit: Int = 7): List<Cmd> {
+    fun rank(typed: String, limit: Int = Int.MAX_VALUE): List<Cmd> {
         val q = typed.trimStart().removePrefix("/").substringBefore(' ').lowercase()
         val all = (ALL + TERMINAL).distinctBy { it.name }
         if (q.isEmpty()) return FEATURED.mapNotNull { n -> all.firstOrNull { it.name == n } }.take(limit)
@@ -85,6 +85,21 @@ object Commands {
             }
         }
         return all.map { it to score(it) }.filter { it.second > 0 }.sortedByDescending { it.second }.map { it.first }.take(limit)
+    }
+
+    /** Every command in sections for a bare "/": popular first, then account & calculators, then each terminal group. */
+    fun sections(): List<Pair<String, List<Cmd>>> {
+        val all = (ALL + TERMINAL).distinctBy { it.name }
+        val popular = FEATURED.mapNotNull { n -> all.firstOrNull { it.name == n } }
+        val shown = popular.map { it.name }.toMutableSet()
+        val out = mutableListOf("Popular" to popular)
+        val chat = ALL.filter { it.name !in shown }; shown += chat.map { it.name }
+        out += "Your account, web & calculators" to chat
+        for (g in com.khayali.pulao.ai.term.Group.entries) {
+            val cmds = com.khayali.pulao.ai.term.Terminal.FEATURES.filter { it.group == g && it.id !in shown }.map { f -> TERMINAL.first { it.name == f.id } }
+            if (cmds.isNotEmpty()) { out += g.title to cmds; shown += cmds.map { it.name } }
+        }
+        return out
     }
 
     /** Shown when only "/" has been typed. */

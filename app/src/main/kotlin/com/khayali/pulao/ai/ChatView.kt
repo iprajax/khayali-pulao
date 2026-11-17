@@ -76,7 +76,7 @@ class ChatView(
     private val memoryStore = MemoryStore.get(ctx)
     private val web by lazy { WebClient.get(context) }
     private val session = ChatSession(ctx.applicationContext, { prefs.personaName }, host, { prefs.tone }, scope,
-        webOn = { prefs.webOn }, memory = { q -> memoryStore.select(q) })
+        webOn = { prefs.webOn }, memory = { q -> memoryStore.select(q) }, commands = { c -> runForModel(c) })
     private val persona get() = Persona.of(prefs.personaName)
 
     /** Where the chat is right now; the only source of truth for "busy". */
@@ -95,6 +95,10 @@ class ChatView(
     private val scroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(list) }
     /** The list above the input while a /command is being typed: each match with its description, or the matched command's usage. */
     private val suggestBox = k.column().apply { visibility = GONE; setPadding(k.dp(12), 0, k.dp(12), k.dp(4)) }
+    /** A scroll view that never grows taller than ~40% of the screen, so the chat stays visible above the list. */
+    private val suggestScroll = object : ScrollView(ctx) {
+        override fun onMeasure(w: Int, h: Int) = super.onMeasure(w, MeasureSpec.makeMeasureSpec((resources.displayMetrics.heightPixels * 0.4).toInt(), MeasureSpec.AT_MOST))
+    }.apply { isVerticalScrollBarEnabled = true; isScrollbarFadingEnabled = false; isFillViewport = false }
     private val pillRow = k.row()
     private val pills = HorizontalScrollView(ctx).apply {
         isHorizontalScrollBarEnabled = false; clipToPadding = false
@@ -157,7 +161,13 @@ class ChatView(
         else -> "Ask Khayali Pulao"
     }
 
-    private fun env() = ChatFlow.Env(mm.isReady(), kite.link, prefs.webOn)
+    private fun env() = ChatFlow.Env(mm.isReady(), kite.link, prefs.webOn, readyArtifacts())
+
+    /** Artifacts installed on the phone, for the dependency check before a command runs. */
+    private fun readyArtifacts(): Set<String> = buildSet {
+        if (com.khayali.pulao.ai.data.MarketPack.get(context).state.value.let { it is com.khayali.pulao.ai.data.Artifacts.State.Ready || it is com.khayali.pulao.ai.data.Artifacts.State.Stale || it is com.khayali.pulao.ai.data.Artifacts.State.Updating }) add("market")
+        if (com.khayali.pulao.ai.data.KnowledgePack.get(context).ready()) add("knowledge")
+    }
 
     /** A turn ended (answer, error or stop): settle the phase and bring the pills back. */
     private fun finishTurn(ev: ChatFlow.Ev = ChatFlow.Ev.Finished) {
@@ -599,7 +609,8 @@ class ChatView(
         when {
             Commands.isCommand(t) && !t.contains(' ') -> {
                 setPills(emptyList(), remember = false)
-                showSuggestions(Commands.rank(t))
+                // a bare "/" lists every command in sections; anything typed lists every match, best first
+                if (t.trim() == "/") showSuggestions(emptyList(), sections = Commands.sections()) else showSuggestions(Commands.rank(t))
             }
             Commands.isCommand(t) -> {
                 // after the command name: what it expects, and completions for the word being typed
@@ -617,15 +628,34 @@ class ChatView(
                     input.setText(Commands.completeMention(input.text.toString(), pill.removePrefix("@"))); input.setSelection(input.text.length)
                 }
             }
-            else -> { showSuggestions(emptyList()); setPills(lastPills, remember = false) }
+            else -> {
+                showSuggestions(emptyList())
+                // plain words: suggest the next questions worth asking, each running one exact command
+                val asks = if (t.isBlank()) emptyList() else Asks.suggest(t, readyArtifacts() + listOfNotNull(if (kite.connected) "kite" else null, if (prefs.webOn) "web" else null))
+                if (asks.isEmpty()) setPills(lastPills, remember = false)
+                else setPills(asks.map { it.text }, remember = false) { pick -> asks.firstOrNull { it.text == pick }?.let { input.setText(""); submit(it.command) } }
+            }
         }
         if (mention != null || !Commands.isCommand(t)) showSuggestions(emptyList())
     }
 
 
-    private fun showSuggestions(cmds: List<Commands.Cmd>, usageOf: Commands.Cmd? = null) {
-        suggestBox.removeAllViews()
-        val card = k.column().apply { background = k.rounded(Pal.SURFACE, 14f, Pal.LINE); setPadding(0, k.dp(4), 0, k.dp(4)) }
+    private fun showSuggestions(cmds: List<Commands.Cmd>, usageOf: Commands.Cmd? = null, sections: List<Pair<String, List<Commands.Cmd>>> = emptyList()) {
+        suggestBox.removeAllViews(); suggestScroll.removeAllViews()
+        val card = k.column().apply { setPadding(0, k.dp(4), 0, k.dp(4)) }
+        fun row(c: Commands.Cmd) = k.row().apply {
+            setPadding(k.dp(14), k.dp(9), k.dp(14), k.dp(9))
+            background = k.press(null, 0f)
+            addView(k.text("/" + c.name, 14f, Pal.TEXT, 600).apply { typeface = android.graphics.Typeface.MONOSPACE }, k.lp(k.dp(132)))
+            addView(k.text(c.help, 12.5f, Pal.MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
+            setOnClickListener {
+                if (c.usage.contains(' ')) { input.setText("/${c.name} "); input.setSelection(input.text.length) } else submit("/${c.name}")
+            }
+        }
+        for ((title, list) in sections) {
+            card.addView(k.text(title.uppercase() + "  ·  " + list.size, 11f, Pal.BLUE, 700).apply { letterSpacing = 0.06f; setPadding(k.dp(14), k.dp(10), k.dp(14), k.dp(4)) })
+            list.forEach { card.addView(row(it), k.lp(MATCH_PARENT)) }
+        }
         if (usageOf != null) {
             card.addView(k.column().apply {
                 setPadding(k.dp(14), k.dp(8), k.dp(14), k.dp(8))
@@ -635,19 +665,14 @@ class ChatView(
         }
         cmds.forEachIndexed { i, c ->
             if (i > 0) card.addView(View(context).apply { setBackgroundColor(Pal.alpha(Pal.LINE, 0.5f)) }, k.lp(MATCH_PARENT, 1))
-            card.addView(k.row().apply {
-                setPadding(k.dp(14), k.dp(9), k.dp(14), k.dp(9))
-                background = k.press(null, 0f)
-                addView(k.text("/" + c.name, 14f, Pal.TEXT, 600).apply { typeface = android.graphics.Typeface.MONOSPACE }, k.lp(k.dp(132)))
-                addView(k.text(c.help, 12.5f, Pal.MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f))
-                setOnClickListener {
-                    // commands that take an argument get "/name " and show their hints; the rest run straight away
-                    if (c.usage.contains(' ')) { input.setText("/${c.name} "); input.setSelection(input.text.length) } else submit("/${c.name}")
-                }
-            }, k.lp(MATCH_PARENT))
+            card.addView(row(c), k.lp(MATCH_PARENT))
         }
-        if (cmds.isEmpty() && usageOf == null) { suggestBox.visibility = GONE; return }
-        suggestBox.addView(card, k.lp(MATCH_PARENT))
+        if (cmds.isEmpty() && usageOf == null && sections.isEmpty()) { suggestBox.visibility = GONE; return }
+        if (cmds.size > 1) card.addView(k.text("${cmds.size} matching commands", 11f, Pal.DIM).apply { setPadding(k.dp(14), k.dp(6), k.dp(14), k.dp(4)) })
+        suggestScroll.addView(card, android.widget.FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        suggestScroll.background = k.rounded(Pal.SURFACE, 14f, Pal.LINE)
+        suggestBox.addView(suggestScroll, k.lp(MATCH_PARENT))
+        suggestScroll.scrollTo(0, 0)
         suggestBox.visibility = VISIBLE
     }
 
@@ -729,7 +754,9 @@ class ChatView(
             }
             ChatFlow.Action.ShowMemory -> { input.setText(""); showMemory(text) }
             ChatFlow.Action.Compact -> { input.setText(""); compactNow(text) }
-            is ChatFlow.Action.Term -> { input.setText(""); runTerm(a.id, a.arg, text) }
+            is ChatFlow.Action.Term -> { input.setText(""); runTerm(a.id, a.arg, text)
+                if (a.id == "data") { if (a.arg.trim().startsWith("knowledge", true)) watchKnowledge() else watchDownload() } }
+            is ChatFlow.Action.NeedArtifact -> { input.setText(""); offerArtifact(a.artifact, a.pending) }
             ChatFlow.Action.ForgetAll -> {
                 input.setText("")
                 dialog().setTitle("Erase memory?").setMessage("Deletes everything the chat has remembered about you and the lessons it learned. This can't be undone.")
@@ -813,20 +840,25 @@ class ChatView(
         val message = ToolJson.error(json) ?: "That didn't work."
         val expired = json.contains("\"expired\":true")
         if (expired) pending = label
-        return Outcome("⚠️ $message", chips = if (expired) listOf("Reconnect Kite" to { onKitePill(kite.state.value) }) else listOf("Try again" to { submit(label) }))
+        val fixes = ToolJson.actions(json).map { cmd -> cmd to { submit(cmd) } }
+        return Outcome("⚠️ $message", chips = when { expired -> listOf("Reconnect Kite" to { onKitePill(kite.state.value) }); fixes.isNotEmpty() -> fixes + ("Try again" to { submit(label) }); else -> listOf("Try again" to { submit(label) }) })
     }
 
     /** /holdings, /positions… — read Kite directly and show the card; no model needed. */
-    private fun runKite(section: String, label: String) = appTurn(label, "Reading your Kite $section…") {
+    private fun runKite(section: String, label: String) = appTurn(label, "Reading your Kite $section…") { kiteOutcome(section, label) }
+
+    private suspend fun kiteOutcome(section: String, label: String): Outcome {
         val t0 = System.nanoTime()
         val json = kite.account(section)
-        if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+        if (!ToolJson.ok(json)) return failure(json, label)
         rememberKite(section, json)
-        Outcome(ToolJson.summary(json) ?: "Here it is.",
+        return Outcome(ToolJson.summary(json) ?: "Here it is.",
             ToolEvent("kite_account", "Read Kite $section", true, json, """{"section":"$section"}""", (System.nanoTime() - t0) / 1_000_000))
     }
 
-    private fun runChart(symbol: String, period: String?, source: ChatFlow.Source, label: String) = appTurn(label, "Charting $symbol…") {
+    private fun runChart(symbol: String, period: String?, source: ChatFlow.Source, label: String) = appTurn(label, "Charting $symbol…") { chartOutcome(symbol, period, source, label) }
+
+    private suspend fun chartOutcome(symbol: String, period: String?, source: ChatFlow.Source, label: String): Outcome {
         val t0 = System.nanoTime()
         val args = """{"symbol":"$symbol","period":"${period ?: "6m"}"}"""
         var json = if (source == ChatFlow.Source.KITE) kite.history(symbol, period) else web.quote(symbol, period)
@@ -835,12 +867,14 @@ class ChatView(
         if (!ToolJson.ok(json) && source == ChatFlow.Source.KITE && prefs.webOn && !json.contains("\"expired\":true")) {
             web.quote(symbol, period).takeIf { ToolJson.ok(it) }?.let { json = it; tool = "web_quote" }
         }
-        if (!ToolJson.ok(json)) return@appTurn failure(json, label)
-        Outcome(ToolJson.summary(json).orEmpty(), ToolEvent(tool, "Charted $symbol", true, json, args, (System.nanoTime() - t0) / 1_000_000))
+        if (!ToolJson.ok(json)) return failure(json, label)
+        return Outcome(ToolJson.summary(json).orEmpty(), ToolEvent(tool, "Charted $symbol", true, json, args, (System.nanoTime() - t0) / 1_000_000))
     }
 
     /** /fd, /goal, /grow, /move, /tax — the calculator itself, on the real portfolio when Kite is connected. */
-    private fun runTool(name: String, args: String, label: String) = appTurn(label, "Running the numbers…") {
+    private fun runTool(name: String, args: String, label: String) = appTurn(label, "Running the numbers…") { toolOutcome(name, args, label) }
+
+    private suspend fun toolOutcome(name: String, args: String, label: String): Outcome {
         if (kite.connected && kiteRows.isEmpty() && stockProvider() == null) rememberKite("holdings", kite.account("holdings"))
         turnStock = null
         val t0 = System.nanoTime()
@@ -848,24 +882,147 @@ class ChatView(
         val ev = ToolEvent(name, directTools.defs.firstOrNull { it.name == name }?.label ?: name, ToolJson.ok(json), json, args, (System.nanoTime() - t0) / 1_000_000)
         if (!ev.ok) {
             val needsPortfolio = host.stock == null
-            return@appTurn Outcome("⚠️ " + (if (needsPortfolio) "This works on a portfolio or a stock, and none is loaded." else ToolJson.error(json) ?: "Couldn't calculate that."),
+            return Outcome("⚠️ " + (if (needsPortfolio) "This works on a portfolio or a stock, and none is loaded." else ToolJson.error(json) ?: "Couldn't calculate that."),
                 chips = when {
                     needsPortfolio && kite.link != ChatFlow.Kite.CONNECTED -> { pending = label; listOf((if (kite.link == ChatFlow.Kite.EXPIRED) "Reconnect Kite" else "Connect Kite") to { onKitePill(kite.state.value) }) }
                     else -> listOf("Try again" to { submit(label) })
                 })
         }
-        Outcome(ToolJson.summary(json) ?: "Done.", ev)
+        return Outcome(ToolJson.summary(json) ?: "Done.", ev)
+    }
+
+    private var downloadJob: Job? = null
+
+    /**
+     * A live card for a market-history download: progress bar, days done, time left and Stop, updated
+     * from the pack's state until it is ready (then it offers what to run next) or fails (then Retry).
+     */
+    private fun watchDownload() {
+        val pack = com.khayali.pulao.ai.data.MarketPack.get(context)
+        watchArtifact("market history", "Straight from NSE's public archive to this phone. You can keep chatting.", "days", pack.state, stop = { pack.cancel() },
+            retry = { submit("/data update") }, next = listOf("/brief", "/strategies", "/anomalies"))
+    }
+
+    private fun watchKnowledge() {
+        val kb = com.khayali.pulao.ai.data.KnowledgePack.get(context)
+        watchArtifact("knowledge bank", "From the project's site; checked before use.", "KB", kb.state, stop = { kb.delete() }, retry = { kb.install() }, next = listOf("/screens", "/learn"))
+    }
+
+    /** What each artifact is, for the "needs a download" card. */
+    private data class Offer(val name: String, val what: String, val buttons: List<Pair<String, () -> Unit>>)
+
+    /**
+     * The command needs something that isn't on the phone. Say what and why, offer the download, show live
+     * progress, then run the command the user asked for — the dependency step of the chat's life cycle.
+     */
+    private fun offerArtifact(artifact: String, pending: String) {
+        val market = com.khayali.pulao.ai.data.MarketPack.get(context); val kb = com.khayali.pulao.ai.data.KnowledgePack.get(context)
+        val then = { scope.launch { kotlinx.coroutines.delay(300); submit(pending) }; Unit }
+        val offer = when (artifact) {
+            "market" -> Offer("market history", "$pending works on your own copy of NSE's daily prices, downloaded by this phone from NSE's public archive (about 25 MB a year). 3 years gives fair backtests.",
+                listOf("Download 3 years" to { market.tier = com.khayali.pulao.ai.data.MarketPack.Tier.Y3; market.install(); watchArtifact("market history", "From NSE's public archive to this phone.", "days", market.state, { market.cancel() }, { market.install() }, emptyList(), then) },
+                       "1 year (quicker)" to { market.tier = com.khayali.pulao.ai.data.MarketPack.Tier.Y1; market.install(); watchArtifact("market history", "From NSE's public archive to this phone.", "days", market.state, { market.cancel() }, { market.install() }, emptyList(), then) }))
+            "knowledge" -> Offer("strategy knowledge bank", "$pending searches 500 community stock screens with their rules (about ${kb.spec.bytes / 1000} KB, from the project's site, checked by checksum).",
+                listOf("Download (${kb.spec.bytes / 1000} KB)" to { kb.install(); watchArtifact("knowledge bank", "From the project's site; checked before use.", "KB", kb.state, { kb.delete() }, { kb.install() }, emptyList(), then) }))
+            else -> return
+        }
+        startThread(); setPills(emptyList()); addUser(pending)
+        val card = k.card {
+            addView(k.text("This needs the ${offer.name}", 15f, Pal.TEXT, 500)); addView(k.space(6))
+            addView(k.text(offer.what, 13f, Pal.MUTED).apply { setLineSpacing(0f, 1.3f) }); addView(k.space(12))
+            offer.buttons.forEachIndexed { i, (label, go) -> addView(k.button(label, primary = i == 0) { go() }, k.lp(MATCH_PARENT).apply { topMargin = if (i > 0) k.dp(8) else 0 }) }
+            addView(k.text("Manage everything on the phone: menu ⋮ → Models & data", 11.5f, Pal.DIM).apply { setPadding(0, k.dp(10), 0, 0) })
+        }
+        list.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); scrollToEnd()
+    }
+
+    /**
+     * A live card for any download: progress bar, amount done, time left and Stop, updated from the artifact's
+     * state until it is ready (then [onReady], or buttons for [next]) or fails (then Retry).
+     */
+    private fun watchArtifact(name: String, note0: String, unit: String, flow: kotlinx.coroutines.flow.StateFlow<com.khayali.pulao.ai.data.Artifacts.State>,
+                              stop: () -> Unit, retry: () -> Unit, next: List<String>, onReady: (() -> Unit)? = null) {
+        if (downloadJob?.isActive == true) return
+        downloadJob = scope.launch {
+            turnJob?.join()
+            val s0 = flow.value
+            if (!(s0 is com.khayali.pulao.ai.data.Artifacts.State.Downloading || s0 is com.khayali.pulao.ai.data.Artifacts.State.Updating || s0 is com.khayali.pulao.ai.data.Artifacts.State.Verifying)) {
+                if (s0 is com.khayali.pulao.ai.data.Artifacts.State.Ready) onReady?.invoke()
+                return@launch
+            }
+            val title = k.text("Downloading $name…", 15f, Pal.TEXT, 500)
+            val bar = ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = 1000; isIndeterminate = true
+                progressTintList = android.content.res.ColorStateList.valueOf(Pal.BLUE)
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Pal.LINE)
+                indeterminateTintList = android.content.res.ColorStateList.valueOf(Pal.BLUE)
+            }
+            val stats = k.text("Starting…", 12.5f, Pal.MUTED)
+            val note = k.text(note0, 11.5f, Pal.DIM)
+            val actions = k.row()
+            actions.addView(k.button("Stop", primary = false) { stop() }, k.lp(MATCH_PARENT))
+            val card = k.card {
+                addView(title); addView(k.space(10)); addView(bar, k.lp(MATCH_PARENT, k.dp(6))); addView(k.space(6)); addView(stats)
+                addView(k.space(6)); addView(note); addView(k.space(12)); addView(actions, k.lp(MATCH_PARENT))
+            }
+            list.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) }); scrollToEnd()
+            val t0 = System.currentTimeMillis(); var firstDone = -1L
+            flow.collect { s ->
+                when (s) {
+                    com.khayali.pulao.ai.data.Artifacts.State.Verifying -> { title.text = "Checking the $name…"; bar.isIndeterminate = true }
+                    is com.khayali.pulao.ai.data.Artifacts.State.Downloading, is com.khayali.pulao.ai.data.Artifacts.State.Updating -> {
+                        val (done, total) = if (s is com.khayali.pulao.ai.data.Artifacts.State.Downloading) s.done to s.total
+                            else (s as com.khayali.pulao.ai.data.Artifacts.State.Updating).done.toLong() to s.total.toLong()
+                        if (total > 0) {
+                            if (firstDone < 0) firstDone = done
+                            bar.isIndeterminate = false; bar.progress = (done * 1000 / total).toInt()
+                            val secs = (System.currentTimeMillis() - t0) / 1000.0
+                            val left = if (done > firstDone && secs > 1) ((total - done) * secs / (done - firstDone)).toLong() else null
+                            title.text = "Downloading $name… ${done * 100 / total}%"
+                            stats.text = (if (unit == "KB") "${done / 1000} of ${total / 1000} KB" else "$done of $total $unit") + (left?.let { " · about ${if (it >= 60) "${it / 60} min" else "$it s"} left" } ?: "")
+                        }
+                    }
+                    is com.khayali.pulao.ai.data.Artifacts.State.Ready -> {
+                        bar.isIndeterminate = false; bar.progress = 1000
+                        title.text = "✓ ${name.replaceFirstChar { it.uppercase() }} ready"
+                        stats.text = listOf(s.version, s.note, if (s.bytes >= 1_000_000) "${s.bytes / 1_000_000} MB" else "${s.bytes / 1000} KB").filter { it.isNotBlank() }.joinToString(" · ")
+                        actions.removeAllViews()
+                        if (onReady != null) { note.text = "Running what you asked…"; scrollToEnd(); onReady(); cancel() }
+                        note.text = "Try what it powers:"
+                        next.forEach { cmd ->
+                            actions.addView(k.button(cmd, primary = cmd == "/brief") { submit(cmd) }, k.lp(0, WRAP_CONTENT, 1f).apply { marginEnd = k.dp(6) })
+                        }
+                        scrollToEnd(); cancel()
+                    }
+                    is com.khayali.pulao.ai.data.Artifacts.State.Failed -> {
+                        bar.visibility = GONE; title.text = "⚠️ Download stopped"; stats.text = s.message
+                        note.text = "Anything already downloaded is kept. Tap Retry to try again."
+                        actions.removeAllViews(); actions.addView(k.button("Retry", primary = true) { retry() }, k.lp(MATCH_PARENT)); cancel()
+                    }
+                    is com.khayali.pulao.ai.data.Artifacts.State.Stale, com.khayali.pulao.ai.data.Artifacts.State.NotInstalled -> {
+                        bar.visibility = GONE; title.text = "Download stopped"; stats.text = "What was downloaded is kept."
+                        actions.removeAllViews(); actions.addView(k.button("Continue", primary = true) { retry() }, k.lp(MATCH_PARENT)); cancel()
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 
     /** A terminal feature: fetch, build its card, show it. Same turn life cycle as every other app-only command. */
     private fun runTerm(id: String, arg: String, label: String) {
         val feature = com.khayali.pulao.ai.term.Terminal.find(id) ?: return showHelp()
-        appTurn(label, "${feature.help.substringBefore(':').substringBefore(" — ").take(40)}…") {
+        appTurn(label, "${feature.help.substringBefore(':').substringBefore(" — ").take(40)}…") { termOutcome(id, arg, label) }
+    }
+
+    private suspend fun termOutcome(id: String, arg: String, label: String): Outcome {
+        val feature = com.khayali.pulao.ai.term.Terminal.find(id) ?: return Outcome("⚠️ Unknown command /$id")
+        run {
             if (kite.connected && kiteRows.isEmpty()) rememberKite("holdings", kite.account("holdings"))
             val t0 = System.nanoTime()
             val json = web.term(feature, arg, kiteHoldings(), watch.symbols)
-            if (!ToolJson.ok(json)) return@appTurn failure(json, label)
-            Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("term_$id", feature.help.take(28), true, json,
+            if (!ToolJson.ok(json)) return failure(json, label)
+            return Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("term_$id", feature.help.take(28), true, json,
                 com.google.gson.JsonObject().apply { addProperty("command", "/$id $arg".trim()) }.toString(), (System.nanoTime() - t0) / 1_000_000))
         }
     }
@@ -873,43 +1030,69 @@ class ChatView(
     private fun runWeb(kind: ChatFlow.WebKind, query: String, label: String) = appTurn(label, when (kind) {
         ChatFlow.WebKind.SEARCH -> "Searching the web…"; ChatFlow.WebKind.PRICE -> "Getting the latest price…"; ChatFlow.WebKind.EVENTS -> "Looking up company events…"
         ChatFlow.WebKind.CALENDAR -> "Reading the market calendar…"; ChatFlow.WebKind.IPO -> "Checking IPOs…"; ChatFlow.WebKind.GMP -> "Reading the grey-market premium…"
-    }) {
+    }) { webOutcome(kind, query, label) }
+
+    private suspend fun webOutcome(kind: ChatFlow.WebKind, query: String, label: String): Outcome {
         val t0 = System.nanoTime()
         val args = com.google.gson.JsonObject().apply { addProperty("query", query) }.toString()
         fun ms() = (System.nanoTime() - t0) / 1_000_000
-        when (kind) {
+        return when (kind) {
             ChatFlow.WebKind.SEARCH -> {
                 val json = web.search(query).second
-                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                if (!ToolJson.ok(json)) return failure(json, label)
                 Outcome("From the web, with sources:\n" + WebData.extract(WebData.resultsOf(json)), ToolEvent("web_search", "Searched the web", true, json, args, ms()))
             }
             ChatFlow.WebKind.PRICE -> {
                 val json = web.quote(query, "6m")
-                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                if (!ToolJson.ok(json)) return failure(json, label)
                 Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_quote", "Got the price", true, json, args, ms()))
             }
             ChatFlow.WebKind.CALENDAR -> {
                 if (kite.connected && kiteRows.isEmpty()) rememberKite("holdings", kite.account("holdings"))      // so your own stocks can be marked
                 val json = web.calendar(query, (kiteHoldings().map { it.name } + kite.knownSymbols).map { it.uppercase() }.toSet())
-                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                if (!ToolJson.ok(json)) return failure(json, label)
                 Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_calendar", "Read the calendar", true, json, args, ms()))
             }
             ChatFlow.WebKind.GMP -> {
                 val json = web.gmp(query)
-                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                if (!ToolJson.ok(json)) return failure(json, label)
                 Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_gmp", "Read the grey market", true, json, args, ms()))
             }
             ChatFlow.WebKind.IPO -> {
                 val json = web.ipo()
-                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                if (!ToolJson.ok(json)) return failure(json, label)
                 Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_ipo", "Checked IPOs", true, json, args, ms()))
             }
             ChatFlow.WebKind.EVENTS -> {
                 val json = web.events(query)
-                if (!ToolJson.ok(json)) return@appTurn failure(json, label)
+                if (!ToolJson.ok(json)) return failure(json, label)
                 Outcome(ToolJson.summary(json).orEmpty(), ToolEvent("web_events", "Found events", true, json, args, ms()))
             }
         }
+    }
+
+    /**
+     * Runs any data command for the AI model's run_command tool, through the same code as a typed command,
+     * and returns its result (the card is drawn from it). Commands that need the user — connecting Kite,
+     * allowing web access — come back as an error the model can relay.
+     */
+    suspend fun runForModel(command: String): ToolEvent {
+        val cmd = command.trim().let { if (it.startsWith("/")) it else "/$it" }
+        fun fail(msg: String) = ToolEvent("run_command", cmd, false, com.google.gson.JsonObject().apply { addProperty("error", msg) }.toString(),
+            com.google.gson.JsonObject().apply { addProperty("command", cmd) }.toString())
+        val outcome = when (val a = ChatFlow.route(cmd, env())) {
+            is ChatFlow.Action.KiteRead -> kiteOutcome(a.section, cmd)
+            is ChatFlow.Action.Chart -> chartOutcome(a.symbol, a.period, a.source, cmd)
+            is ChatFlow.Action.Tool -> toolOutcome(a.name, a.args, cmd)
+            is ChatFlow.Action.Web -> webOutcome(a.kind, a.query, cmd)
+            is ChatFlow.Action.Term -> termOutcome(a.id, a.arg, cmd)
+            is ChatFlow.Action.ConnectKite -> return fail(if (a.expired) "The user's Kite login has expired; ask them to tap Reconnect Kite." else "Kite is not connected; ask the user to tap Connect Kite.")
+            is ChatFlow.Action.EnableWeb -> return fail("Web access is off; ask the user to turn it on with the Web pill.")
+            is ChatFlow.Action.NeedArtifact -> return fail("That needs the ${a.artifact} download, which isn't on the phone yet. Tell the user to type ${if (a.artifact == "market") "/data 3y" else "/screens"} to get it.")
+            else -> return fail("$cmd is not a data command. Use one of the commands listed in the tool description.")
+        }
+        WatchStore.symbolsIn(cmd).forEach { watch.add(it) }
+        return outcome.event ?: fail(outcome.text.removePrefix("⚠️ ").trim())
     }
 
     private fun sendToModel(display: String, prompt: String) {

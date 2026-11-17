@@ -70,6 +70,11 @@
             android:label="Memory" />
 
         <activity
+            android:name=".ai.ArtifactsActivity"
+            android:exported="false"
+            android:label="Models &amp; data" />
+
+        <activity
             android:name=".DemoActivity"
             android:exported="false"
             android:label="Khayali Pulao demo" />

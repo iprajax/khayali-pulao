@@ -20,7 +20,10 @@ object TermTesting {
     class Fake(
         private val nse: Map<String, String> = emptyMap(), private val charts: Map<String, String> = emptyMap(), private val pages: Map<String, String> = emptyMap(),
         override val holdings: List<Stock.Holding> = emptyList(), override val today: LocalDate = LocalDate.of(2026, 11, 17),
+        private val panel: com.khayali.pulao.ai.data.Panel? = null, override val profile: List<String> = emptyList(),
+        override val knowledge: com.khayali.pulao.ai.term.Knowledge? = null,
     ) : Fetch {
+        override suspend fun market(days: Int) = panel
         val asked = mutableListOf<String>()
         override suspend fun nse(path: String): String { asked += "nse:$path"; return nse.entries.firstOrNull { path.startsWith(it.key) }?.value.orEmpty() }
         override suspend fun chart(symbol: String, range: String, interval: String): String { asked += "chart:$symbol:$range:$interval"; return charts[symbol].orEmpty() }

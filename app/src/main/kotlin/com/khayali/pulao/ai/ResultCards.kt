@@ -57,7 +57,7 @@ object ResultCards {
                             setPadding(0, k.dp(7), 0, k.dp(7))
                             addView(k.column().apply {
                                 addView(k.text(r.s("title"), 13.5f, Pal.TEXT, 500).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-                                if (r.s("sub").isNotBlank()) addView(line(k, r.s("sub"), Pal.MUTED, 12f).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+                                if (r.s("sub").isNotBlank()) addView(line(k, r.s("sub"), Pal.MUTED, 12f).apply { text = arrows(text); maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END })
                             }, k.lp(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                             // A bare percentage reads best as a colour pill, the same as the native mover rows.
                             val pctValue = Regex("""^([+\-−]?)(\d+(?:\.\d+)?)%$""").find(r.s("value").trim())
@@ -76,10 +76,53 @@ object ResultCards {
             }
             // The takeaway: the exact summary, inside the card, so the chat doesn't repeat it as a paragraph.
             o.get("summary")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotBlank() }?.let { t ->
-                addView(k.text(t, 13f, Pal.TEXT).apply {
-                    setLineSpacing(0f, 1.3f); setTextIsSelectable(true)
-                    background = k.rounded(Pal.alpha(Pal.BLUE, 0.08f), 10f); setPadding(k.dp(12), k.dp(10), k.dp(12), k.dp(10))
-                }, k.lp(MATCH_PARENT).apply { topMargin = k.dp(12) })
+                addView(takeaway(k, t), k.lp(MATCH_PARENT).apply { topMargin = k.dp(12) })
+            }
+        }
+    }
+
+    private val SIGNED = Regex("""[+\u2212-]\s?\d[\d,]*(\.\d+)?\s?%""")
+
+    /** Up/down figures in green/red, the rest plain — the same colour code as the blocks above. */
+    fun colourNumbers(t: String): CharSequence = android.text.SpannableString(t).apply {
+        SIGNED.findAll(t).forEach { m ->
+            val up = m.value.trimStart().startsWith("+")
+            setSpan(android.text.style.ForegroundColorSpan(if (up) Pal.GREEN else Pal.RED), m.range.first, m.range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), m.range.first, m.range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    /** "▲ beat … · rest" → the ▲ part in green, "▼ lagged …" in red; signed percentages coloured too. */
+    fun arrows(t: CharSequence): CharSequence {
+        val out = android.text.SpannableString(colourNumbers(t.toString()))
+        Regex("""[▲▼][^·]*""").findAll(t).forEach { m ->
+            out.setSpan(android.text.style.ForegroundColorSpan(if (m.value.startsWith("▲")) Pal.GREEN else Pal.RED), m.range.first, m.range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        return out
+    }
+
+    /** The first sentence or two; the whole read-out stays one tap away (and is what the AI reads). */
+    fun brief(t: String, max: Int = 200): String {
+        val sentences = Regex("""(?<=[.!?])\s+(?=[A-Z0-9])""").split(t.trim())
+        val out = StringBuilder()
+        for (x in sentences) { if (out.isNotEmpty() && out.length + x.length > max) break; if (out.isNotEmpty()) out.append(' '); out.append(x) }
+        return out.toString().let { if (it.length > max + 80) it.take(max).substringBeforeLast(' ') + "…" else it }
+    }
+
+    /** "TAKEAWAY" with an accent bar, short by default, numbers colour-coded; tap to read the full text. */
+    fun takeaway(k: Kit, t: String): View {
+        val short = brief(t); val long = short.length < t.length - 3
+        val body = k.text(colourNumbers(short), 14f, Pal.TEXT).apply { setLineSpacing(0f, 1.35f) }
+        val more = k.text("Show full read-out", 12f, Pal.BLUE, 500).apply { setPadding(0, k.dp(6), 0, 0) }
+        return k.column().apply {
+            background = k.rounded(Pal.alpha(Pal.BLUE, 0.08f), 10f); setPadding(k.dp(14), k.dp(10), k.dp(12), k.dp(10))
+            addView(k.text("TAKEAWAY", 10.5f, Pal.BLUE, 600).apply { letterSpacing = 0.08f; setPadding(0, 0, 0, k.dp(4)) })
+            addView(body, k.lp(MATCH_PARENT))
+            if (long) {
+                addView(more)
+                var open = false
+                val toggle = View.OnClickListener { open = !open; body.text = colourNumbers(if (open) t else short); more.text = if (open) "Show less" else "Show full read-out" }
+                setOnClickListener(toggle); more.setOnClickListener(toggle)
             }
         }
     }

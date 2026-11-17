@@ -36,6 +36,8 @@ object ToolJson {
     fun withoutCard(json: String): String = runCatching { JsonParser.parseString(json).asJsonObject.apply { remove("card"); remove("pills") }.toString() }.getOrDefault(json)
 
     fun summary(json: String): String? = runCatching { JsonParser.parseString(json).asJsonObject["summary"]?.asString }.getOrNull()
+    /** Commands that fix an error ("/data 3y", "/learn momentum"), if the tool offered any. */
+    fun actions(json: String): List<String> = runCatching { JsonParser.parseString(json).asJsonObject.getAsJsonArray("actions")?.map { it.asString } }.getOrNull().orEmpty()
     fun error(json: String): String? = runCatching { JsonParser.parseString(json).asJsonObject["error"]?.asString }.getOrNull()
     fun ok(json: String) = error(json) == null
 }

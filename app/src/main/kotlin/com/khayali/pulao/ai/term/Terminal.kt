@@ -3,6 +3,7 @@ package com.khayali.pulao.ai.term
 /** Every terminal feature, in one place. Adding a feature = one object + one line here. */
 object Terminal {
     val FEATURES: List<Feature> = listOf(
+        BriefFeature, RegimeFeature, AnomaliesFeature, StrategiesFeature, ScreenFeature, HealthFeature, LearnFeature, DataFeature, ScreensFeature,
         MarketReportFeature, SectorMoversFeature, PreopenFeature, WatchFeature,
         HeatmapFeature, ResultsFlowFeature,
         PulseIndicesFeature, PulseSectorsFeature, PulseMoversFeature, PulseBreadthFeature, PulseActiveFeature, PulseStatusFeature, PulseHighsFeature, PulseBandsFeature, PulseVolumeFeature,
@@ -20,7 +21,8 @@ object Terminal {
 
     /** A short plain-language question that clearly means one feature → (feature, argument). Deliberately conservative. */
     fun match(text: String): Pair<Feature, String>? {
-        val t = text.trim()
+        // keyboards add stray spaces and punctuation ("today ?", "holdings!"); match on the words
+        val t = text.trim().replace(Regex("""\s+"""), " ").trimEnd('?', '!', '.', ' ').let { if (text.trim().endsWith("?")) "$it?" else it }
         if (t.startsWith("/") || t.length > 60 || t.split(Regex("""\s+""")).size > 8) return null
         val hit = FEATURES.firstOrNull { f -> f.triggers.any { it.containsMatchIn(t) } } ?: return null
         // the argument is whatever looks like a symbol or @mention in the question

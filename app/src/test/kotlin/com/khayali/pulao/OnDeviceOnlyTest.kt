@@ -99,8 +99,9 @@ class OnDeviceOnlyTest {
         assertEquals("mcp.kite.trade", com.khayali.pulao.ai.KiteData.HOST)
         assertTrue(ModelSpec.URL.startsWith("https://huggingface.co/"))
         assertEquals(64, ModelSpec.SHA256.length)
-        assertTrue("only ModelManager may use DownloadManager",
-            sources.filter { it.readText().contains("DownloadManager.Request") }.map { it.name } == listOf("ModelManager.kt"))
+        assertEquals("only the model and the pack downloader may use DownloadManager", setOf("ModelManager.kt", "FilePack.kt"),
+            sources.filter { it.readText().contains("DownloadManager.Request") }.map { it.name }.toSet())
+        assertEquals("packs come only from the project's own site", "iprajax.github.io", java.net.URI(com.khayali.pulao.ai.data.KnowledgePack.SPEC.url).host)
     }
 
     private fun fail(msg: String): Nothing = throw AssertionError(msg)

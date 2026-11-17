@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.9.0 (unreleased)
+
+**Personal advisor on your own market data**
+- `/data` — models and data on this phone in one place, with a live progress card (bar, days done, time left, Stop) while it downloads, each with an explicit life cycle (not installed → downloading → verifying → building → ready → update available → updating; paused; failed). Download 1, 3 or 5 years of NSE daily history (about 25 MB a year), update, stop or delete.
+- The history comes straight from NSE's public archive (nsearchives.nseindia.com) to your phone, in both of NSE's file formats (the original one to 5 Jul 2024 and the newer UDiFF one since 8 Jul 2024). It is never redistributed: every user's phone fetches its own copy. Prices are chained from NSE's adjusted previous close, so splits and bonuses don't look like crashes. ETFs and fund units are left out.
+- `/brief` — the action brief, also triggered by "what should I do today?" or "how can I make profit?": market regime and breadth, the week's biggest moves, hidden patterns, your holdings' trend and concentration (if Kite is connected), what each strategy flags now with its backtest, and a list of things worth reviewing. It says what the data and each rule show — never buy or sell.
+- `/regime`, `/anomalies` (volume spikes, outsized moves, streaks, breakouts — each against the stock's own history), `/strategies` (14 rules backtested side by side from one start date: 12-1 and 6-month momentum, near 52-week high, low volatility, trend following, pullback in an uptrend, breakout on volume, steady compounders, low beta, accumulation, RSI pullback, no lottery tickets, largest traded, weekly reversal), `/screen <rule>`, `/health SYMBOL` (or your holdings), `/learn <topic>` (the strategy playbook, searched by keywords on the phone).
+- The on-device model is told to run `/brief` and the strategy commands for "what to do" questions, and remembered notes (goal, horizon, risk) shape which rules the brief points to.
+- Errors now come with buttons that fix them (for example `/data 3y` when there isn't enough history), alongside Try again.
+- Backtests under a year show their total return, not a stretched yearly rate. All 14 run in parallel and are cached; the history opens from a compact snapshot instead of the database.
+- `/learn` on its own lists the whole playbook: 14 strategies that run on your data and 11 strategy families that need company financials (quality compounders, GARP, magic formula, Piotroski, coffee can, debt-free, dividend yield, promoter conviction, institutional buying, Graham value, earnings turnaround), each with the thresholds most used across 500 public stock screens.
+- Easier to read: each card's read-out is a short, labelled takeaway (tap for the full text) with rises in green and falls in red; strategy rows say plainly whether a rule beat or lagged the market.
+- **Models & data** (chat menu ⋮): the AI model, market history and the knowledge bank in one place — status, size, live progress, what needs each one, and download / update / delete. Everything beyond the app itself is downloaded only when asked, the same way as the AI model (Android's download manager, checked by sha256).
+- **Dependencies:** commands declare what they need. Asking for `/brief` without market history, or `/screens` without the knowledge bank, shows what's needed, how big it is and where it comes from, with a Download button and live progress — then runs what you asked.
+- **The knowledge bank is no longer bundled:** it's published on the project site (`docs/knowledge/screens-v1.kb`, 289 KB) and downloaded on demand.
+- **Suggestions while typing:** plain words bring up action-first questions ("What should I do today?", "What needs my attention in my holdings?"), each running one exact command, ranked by what's already set up.
+- **The brief ends with Next steps:** concrete actions tied to the numbers above (review a flagged holding, reduce concentration, see the best rule's picks, find out why a stock moved), and its pills follow them.
+- Plain-language commands: short requests such as "show my holdings", "what's on the calendar tomorrow" or "remember that I prefer index funds" run the matching command directly. The `/` suggestion list scrolls through every command, grouped.
+
+**Research on a Mac (optional)**
+- `research.py bank` / `find` embed a local knowledge bank of stock screens with EmbeddingGemma 2 and search it by meaning ("cheap quality companies with no debt").
+- `tools/market/fetch.py` downloads your own copy of NSE daily data (resumable; holidays remembered).
+- `tools/research/research.py` turns every liquid stock's month-end situation into a sentence, embeds it with Google's EmbeddingGemma 2 (downloaded by your Mac from Hugging Face) and lets you ask in plain words — "breakout to a new high on heavy volume" — for the closest past situations and how they went the following month. Uses turbovec when installed, otherwise exact search.
+
 ## 0.8.0
 
 **Chat lifecycle**

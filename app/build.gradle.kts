@@ -54,3 +54,6 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// The live market test loads years of real NSE data into memory.
+tasks.withType<Test>().configureEach { maxHeapSize = "3g" }

@@ -34,6 +34,11 @@ class CommandsTest {
         assertTrue(names("/ochn").contains("optionchain"))                              // loose subsequence
         assertEquals(emptyList<String>(), names("/zzzz"))
         assertTrue(Commands.rank("/s", limit = 7).size <= 7)
+        // every command is reachable: the sections for a bare "/" contain each one exactly once
+        val listed = Commands.sections().flatMap { it.second }.map { it.name }
+        assertEquals(listed.size, listed.toSet().size)
+        assertEquals((Commands.ALL + Commands.TERMINAL).map { it.name }.toSet(), listed.toSet())
+        assertTrue(Commands.rank("/s").size > 7)                                      // all matches, not a top few
     }
 
     @Test fun argumentHints() {

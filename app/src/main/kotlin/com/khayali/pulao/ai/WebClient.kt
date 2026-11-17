@@ -148,6 +148,10 @@ class WebClient private constructor(ctx: Context) {
         override val today get() = today()
         override val holdings = mine
         override val watched = seen
+        override val artifacts = com.khayali.pulao.ai.data.AndroidArtifactHub(app)
+        override val knowledge get() = com.khayali.pulao.ai.data.KnowledgePack.bank(app)
+        override suspend fun market(days: Int) = withContext(Dispatchers.IO) { com.khayali.pulao.ai.data.MarketPack.get(app).panel(days) }
+        override val profile get() = MemoryStore.get(app).let { m -> if (m.enabled) m.playbook.bullets.filter { it.section != Ace.Section.LESSON }.map { it.text } else emptyList() }
         override suspend fun spark(symbols: List<String>, range: String, interval: String) = withContext(Dispatchers.IO) {
             symbols.distinct().chunked(20).flatMap { batch ->
                 runCatching { com.khayali.pulao.ai.term.Sparks.parse(this@WebClient.get(com.khayali.pulao.ai.term.Sparks.url(batch, range, interval))).entries }.getOrDefault(emptySet())
@@ -270,5 +274,35 @@ object Net {
         is IOException -> t.message?.takeIf { it.length in 8..140 && !it.contains("java.") && !it.contains("recvfrom") && !it.contains("ECONN") }
             ?: "The connection to $who dropped. Try again."
         else -> t.message?.takeIf { it.length in 8..160 } ?: "Couldn't reach $who."
+    }
+}
+
+/**
+ * Downloads one day of NSE's public bhavcopy straight from NSE's archive to this phone. This is the
+ * only network code for market data, and it only ever contacts [com.khayali.pulao.ai.data.Bhavcopy.HOST]. Nothing is sent
+ * except the request for the file.
+ */
+/** Lives here because WebClient.kt is one of only two files allowed to open network connections. */
+object MarketFetcher {
+    sealed class Day { data class Got(val bars: List<com.khayali.pulao.ai.data.Bhavcopy.Bar>) : Day(); data object NoTrading : Day() }
+
+    fun fetch(day: java.time.LocalDate): Day {
+        val url = com.khayali.pulao.ai.data.Bhavcopy.url(day)
+        require(URL(url).host == com.khayali.pulao.ai.data.Bhavcopy.HOST) { "Blocked: market data only comes from ${com.khayali.pulao.ai.data.Bhavcopy.HOST}" }
+        var last: java.io.IOException? = null
+        repeat(3) { attempt ->
+            val c = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000; setRequestProperty("User-Agent", "Mozilla/5.0") }
+            try {
+                when (c.responseCode) {
+                    404 -> return Day.NoTrading
+                    in 200..299 -> {
+                        val csv = java.util.zip.ZipInputStream(c.inputStream.buffered()).use { z -> z.nextEntry ?: throw java.io.IOException("Empty archive"); z.readBytes().toString(Charsets.UTF_8) }
+                        return Day.Got(com.khayali.pulao.ai.data.Bhavcopy.parse(csv))
+                    }
+                    else -> throw java.io.IOException("NSE archive answered HTTP ${c.responseCode}")
+                }
+            } catch (e: java.io.IOException) { last = e; Thread.sleep(800L * (attempt + 1)) } finally { c.disconnect() }
+        }
+        throw last ?: java.io.IOException("Couldn't reach NSE's archive")
     }
 }
