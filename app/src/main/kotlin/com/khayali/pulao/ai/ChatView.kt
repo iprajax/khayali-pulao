@@ -113,6 +113,8 @@ class ChatView(
     private var shownState: String? = null
 
     private val kite by lazy { KiteMcpClient.get(context) }
+    // declared before init: init -> refreshTickers() reads it (a lazy declared later is still null there)
+    private val watch by lazy { WatchStore.get(context) }
     private fun topPill() = k.text("", 12f, Pal.MUTED, 500).apply { setPadding(k.dp(12), k.dp(6), k.dp(12), k.dp(6)); maxLines = 1 }
     private val kitePill by lazy { topPill() }
     private val webPill by lazy { topPill() }
@@ -744,7 +746,6 @@ class ChatView(
     /** What one app-only turn produced. */
     private class Outcome(val text: String, val event: ToolEvent? = null, val chips: List<Pair<String, () -> Unit>> = emptyList())
 
-    private val watch by lazy { WatchStore.get(context) }
 
     /** The single entry point for everything the user can send. */
     private fun submit(raw: String) {

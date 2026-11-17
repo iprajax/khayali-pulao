@@ -19,6 +19,10 @@ class Knowledge(json: String, vectors: ByteArray) {
     val screens: List<Screen>
     val model: String
     private val vec: Array<FloatArray>
+    // BM25 index over name (twice), rules and themes — built on first search
+    private val docs by lazy { screens.map { words("${it.name} ${it.name} ${it.query} ${it.themes.joinToString(" ")}") } }
+    private val avg by lazy { docs.map { it.size }.average() }
+    private val df by lazy { HashMap<String, Int>().also { m -> docs.forEach { d -> d.toSet().forEach { w -> m[w] = (m[w] ?: 0) + 1 } } } }
 
     init {
         val o = JsonParser.parseString(json).asJsonObject
@@ -35,9 +39,6 @@ class Knowledge(json: String, vectors: ByteArray) {
 
     // ---- BM25 over name (twice), rules and themes
     private fun words(s: String) = Regex("""[a-z0-9]+""").findAll(s.lowercase()).map { it.value.removeSuffix("s") }.filter { it.length > 1 && it !in STOP }.toList()
-    private val docs by lazy { screens.map { words("${it.name} ${it.name} ${it.query} ${it.themes.joinToString(" ")}") } }
-    private val avg by lazy { docs.map { it.size }.average() }
-    private val df by lazy { HashMap<String, Int>().also { m -> docs.forEach { d -> d.toSet().forEach { w -> m[w] = (m[w] ?: 0) + 1 } } } }
 
     private fun bm25(query: String): DoubleArray {
         val q = words(query).toSet(); val n = docs.size.toDouble()
