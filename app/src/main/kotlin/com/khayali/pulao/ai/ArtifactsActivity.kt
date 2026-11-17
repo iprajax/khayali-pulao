@@ -54,6 +54,7 @@ class ArtifactsActivity : Activity() {
         col.removeAllViews()
         col.addView(k.text("The app stays small: these are downloaded only when you ask, straight to this phone, and checked before use. Nothing here is uploaded.",
             13f, Pal.MUTED).apply { setLineSpacing(0f, 1.35f); setPadding(k.dp(4), k.dp(4), k.dp(4), k.dp(12)) })
+        schedule()
         val hub = com.khayali.pulao.ai.data.AndroidArtifactHub(this)
         for (it in hub.items()) {
             col.addView(k.card {
@@ -82,6 +83,35 @@ class ArtifactsActivity : Activity() {
                 }
             }, k.lp(MATCH_PARENT).apply { bottomMargin = k.dp(12) })
         }
+    }
+
+    /** The refresh schedule: each task, how often, when it last ran, when it's next due, and Run now. */
+    private fun schedule() {
+        val r = com.khayali.pulao.ai.data.Refresher(this)
+        val now = java.time.ZonedDateTime.now(com.khayali.pulao.ai.data.Refresh.IST)
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")
+        val installed = MarketPack.get(this).installed
+        col.addView(k.card {
+            addView(k.text("Refresh schedule", 15f, Pal.TEXT, 500))
+            addView(k.text(if (installed) "Runs by itself while the chat is open, timed by this phone's clock (Indian time)." else "Starts once market history is installed.", 12f, Pal.MUTED).apply { setPadding(0, k.dp(4), 0, k.dp(6)) })
+            for (t in com.khayali.pulao.ai.data.Refresh.TASKS) {
+                val last = r.lastRun(t.id)?.let { java.time.Instant.ofEpochMilli(it).atZone(com.khayali.pulao.ai.data.Refresh.IST).format(fmt) } ?: "not yet"
+                val due = com.khayali.pulao.ai.data.Refresh.due(t.every, r.lastRun(t.id), now)
+                val next = if (due) "due now" else com.khayali.pulao.ai.data.Refresh.nextStart(t.every, now).format(fmt)
+                addView(k.row().apply {
+                    setPadding(0, k.dp(8), 0, k.dp(8))
+                    addView(k.column().apply {
+                        addView(k.text(t.title, 13.5f, Pal.TEXT, 500))
+                        addView(k.text("${t.every.label} · last: $last · next: $next", 11.5f, Pal.MUTED))
+                        addView(k.text(t.what, 11.5f, Pal.DIM).apply { setLineSpacing(0f, 1.25f) })
+                    }, k.lp(0, WRAP_CONTENT, 1f))
+                    if (installed) addView(k.text("Run now", 12.5f, Pal.BLUE, 600).apply {
+                        setPadding(k.dp(10), k.dp(6), 0, k.dp(6))
+                        setOnClickListener { scope.launch { val d = r.runDue(force = t.id); android.widget.Toast.makeText(this@ArtifactsActivity, d.firstOrNull()?.note ?: "Nothing to do", android.widget.Toast.LENGTH_SHORT).show(); render() } }
+                    })
+                }, k.lp(MATCH_PARENT))
+            }
+        }, k.lp(MATCH_PARENT).apply { bottomMargin = k.dp(12) })
     }
 
     private fun progress(s: Artifacts.State): Int? = when (s) {

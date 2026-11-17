@@ -77,7 +77,7 @@ class FilePack(private val ctx: Context, val spec: Spec) {
                 if (row == null) { prefs.edit().remove(key).apply(); _state.value = if (ready()) Artifacts.State.Ready("v1", spec.bytes, 0) else Artifacts.State.NotInstalled; return@launch }
                 val (status, done, reason) = row
                 when (status) {
-                    DownloadManager.STATUS_SUCCESSFUL -> { prefs.edit().remove(key).apply(); _state.value = Artifacts.State.Verifying; verify(); return@launch }
+                    DownloadManager.STATUS_SUCCESSFUL -> { prefs.edit().remove(key).apply(); _state.value = Artifacts.State.Verifying; verifyDownload(); return@launch }
                     DownloadManager.STATUS_FAILED -> { prefs.edit().remove(key).apply(); part.delete()
                         _state.value = Artifacts.State.Failed(if (reason == 404) "Not published yet (HTTP 404)" else "Download failed (code $reason)"); return@launch }
                     DownloadManager.STATUS_PAUSED -> _state.value = Artifacts.State.Paused("Waiting for network", Artifacts.State.Downloading(done, spec.bytes))
@@ -88,7 +88,16 @@ class FilePack(private val ctx: Context, val spec: Spec) {
         }
     }
 
-    private fun verify() {
+    /** True when the installed file still matches its checksum. */
+    fun verify(): Boolean = file.exists() && sha(file) == spec.sha256
+
+    private fun sha(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().buffered().use { i -> val b = ByteArray(1 shl 16); while (true) { val n = i.read(b); if (n < 0) break; md.update(b, 0, n) } }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun verifyDownload() {
         val md = MessageDigest.getInstance("SHA-256")
         part.inputStream().buffered().use { i -> val b = ByteArray(1 shl 16); while (true) { val n = i.read(b); if (n < 0) break; md.update(b, 0, n) } }
         val ok = md.digest().joinToString("") { "%02x".format(it) } == spec.sha256

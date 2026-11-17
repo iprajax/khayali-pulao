@@ -95,6 +95,19 @@ class MarketStore private constructor(ctx: Context) : SQLiteOpenHelper(ctx.appli
         return Panel(dates.map(::day), syms, adj, ret, v, q)
     }
 
+    /** Deletes days before [before] (prices after them stay chained correctly: each row already holds its adjusted price). */
+    @Synchronized fun prune(before: LocalDate): Int {
+        val k = key(before).toString(); val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("bars", "d < ?", arrayOf(k)); db.delete("missing", "d < ?", arrayOf(k))
+            val n = db.delete("days", "d < ?", arrayOf(k)); db.setTransactionSuccessful(); return n
+        } finally { db.endTransaction() }
+    }
+
+    /** Reclaims the space left by deleted rows. */
+    fun compact() { writableDatabase.execSQL("VACUUM") }
+
     fun wipe(ctx: Context) { close(); ctx.deleteDatabase("market.db"); instance = null }
 
     companion object {

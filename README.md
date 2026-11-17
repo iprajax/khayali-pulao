@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="https://iprajax.github.io/khayali-pulao/">Website</a> ·
-  <a href="https://github.com/iprajax/khayali-pulao/releases">Download APK</a> ·
+  <a href="https://github.com/iprajax/khayali-pulao/releases/latest">Download APK</a> ·
   <a href="#-nothing-leaves-your-phone">Privacy</a> ·
   <a href="CHANGELOG.md">What's new</a>
 </p>
@@ -218,7 +218,7 @@ Chart cards built from public, no-login data: NSE's own feeds and exchange filin
 </details>
 
 ### 📦 Light by design
-The app ships small. The AI model, market history and the knowledge bank download only when you ask — straight to the phone, checked before use — and live in one place: **⋮ → Models & data**. A command that needs one says so, downloads it with a live progress card, then runs what you asked. **No computer is needed** for anything; the Mac tools in [`tools/`](tools) are optional, for research.
+The app ships small. The AI model, market history and the knowledge bank download only when you ask — straight to the phone, checked before use — and live in one place: **⋮ → Models & data**. A command that needs one says so, downloads it with a live progress card, then runs what you asked. Once your market history is installed it **keeps itself current**: while the chat is open, the phone fetches each trading day's NSE file after 7 pm (by its own clock, in Indian time), fills any gaps on Saturdays, refreshes the stock universe monthly, tidies the database quarterly and rolls the history window yearly — all shown, with last and next runs, in ⋮ → Models & data. **No computer is needed** for anything; the Mac tools in [`tools/`](tools) are optional, for research.
 
 ## The daydream sheet
 

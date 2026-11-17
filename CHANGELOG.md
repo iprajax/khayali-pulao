@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.9.0 (unreleased)
+## 0.9.0
+
+**Private by design, and it shows its working**
+- Every reply has a **How this was made** panel: why you're seeing it, which data and method made each part (sources, history span, as-of date, parameters, limits), how the written text was made, a privacy line saying what — if anything — was sent, and the timing.
+- **Refresh schedule**, timed by the phone's clock in Indian time and run while the chat is open: today's NSE closing prices after 7 pm on trading days; a Saturday gap-fill and file check; a monthly refresh of the stock universe; a quarterly database tidy-up; a yearly roll of the history window. See it, with last and next runs and Run now, in ⋮ → Models & data.
+- Faster: the chat opens without database work on the main thread, and daily updates extend the analysis snapshot with just the new days.
+- Fixed: the chat could crash on open; a test now guards the cause (initialisation order).
 
 **A harness that plans, not just looks up**
 - Broad questions become a visible plan of 3-5 steps that run in order, each with its own card, ticking ✓ as they finish: your day ("what should I do today?"), one stock ("should I buy INFY?", "what's happening with ZEEL"), your portfolio, why the market moved, which strategy to follow, whether to apply for an IPO. Later steps use what earlier ones found — news on the stock the scan flagged, picks of the rule that tested best. A wrap-up says what it shows and what to do next; steps that need Kite, web or a download are skipped with the fix. Buy/sell questions carry a plain note that the app doesn't make calls.

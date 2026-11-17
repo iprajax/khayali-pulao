@@ -40,6 +40,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.khayali.pulao.ai.ChatFlow.busy
@@ -115,6 +116,7 @@ class ChatView(
     private val kite by lazy { KiteMcpClient.get(context) }
     // declared before init: init -> refreshTickers() reads it (a lazy declared later is still null there)
     private val watch by lazy { WatchStore.get(context) }
+    private val refresher by lazy { com.khayali.pulao.ai.data.Refresher(context) }
     private fun topPill() = k.text("", 12f, Pal.MUTED, 500).apply { setPadding(k.dp(12), k.dp(6), k.dp(12), k.dp(6)); maxLines = 1 }
     private val kitePill by lazy { topPill() }
     private val webPill by lazy { topPill() }
@@ -141,6 +143,8 @@ class ChatView(
 
         refreshTickers()
         restore()
+        // the refresh schedule: due work runs now and every 15 minutes while the chat is open (evening data arrives by itself)
+        scope.launch { while (true) { autoRefresh(); kotlinx.coroutines.delay(15 * 60_000L) } }
         renderWebPill()
         scope.launch {
             mm.state.combine(AiEngine.state) { m, e -> m to e }.collect { (m, e) -> onState(m, e) }
@@ -181,6 +185,7 @@ class ChatView(
     /** Called by the host when the screen comes back: a Kite login may have lapsed while away. */
     fun onResume() {
         refreshTickers()
+        if (refreshedAt > 0 && System.currentTimeMillis() - refreshedAt > 60_000) autoRefresh()
         kite.checkFresh()
         renderWebPill()
     }
@@ -1040,6 +1045,28 @@ class ChatView(
                         actions.removeAllViews(); actions.addView(k.button("Continue", primary = true) { retry() }, k.lp(MATCH_PARENT)); cancel()
                     }
                     else -> Unit
+                }
+            }
+        }
+    }
+
+    @Volatile private var refreshedAt = 0L
+
+    /** Runs whatever the refresh schedule says is due; a fetch shows its live card and counts as done once it lands. */
+    private fun autoRefresh() {
+        refreshedAt = System.currentTimeMillis()
+        scope.launch {
+            val done = runCatching { refresher.runDue() }.getOrDefault(emptyList())
+            for (d in done) {
+                if (d.fetching) {
+                    if (!phase.busy) watchDownload()
+                    val pack = com.khayali.pulao.ai.data.MarketPack.get(context)
+                    launch {
+                        val end = pack.state.first { it is com.khayali.pulao.ai.data.Artifacts.State.Ready || it is com.khayali.pulao.ai.data.Artifacts.State.Failed }
+                        if (end is com.khayali.pulao.ai.data.Artifacts.State.Ready) { refresher.fetched(d.task.id); refreshTickers() }
+                    }
+                } else if (d.task.every != com.khayali.pulao.ai.data.Refresh.Every.DAILY && d.task.every != com.khayali.pulao.ai.data.Refresh.Every.WEEKLY || !d.note.contains("up to date") && !d.note.contains("No gaps")) {
+                    list.addView(k.text("🔄 ${d.note}", 11.5f, Pal.DIM).apply { gravity = Gravity.CENTER; setPadding(k.dp(16), k.dp(10), k.dp(16), 0) }, k.lp(MATCH_PARENT)); scrollToEnd()
                 }
             }
         }

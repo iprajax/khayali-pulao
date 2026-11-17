@@ -35,7 +35,19 @@ class MarketPack private constructor(private val ctx: Context) {
 
     private val ist = ZoneId.of("Asia/Kolkata")
     /** NSE publishes a day's file in the evening; before 7 pm the latest complete day is yesterday. */
-    private fun latest(): LocalDate { val now = java.time.ZonedDateTime.now(ist); return if (now.hour >= 19) now.toLocalDate() else now.toLocalDate().minusDays(1) }
+    /** The newest day whose file should exist now, by the phone's clock (see [Refresh.latestTradingDay]). */
+    private fun latest(): LocalDate = Refresh.latestTradingDay(java.time.ZonedDateTime.now(ist))
+
+    val installed get() = store.lastDay() != null
+    val busy get() = job?.isActive == true
+
+    /** Rebuilds the analysis snapshot from the database (the monthly refresh of the stock universe). */
+    fun rebuild() { cached = null; snapshot.delete(); warm() }
+
+    /** Drops days older than the history length plus a year of warm-up, then compacts. Returns days removed. */
+    fun roll(): Int { val n = store.prune(latest().minusYears(tier.years + 1)); store.compact(); cached = null; refresh(); return n }
+
+    fun compact() = store.compact()
 
     // Start from the last known summary (no database work on the main thread), then check in the background.
     init { _state.value = remembered(); refresh() }
