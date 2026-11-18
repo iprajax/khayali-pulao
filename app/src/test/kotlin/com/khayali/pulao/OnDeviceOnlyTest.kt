@@ -110,7 +110,7 @@ class OnDeviceOnlyTest {
         all.forEach { (name, text) -> assertFalse("$name must not use the general (cloud-capable) recognizer", text.contains("SpeechRecognizer.createSpeechRecognizer(")) }
         val live = all.getValue("LiveVoice.kt")
         assertTrue(live.contains("SpeechRecognizer.createOnDeviceSpeechRecognizer("))
-        assertTrue("only offline voices", live.contains("!it.isNetworkConnectionRequired"))
+        assertTrue("only offline voices", all.getValue("Speaker.kt").contains("!it.isNetworkConnectionRequired") && live.contains("Speaker.pickOffline(") && live.contains("isNetworkConnectionRequired != false"))
         assertTrue("no recognizer when on-device isn't available", live.contains("isOnDeviceRecognitionAvailable"))
         assertEquals("only LiveVoice touches the recognizer", setOf("LiveVoice.kt"), all.filter { it.value.contains("SpeechRecognizer.") }.keys)
     }

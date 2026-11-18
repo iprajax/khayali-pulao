@@ -73,8 +73,11 @@ It is also built to be *useful*, not just private: ask "what should I do today?"
 
 ## What it does for you
 
+### 💬 A chat that feels like the best assistants
+A side drawer holds your chats — search them, pin, rename or delete with a long-press. **+** opens one sheet of tools; the mic dictates into the box; while a reply runs, send turns into **stop**. Each answer shows the steps it's taking, then folds them into one line, and ends with 👍 / 👎, 🔊 read aloud and ⋮ for shorter, longer or simpler. Every chat stays on the phone.
+
 ### 🎤 Talk to it
-Tap the mic and speak. Your words appear as live captions while you talk; the answer is read back with each word lit as it's spoken, Gemini-Live style. Tap the orb to interrupt. It all happens on the phone: speech is recognised by Android's on-device recognizer (never a cloud one), answers use an offline voice, and what you say goes through the same chat — so every command, plan and card works by voice.
+Tap Live and just talk — right inside the chat. What you say becomes your message, the answer appears with its cards and is read back sentence by sentence with each word lit as it's spoken. Talk over it or tap the orb to interrupt; mute or End any time. It all happens on the phone: speech is recognised by Android's on-device recognizer (never a cloud one), answers use an offline voice, and what you say goes through the same chat — so every command, plan and card works by voice.
 
 <p align="center"><img src="docs/screens/chat-voice.png" width="220" alt="Live voice with captions"></p>
 

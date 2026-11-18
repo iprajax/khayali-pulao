@@ -88,7 +88,9 @@ class ChatView(
     private var pending: String? = null
     private var lastKiteLink: ChatFlow.Kite? = null
     /** The saved thread (full-screen chat only); survives the app being closed or killed. */
-    private val store = if (compact) null else ChatStore(ctx)
+    /** Every saved chat (full-screen chat only); the one on screen is [store]. */
+    val library = if (compact) null else ChatLibrary.get(ctx)
+    private var store = library?.store()
     private val transcript = mutableListOf<ChatStore.Entry>()
     /** Memory bullets behind the previous answer, waiting to hear whether the user accepted it. */
     private var awaitingFeedback: Set<Int> = emptySet()
@@ -110,6 +112,14 @@ class ChatView(
     private val input = EditText(ctx)
     private val send = TextView(ctx)
     private val inputBar = k.row()
+    private val micBtn by lazy { Icons.button(context, k, "mic", Pal.TEXT, "Dictate", 21, 42) { dictate() } }
+    private val liveBtn by lazy {
+        Icons.button(context, k, "live", 0xFFFFFFFF.toInt(), "Talk (hands-free voice)", 20, 42) { startLive() }.apply {
+            background = k.press(k.rounded(Pal.alpha(Pal.BLUE, 0.85f), 999f), 999f) }
+    }
+    /** The input bar's wrapper and the chat column, so voice can swap its dock in for the bar. */
+    private var inputWrap: View? = null
+    private var chatCol: LinearLayout? = null
     private var glowAnim: ValueAnimator? = null
     private var messageCount = 0
     private var shownState: String? = null
@@ -134,12 +144,12 @@ class ChatView(
             GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
                 intArrayOf(Pal.alpha(Pal.BLUE, 0.28f), Pal.alpha(Gem.VIOLET, 0.08f), 0x00000000)),
         ))
-        val col = k.column()
+        val col = k.column().also { chatCol = it }
         col.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; isFillViewport = true; addView(kitePillRow) }, k.lp(MATCH_PARENT))
         col.addView(scroll, k.lp(MATCH_PARENT, 0, 1f))
         col.addView(suggestBox, k.lp(MATCH_PARENT))
         col.addView(pills, k.lp(MATCH_PARENT))
-        col.addView(buildInputBar(), k.lp(MATCH_PARENT))
+        col.addView(buildInputBar().also { inputWrap = it }, k.lp(MATCH_PARENT))
         addView(col, LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
         refreshTickers()
@@ -186,6 +196,7 @@ class ChatView(
 
     /** Called by the host when the screen comes back: a Kite login may have lapsed while away. */
     fun onResume() {
+        live?.resume()
         refreshTickers()
         if (refreshedAt > 0 && System.currentTimeMillis() - refreshedAt > 60_000) autoRefresh()
         kite.checkFresh()
@@ -291,19 +302,47 @@ class ChatView(
         }
     }
 
-    /** The tapped stock changed (overlay) or the user asked for a new chat: fresh thread. */
-    fun onStockChanged() {
+    /** The tapped stock changed (overlay): a fresh, unsaved thread. */
+    fun onStockChanged() { resetThread(); store?.clear() }
+
+    private fun resetThread() {
         turnJob?.cancel(); pillJobCancel()
         session.reset(); messageCount = 0; shownState = null; pending = null
         lastCall = null; lastShown = null; lastQuestion = null; awaitingFeedback = emptySet()
-        transcript.clear(); store?.clear()
+        transcript.clear()
         dispatch(ChatFlow.Ev.Reset)
         onState(mm.state.value, AiEngine.state.value)
     }
 
-    fun newChat() = onStockChanged()
+    /** A new chat; the one before stays in the drawer. */
+    fun newChat() {
+        val had = transcript.isNotEmpty()
+        resetThread()
+        library?.let { l -> if (had || l.meta(l.current) != null) l.startNew(); store = l.store() }
+        setPills(emptyList(), remember = false)
+    }
 
-    fun release() { turnJob?.cancel(); session.close(); glowAnim?.cancel(); scope.cancel() }
+    /** Opens a saved chat from the drawer, exactly as it was. */
+    fun openChat(id: String) {
+        val l = library ?: return
+        if (id == l.current && transcript.isNotEmpty()) return
+        resetThread()
+        l.current = id; store = l.store(id)
+        restore(); scrollToEnd()
+    }
+
+    /** Deletes a saved chat (the drawer asks first); deleting the open one starts a new chat. */
+    fun deleteChat(id: String) {
+        val l = library ?: return
+        val open = id == l.current
+        l.delete(id)
+        if (open) { resetThread(); l.startNew(); store = l.store() }
+    }
+
+    /** The open chat's id, for the drawer's highlight. */
+    val currentChat get() = library?.current
+
+    fun release() { live?.end(); turnJob?.cancel(); session.close(); glowAnim?.cancel(); scope.cancel() }
 
     // ================================================================ states
 
@@ -343,6 +382,7 @@ class ChatView(
     private fun restore() {
         val saved = store?.load().orEmpty()
         if (saved.isEmpty()) return
+        list.removeAllViews()
         list.gravity = Gravity.NO_GRAVITY; shownState = "chat"
         for (e in saved) {
             messageCount++
@@ -365,6 +405,7 @@ class ChatView(
         transcript += ChatStore.Entry(question, answer, event?.takeIf { it.ok }?.name, event?.takeIf { it.ok }?.resultJson)
         while (transcript.size > ChatStore.MAX) transcript.removeAt(0)
         store?.save(transcript)
+        library?.let { l -> transcript.firstOrNull()?.let { l.touch(l.current, it.question, transcript.size) } }
     }
 
     // --------------------------------------------------------------- greeting
@@ -579,7 +620,7 @@ class ChatView(
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-                override fun afterTextChanged(e: android.text.Editable?) = onTyping(e?.toString().orEmpty())
+                override fun afterTextChanged(e: android.text.Editable?) { onTyping(e?.toString().orEmpty()); updateInputButtons() }
             })
         }
         send.apply {
@@ -588,17 +629,103 @@ class ChatView(
             setOnClickListener { if (phase.canStop) stopGenerating() else submit(input.text.toString()) }
         }
         setSendIcon(false)
+        inputBar.setPadding(k.dp(6), k.dp(8), k.dp(8), k.dp(8))
+        // + : the tools — web, Kite, commands, setup
+        inputBar.addView(Icons.button(context, k, "add", Pal.TEXT, "Tools", 22, 42) { tools() }, k.lp(k.dp(42), k.dp(42)))
         inputBar.addView(input, k.lp(0, WRAP_CONTENT, 1f))
-        // Live voice: talk to the chat, entirely on the phone
-        inputBar.addView(TickerWheel.LineIcon(context, "mic", k).apply {
-            background = k.press(k.rounded(Pal.alpha(0xFFFFFFFF.toInt(), 0.06f), 999f), 999f)
-            contentDescription = "Talk (live voice)"
-            setOnClickListener { startLive() }
-        }, k.lp(k.dp(40), k.dp(40)).apply { marginEnd = k.dp(6) })
-        inputBar.addView(send, k.lp(k.dp(44), k.dp(44)))
+        // dictation: speak into the box (on the phone), then send — and Live: hands-free voice
+        inputBar.addView(micBtn, k.lp(k.dp(42), k.dp(42)))
+        inputBar.addView(liveBtn, k.lp(k.dp(42), k.dp(42)).apply { marginStart = k.dp(2) })
+        inputBar.addView(send, k.lp(k.dp(44), k.dp(44)).apply { marginStart = k.dp(4) })
+        updateInputButtons()
         val wrap = FrameLayout(context).apply { setPadding(k.dp(12), k.dp(2), k.dp(12), k.dp(12)) }
         wrap.addView(inputBar, LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         return wrap
+    }
+
+
+    /** Empty box: mic + Live. Something typed (or a reply running): send / stop takes Live's place. */
+    private fun updateInputButtons() {
+        val typed = input.text.isNotBlank()
+        val showSend = typed || phase.busy
+        send.visibility = if (showSend) VISIBLE else GONE
+        liveBtn.visibility = if (showSend) GONE else VISIBLE
+    }
+
+    /** + : the tools, in one sheet, each with what it does. */
+    private fun tools() {
+        Sheet.show(context, k, "Tools", listOf(
+            Sheet.Item("🌐", "Web", "News, filings, prices and search. Only the lookup leaves your phone.", if (prefs.webOn) "On" else "Off") { onWebPill() },
+            Sheet.Item("🔗", "Kite", "Your holdings and positions, read-only.", if (kite.connected) "Connected" else "Connect") { onKitePill(kite.state.value) },
+            Sheet.Item("🎙", "Talk hands-free", "Speak; answers come in the chat and are read aloud.") { startLive() },
+            Sheet.Item("🗣", "Voice", voiceLine(), NeuralVoice.voice(context)?.name?.takeIf { com.khayali.pulao.ai.data.VoicePack.ready(context) } ?: if (com.khayali.pulao.ai.data.VoicePack.ready(context)) "Phone" else null) { voiceSheet() },
+            Sheet.Item("/", "Commands", "${com.khayali.pulao.ai.term.Terminal.FEATURES.size}+ exact tools: pulse, why, find, alerts, sectors…") { showHelp() },
+            Sheet.Item("@", "Ask about a holding", "Type @ and pick one of your stocks.") { input.append("@"); input.requestFocus() },
+            Sheet.Item("🔔", "Price alerts", "Checked on the phone after each close.") { submit("/alert") },
+            Sheet.Item("✨", "Setup", "Model, data, Kite and web — ready in one go.") { showSetup() },
+        ))
+    }
+
+    // ---------------------------------------------------------------- voice
+
+    private fun voiceLine(): String {
+        val ctx = context
+        com.khayali.pulao.ai.data.VoicePack.progress(ctx)?.let { (d, t) -> return "Downloading the natural voice… ${d * 100 / maxOf(1, t)}%" }
+        if (com.khayali.pulao.ai.data.VoicePack.ready(ctx)) return "Natural voice on the phone · pick who reads your answers"
+        return "Get a natural, human-sounding voice · ${DownloadText.bytes(com.khayali.pulao.ai.data.VoicePack.BYTES)}, once"
+    }
+
+    /** Pick the voice that reads answers; the natural voice is downloaded once (asked first) and runs on the phone. */
+    private fun voiceSheet() {
+        val ctx = context
+        val pack = com.khayali.pulao.ai.data.VoicePack
+        if (!pack.ready(ctx)) {
+            pack.progress(ctx)?.let { (d, t) -> toast("Downloading… ${d * 100 / maxOf(1, t)}% — it's in your notifications"); return }
+            android.app.AlertDialog.Builder(ctx, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Get the natural voice?")
+                .setMessage("Kokoro, an open-source voice (Apache-2.0), reads answers in a natural, human-sounding way. It's ${DownloadText.bytes(pack.BYTES)}, downloaded once from Hugging Face — " +
+                    "Wi-Fi is best — and runs entirely on this phone. Nothing you hear or say is sent anywhere.")
+                .setNegativeButton("Not now", null)
+                .setPositiveButton("Download") { _, _ -> pack.install(ctx); toast("Downloading the natural voice — progress is in your notifications") }.show()
+            return
+        }
+        val chosen = NeuralVoice.choice(ctx)
+        val items = NeuralVoice.VOICES.map { v ->
+            Sheet.Item(if (v.key == chosen) "✓" else "🗣", v.name, v.desc) { NeuralVoice.choose(ctx, v.key); sample(v.name) }
+        } + listOf(
+            Sheet.Item(if (chosen == "system") "✓" else "📱", "Phone's own voice", "Android's offline voice") { NeuralVoice.choose(ctx, "system"); sample(null) },
+            Sheet.Item("🗑", "Remove the natural voice", "Frees ${DownloadText.bytes(pack.BYTES)}; you can get it again any time") {
+                android.app.AlertDialog.Builder(ctx, android.R.style.Theme_Material_Dialog_Alert).setMessage("Remove the natural voice from this phone?")
+                    .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ -> NeuralVoice.stop(); pack.delete(ctx); toast("Removed") }.show()
+            },
+        )
+        Sheet.show(ctx, k, "Who reads your answers", items)
+    }
+
+    private fun sample(name: String?) {
+        Speaker.speak(context, (name?.let { "Hi, I'm $it. " } ?: "") + "The Nifty 50 rose 0.38% today, and PSU banks led. I'm reading this on your phone.", owner = this) {}
+    }
+
+    // ---------------------------------------------------------------- dictation
+
+    private var dictation: Dictation? = null
+    private var dictateAfterPermission = false
+
+    /** Speak into the box: Android's on-device recognizer only; the words land in the input for you to check and send. */
+    private fun dictate() {
+        dictation?.let { it.stop(); return }
+        if (context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            dictateAfterPermission = true
+            (context as? android.app.Activity)?.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), MIC_REQUEST); return
+        }
+        if (!LiveVoice.available(context)) { toast("This phone has no on-device speech recognition"); return }
+        val before = input.text.toString().trimEnd().let { if (it.isEmpty()) "" else "$it " }
+        Icons.tint(micBtn, Pal.RED); micBtn.background = k.rounded(Pal.alpha(Pal.RED, 0.14f), 999f)
+        dictation = Dictation(context,
+            onText = { t -> input.setText(before + t); input.setSelection(input.text.length) },
+            onLevel = { l -> micBtn.alpha = 0.7f + l * 0.3f },
+            onEnd = { problem -> dictation = null; micBtn.alpha = 1f; Icons.tint(micBtn, Pal.TEXT); micBtn.background = k.press(null, 999f); problem?.let { toast(it) } },
+        ).also { it.start() }
     }
 
     private fun setSendIcon(busy: Boolean) {
@@ -610,7 +737,7 @@ class ChatView(
     }
 
     private fun setWorking(on: Boolean) {
-        setSendIcon(on)
+        setSendIcon(on); updateInputButtons()
         glowAnim?.cancel()
         if (on) {
             glow.glow = 1f
@@ -770,6 +897,12 @@ class ChatView(
     private fun submit(raw: String) {
         if (phase.busy) return
         val text = raw.trim()
+        if (live != null && text.isNotEmpty()) {
+            // voice is open: whatever was asked (said, or a pill tapped) is answered in the chat and read aloud
+            voiceAwaiting = true; lastDoneText = ""; live?.thinking(text)
+            // things that answer on the spot (help, a download offer) don't run a turn: speak whatever was shown
+            post { if (voiceAwaiting && !phase.busy) { voiceAwaiting = false; live?.answer(lastDoneText.ifBlank { "I've put that in the chat for you." }) } }
+        }
         showSuggestions(emptyList())
         WatchStore.symbolsIn(text).forEach { watch.add(it) }
         val routed = ChatFlow.route(text, env())
@@ -1275,17 +1408,45 @@ class ChatView(
             return
         }
         context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
-        val v = LiveVoice(context, k, ask = { text ->
-            if (phase.busy) { live?.answer("One moment, I'm still working on the last question."); return@LiveVoice }
-            voiceAwaiting = true; lastDoneText = ""; via = "voice"
-            submit(text)
-            // things that answer on the spot (help, a download offer) don't run a turn: speak whatever was shown
-            post { if (voiceAwaiting && !phase.busy) { voiceAwaiting = false; live?.answer(lastDoneText.ifBlank { "I've put that in the chat for you." }) } }
-        }, onClose = { live?.let { removeView(it) }; live = null; voiceAwaiting = false })
+        val v = LiveVoice(context, k, ask = { text -> voiceAsk(text) }, onInterrupt = { voiceAwaiting = false }, onClose = {
+            live?.let { chatCol?.removeView(it) }; live = null; voiceAwaiting = false
+            inputWrap?.visibility = VISIBLE; backOff()
+        })
         v.bias = { (kiteHoldings().map { it.name } + watch.symbols).distinct() }
         live = v
-        addView(v, LayoutParams(MATCH_PARENT, MATCH_PARENT)); v.open()
+        // the dock takes the input bar's place; the conversation stays on screen above it
+        inputWrap?.visibility = GONE
+        chatCol?.addView(v, k.lp(MATCH_PARENT)); v.open(); backOn(); scrollToEnd()
     }
+
+    /** What you said in voice mode. Like talking over someone, a new question replaces one still being answered. */
+    private fun voiceAsk(text: String, waited: Int = 0) {
+        if (live == null) return
+        if (phase.busy) {
+            if (waited == 0) { voiceAwaiting = false; stopGenerating() }
+            if (waited < 30) { postDelayed({ voiceAsk(text, waited + 1) }, 100); return }
+            live?.answer("One moment, I'm still finishing the last question."); return
+        }
+        via = "voice"
+        submit(text)
+    }
+
+    /** Back ends voice first (Android 13+; on 12, back closes the chat, which ends voice too). */
+    private var backCb: Any? = null
+    private fun backOn() {
+        if (android.os.Build.VERSION.SDK_INT < 33 || backCb != null) return
+        val a = context as? android.app.Activity ?: return
+        val cb = android.window.OnBackInvokedCallback { live?.end() }
+        a.onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb); backCb = cb
+    }
+    private fun backOff() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return
+        val cb = backCb as? android.window.OnBackInvokedCallback ?: return
+        (context as? android.app.Activity)?.onBackInvokedDispatcher?.unregisterOnBackInvokedCallback(cb); backCb = null
+    }
+
+    /** The app went to the background: voice pauses (the microphone closes) until you're back. */
+    fun onPause() { live?.hold() }
 
     /** Alerts notify after each close; Android 13+ asks once, the first time an alert is set. */
     private fun askNotifications() {
@@ -1296,6 +1457,8 @@ class ChatView(
 
     /** From the activity after the microphone permission prompt. */
     fun onMicPermission(granted: Boolean) {
+        if (granted && dictateAfterPermission) { dictateAfterPermission = false; dictate(); return }
+        dictateAfterPermission = false
         if (granted) startLive()
         else say("", "Voice needs the microphone. Your speech is recognised on the phone by Android and never leaves it. You can allow it any time in Settings → Apps → Khayali Pulao → Permissions.")
     }
@@ -1387,7 +1550,23 @@ class ChatView(
         }
     }
 
-    private fun runWeb(kind: ChatFlow.WebKind, query: String, label: String) = appTurn(label, when (kind) {
+    private fun runWeb(kind: ChatFlow.WebKind, query: String, label: String) {
+        if (kind == ChatFlow.WebKind.SEARCH && mm.isReady()) { webAnswer(query, label); return }
+        appWeb(kind, query, label)
+    }
+
+    /** Value first: the phone searches, the on-device model writes the answer from those results only, the sources sit under it as short citations. */
+    private fun webAnswer(query: String, label: String) {
+        val args = com.google.gson.JsonObject().apply { addProperty("query", query) }.toString()
+        sendToModel(label, label, ChatSession.Prep("Searching the web…") {
+            val t0 = System.nanoTime()
+            val (forModel, forCard) = web.search(query)
+            val ev = ToolEvent("web_search", "Searched the web", ToolJson.ok(forCard), forCard, args, (System.nanoTime() - t0) / 1_000_000)
+            (if (ToolJson.ok(forCard)) WEB_ANSWER + forModel else "") to listOf(ev)
+        })
+    }
+
+    private fun appWeb(kind: ChatFlow.WebKind, query: String, label: String) = appTurn(label, when (kind) {
         ChatFlow.WebKind.SEARCH -> "Searching the web…"; ChatFlow.WebKind.PRICE -> "Getting the latest price…"; ChatFlow.WebKind.EVENTS -> "Looking up company events…"
         ChatFlow.WebKind.CALENDAR -> "Reading the market calendar…"; ChatFlow.WebKind.IPO -> "Checking IPOs…"; ChatFlow.WebKind.GMP -> "Reading the grey-market premium…"
     }) { webOutcome(kind, query, label) }
@@ -1400,7 +1579,7 @@ class ChatView(
             ChatFlow.WebKind.SEARCH -> {
                 val json = web.search(query).second
                 if (!ToolJson.ok(json)) return failure(json, label)
-                Outcome("From the web, with sources:\n" + WebData.extract(WebData.resultsOf(json)), ToolEvent("web_search", "Searched the web", true, json, args, ms()))
+                Outcome(WebData.extract(WebData.resultsOf(json)), ToolEvent("web_search", "Searched the web", true, json, args, ms()))
             }
             ChatFlow.WebKind.PRICE -> {
                 val json = web.quote(query, "6m")
@@ -1457,7 +1636,7 @@ class ChatView(
         return outcome.event ?: fail(outcome.text.removePrefix("⚠️ ").trim())
     }
 
-    private fun sendToModel(display: String, prompt: String) {
+    private fun sendToModel(display: String, prompt: String, prep: ChatSession.Prep? = null) {
         if (phase.busy) return
         val sym = Commands.mentions(display).firstOrNull()
         if (sym != null && kite.connected && kiteRows.none { it["symbol"].asString.equals(sym, true) } && sym in kite.knownSymbols) {
@@ -1465,14 +1644,14 @@ class ChatView(
             dispatch(ChatFlow.Ev.StartApp)
             turnJob = scope.launch {
                 try { rememberKite("holdings", kite.account("holdings")) } finally { dispatch(ChatFlow.Ev.Finished) }
-                sendToModelNow(display, prompt)
+                sendToModelNow(display, prompt, prep)
             }
             return
         }
-        sendToModelNow(display, prompt)
+        sendToModelNow(display, prompt, prep)
     }
 
-    private fun sendToModelNow(display: String, prompt: String) {
+    private fun sendToModelNow(display: String, prompt: String, prep: ChatSession.Prep? = null) {
         if (phase.busy || !mm.isReady()) return
         if (session.needsCompaction) compactNow(null)          // the context is nearly full: fold the thread before this turn
         var text = prompt
@@ -1506,7 +1685,7 @@ class ChatView(
         val bot = newBot()
         scrollToEnd()
         dispatch(ChatFlow.Ev.StartModel(AiEngine.state.value is AiEngine.State.Ready))
-        session.send(text, object : ChatSession.Listener {
+        session.send(text, prep = prep, listener = object : ChatSession.Listener {
             override fun onThinking(warming: Boolean) = bot.thinking(warming)
             override fun onEngineReady() { dispatch(ChatFlow.Ev.EngineReady); bot.thinking(false) }
             override fun onToolStart(label: String) { dispatch(ChatFlow.Ev.ToolCall); bot.status(label) }
@@ -1534,6 +1713,15 @@ class ChatView(
                 finishTurn()
                 showFollowUps(reflectOn = display, bot = bot); scrollToEnd()
             }
+            override fun onCompacted(summary: String?, folded: List<ChatSession.Turn>) {
+                // before the earlier chat leaves the model's view, what it said about you is kept in memory
+                val facts = if (memoryStore.enabled) folded.flatMap { Ace.reflectRules(it.user) }.distinctBy { it.text } else emptyList()
+                val learned = if (facts.isNotEmpty()) memoryStore.learn(facts) else 0
+                if (voiceAwaiting) live?.redo()
+                bot.restart("Folding the earlier chat into a summary…")
+                bot.note("📎 The chat got long, so the earlier part was folded into a summary" + (if (learned > 0) " and $learned thing${if (learned > 1) "s" else ""} saved to memory" else "") +
+                    " — then answered. Nothing was removed from this screen.")
+            }
             override fun onError(message: String) {
                 bot.error(message) { submit(display) }
                 finishTurn(ChatFlow.Ev.Failed); setPills(lastPills, remember = false)
@@ -1543,12 +1731,19 @@ class ChatView(
 
     private class Answer(val text: String, val ungrounded: Boolean, val chips: List<Pair<String, () -> Unit>>)
 
+    private val WEB_ANSWER = "(Answer from these web results only. Start with the answer itself in 2–4 plain sentences — no preamble such as " +
+        "\"according to the results\". Add up to 3 short bullets only if they add something. Put the result's number after each fact, like [1]. " +
+        "Don't list the links — the app shows them under your answer. If the results don't answer the question, say so in one sentence.)\n\nWeb results:\n"
+
     /**
      * What the user reads. Calculator turns: the tools' exact summaries plus number-free insight from
      * the model. Web turns: the model's sentences, minus any whose figures aren't in the sources —
      * and, if nothing survives, the snippets themselves with citations.
      */
-    private fun composeAnswer(question: String, full: String, tools: List<ToolEvent>): Answer {
+    private fun composeAnswer(question: String, raw: String, tools: List<ToolEvent>): Answer {
+        // the model's next-step links: repaired when the command exists, dropped when it doesn't
+        val full = NumberGuard.tidyLinks(raw) { cmd -> cmd.startsWith("/") && !Regex("""(?i)\b(symbol|ticker|stock_name|xxx)\b""").containsMatchIn(cmd) &&
+            Commands.parse(cmd).let { it !is Commands.Parsed.Unknown && it !is Commands.Parsed.Help } }
         val search = tools.lastOrNull { it.name == "web_search" && it.ok }
         // Terminal cards show their own summary as the takeaway, so it is not repeated in the text.
         val sums = tools.filter { it.ok && it.name != "web_search" && !it.name.startsWith("term_") }.mapNotNull { ToolJson.summary(it.resultJson) }
@@ -1638,6 +1833,14 @@ class ChatView(
             setPadding(k.dp(16), k.dp(11), k.dp(16), k.dp(11)); setLineSpacing(0f, 1.3f)
             maxWidth = (resources.displayMetrics.widthPixels * 0.78).toInt()
         }
+        b.setOnLongClickListener {
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            val items = arrayOf("Copy", "Edit and ask again")
+            android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert).setItems(items) { _, i ->
+                if (i == 0) copy(text) else if (live == null) { input.setText(text); input.setSelection(input.text.length); input.requestFocus()
+                    context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showSoftInput(input, 0) }
+            }.show(); true
+        }
         val row = k.row(Gravity.END).apply { addView(b) }
         list.addView(row, k.lp(MATCH_PARENT).apply { topMargin = k.dp(14) })
         if (!animate) return
@@ -1647,18 +1850,35 @@ class ChatView(
 
     private fun scrollToEnd() = scroll.post { scroll.smoothScrollTo(0, list.bottom) }
 
+    /** "Shorter / Longer / Simpler" on an answer: a new turn that rewrites the last one. */
+    private fun modify(display: String, prompt: String) {
+        if (phase.busy || !mm.isReady()) return
+        via = "modify"; sendToModel(display, prompt)
+    }
+
+    private fun toast(text: String) = android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
+
     /** One model turn: sparkle avatar, tool chips, shimmer → streaming text → actions. */
     private inner class BotMessage {
         val root = k.row(Gravity.TOP)
         private val avatar = ImageView(context).apply { setImageResource(R.drawable.bubble_icon) }
         val body = k.column()
-        private val toolRow = k.row().apply { visibility = GONE }
-        private val toolScroll = HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false; addView(toolRow) }
+        /** The steps it took (tools, lookups): listed live while it works, folded into one line after. */
+        private val steps = k.column().apply { visibility = GONE; setPadding(0, k.dp(4), 0, 0) }
+        private val stepsLabel = k.text("", 12.5f, Pal.MUTED, 500)
+        private val stepsChevron = ImageView(context).apply { setImageResource(Icons.res("expand")); Icons.tint(this, Pal.MUTED) }
+        private val stepsToggle = k.row().apply {
+            visibility = GONE; gravity = Gravity.CENTER_VERTICAL; background = k.press(null, 999f); setPadding(0, k.dp(3), k.dp(10), k.dp(3))
+            addView(stepsLabel); addView(stepsChevron, k.lp(k.dp(18), k.dp(18)).apply { marginStart = k.dp(2) })
+            contentDescription = "Show the steps"
+            setOnClickListener { val open = steps.visibility != VISIBLE; steps.visibility = if (open) VISIBLE else GONE; stepsChevron.animate().rotation(if (open) 180f else 0f).setDuration(180).start() }
+        }
         private val cards = k.column()
         private val status = FlowingGradientText(context).apply { k.style(this, "", 13f, Pal.TEXT, 500) }
         private val shimmer = ShimmerLines(context, k)
         private val txt = MarkdownView(context, k)
         private val actions = k.row().apply { visibility = GONE }
+        private val sources = k.column()
         private var spin: ValueAnimator? = null
 
         init {
@@ -1670,13 +1890,15 @@ class ChatView(
                 addView(k.column().apply {
                     setPadding(k.dp(10), 0, 0, 0)
                     addView(status)
-                    addView(toolScroll, k.lp(MATCH_PARENT).apply { topMargin = k.dp(4) })
+                    addView(stepsToggle, k.lp(WRAP_CONTENT).apply { topMargin = k.dp(2) })
+                    addView(steps, k.lp(MATCH_PARENT))
                 }, k.lp(0, WRAP_CONTENT, 1f))
             }
             root.addView(head, k.lp(MATCH_PARENT))
             body.addView(cards, k.lp(MATCH_PARENT))
             body.addView(shimmer, k.lp(MATCH_PARENT).apply { topMargin = k.dp(8) })
             body.addView(txt, k.lp(MATCH_PARENT).apply { topMargin = k.dp(4) })
+            body.addView(sources, k.lp(MATCH_PARENT))             // web sources sit under the answer, as short citations
             body.addView(actions, k.lp(MATCH_PARENT).apply { topMargin = k.dp(8) })
             root.addView(body, k.lp(MATCH_PARENT))
             txt.visibility = GONE
@@ -1707,15 +1929,12 @@ class ChatView(
 
         fun tool(e: ToolEvent) {
             localTools += e
-            toolRow.visibility = VISIBLE
             status.text = pick(THINKING)
-            val chip = k.text((if (e.ok) "✓  " else "!  ") + e.label, 12f, if (e.ok) Pal.GREEN else Pal.SAFFRON, 500).apply {
-                background = k.rounded(Pal.alpha(if (e.ok) Pal.GREEN else Pal.SAFFRON, 0.12f), 999f)
-                setPadding(k.dp(10), k.dp(5), k.dp(10), k.dp(5))
-                scaleX = 0.6f; scaleY = 0.6f; alpha = 0f
-            }
-            toolRow.addView(chip, k.lp(WRAP_CONTENT).apply { if (toolRow.childCount > 0) marginStart = k.dp(6) })
-            chip.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(280).setInterpolator(OvershootInterpolator(2.2f)).start()
+            val r = k.row().apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, k.dp(3), 0, k.dp(3)); alpha = 0f; translationY = k.dpf(4) }
+            r.addView(ImageView(context).apply { setImageResource(Icons.res(if (e.ok) "check" else "close")); Icons.tint(this, if (e.ok) Pal.GREEN else Pal.SAFFRON) }, k.lp(k.dp(15), k.dp(15)))
+            r.addView(k.text(e.label + (if (e.ms > 0) "  ·  ${secs(e.ms)}" else ""), 12.5f, Pal.MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, WRAP_CONTENT, 1f).apply { marginStart = k.dp(8) })
+            steps.addView(r, k.lp(MATCH_PARENT)); steps.visibility = VISIBLE
+            r.animate().alpha(1f).translationY(0f).setDuration(220).start()
             if (e.ok) card(e)
         }
 
@@ -1724,12 +1943,24 @@ class ChatView(
         val hasDataCard get() = localTools.any { it.ok && (it.name.startsWith("term_") || it.name.startsWith("web_") || it.name.startsWith("kite_")) }
 
         fun card(e: ToolEvent) {
+            if (e.name == "web_search") {          // value first: the answer, then its sources as short citations under it
+                ResultCards.citations(k, WebData.resultsOf(e.resultJson), ::openUrl)?.let { sources.removeAllViews(); sources.addView(it, k.lp(MATCH_PARENT)) }
+                return
+            }
             cardHasSummary = e.name.startsWith("term_")
             ResultCards.build(context, k, e.name, e.resultJson, ::openUrl)?.let { card ->
                 cards.removeAllViews()          // newest result replaces older ones in this turn
                 cards.addView(card, k.lp(MATCH_PARENT).apply { topMargin = k.dp(10) })
                 Tickers.wire(card)              // every ticker in any card opens the wheel
             }
+        }
+
+        /** The same question is being answered again (after folding a long chat): clear what this turn had shown. */
+        fun restart(label: String) {
+            localTools.clear(); steps.removeAllViews(); steps.visibility = GONE; stepsToggle.visibility = GONE
+            cards.removeAllViews(); sources.removeAllViews(); cardHasSummary = false
+            txt.visibility = GONE; shimmer.alpha = 1f; shimmer.visibility = VISIBLE; status.visibility = VISIBLE
+            status(label)
         }
 
         /** A quiet line under the answer, e.g. what was just saved to memory. */
@@ -1754,7 +1985,10 @@ class ChatView(
             // Always show the final, checked text — what streamed may have contained figures that were since removed.
             // An app-only answer whose card already shows the summary adds nothing as a paragraph.
             val repeat = cardHasSummary && stats == null
-            txt.visibility = if (repeat) GONE else VISIBLE; if (!repeat) txt.update(full.ifBlank { "(stopped)" })
+            // nothing left to say beside a card (every sentence was unverifiable): the card speaks, and voice reads its summary
+            val cardOnly = full.isBlank() && localTools.any { it.ok && ResultCards.hasCard(it.name) }
+            if (cardOnly && !restored) lastDoneText = localTools.lastOrNull { it.ok }?.let { ToolJson.summary(it.resultJson) }.orEmpty()
+            txt.visibility = if (repeat || cardOnly) GONE else VISIBLE; if (!repeat && !cardOnly) txt.update(full.ifBlank { "(stopped)" })
             if (chips.isNotEmpty()) {
                 val row = k.row().apply { setPadding(0, k.dp(8), 0, 0) }
                 chips.forEachIndexed { i, (label, action) ->
@@ -1767,11 +2001,28 @@ class ChatView(
                 }
                 body.addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false; addView(row) }, body.indexOfChild(actions))
             }
-            actions.removeAllViews(); actions.visibility = VISIBLE
-            actions.addView(k.iconButton("⧉", 16f) { copy(full) }.apply { contentDescription = "Copy" })
-            if (retry != null) actions.addView(k.iconButton("↻", 18f) { if (!phase.busy) retry() }.apply { contentDescription = "Regenerate" })
-            if (question.isNotBlank()) actions.addView(k.iconButton("⤴", 18f) { shareAnswer(body, question) }.apply { contentDescription = "Share" })
+            // the steps fold into one line ("✓ 2 steps · 1.4 s ⌄"); tap to see them again
+            if (localTools.isNotEmpty()) {
+                val n = localTools.size
+                stepsLabel.text = (if (localTools.all { it.ok }) "✓ " else "! ") + "$n step${if (n > 1) "s" else ""} · ${secs(stats?.totalMs ?: localMs())}"
+                stepsToggle.visibility = VISIBLE; steps.visibility = GONE; stepsChevron.rotation = 0f
+            }
             val st = stats ?: TurnStats(localMs(), null, null, null, null, localTools)
+            actions.removeAllViews(); actions.visibility = VISIBLE
+            actions.gravity = Gravity.CENTER_VERTICAL
+            val dim = Pal.alpha(Pal.TEXT, 0.62f)
+            fun act(icon: String, desc: String, go: (ImageView) -> Unit) = Icons.button(context, k, icon, dim, desc, 19, 38, go).also { actions.addView(it, k.lp(k.dp(38), k.dp(38))) }
+            val memIds = if (stats?.backend != null) session.lastMemoryIds else emptySet()
+            if (!restored && question.isNotBlank()) {
+                var up: ImageView? = null; var down: ImageView? = null
+                up = act("thumb_up", "Good answer") { rate(true, it, down, memIds) }
+                down = act("thumb_down", "Bad answer") { rate(false, it, up, memIds) }
+            }
+            if (retry != null) act("refresh", "Regenerate") { if (!phase.busy) retry() }
+            act("copy", "Copy") { copy(full.ifBlank { lastDoneText }) }
+            if (question.isNotBlank()) act("share", "Share") { shareAnswer(body, question) }
+            val spoken = full.ifBlank { localTools.lastOrNull { it.ok }?.let { ToolJson.summary(it.resultJson) }.orEmpty() }
+            if (spoken.isNotBlank()) act("volume", "Read aloud") { listen(spoken, it) }
             val meta = k.text("⏱ ${secs(st.totalMs)}" + (st.backend?.let { " · $it" } ?: if (st.tools.isNotEmpty() && st.backend == null) " · app" else "") +
                 (st.tokensPerSec?.let { " · ${it.toInt()} tok/s" } ?: "") + " · how this was made  ▾", 11f, Pal.DIM).apply {
                 setPadding(k.dp(8), k.dp(6), k.dp(8), k.dp(6)); maxLines = 1
@@ -1779,10 +2030,55 @@ class ChatView(
                 contentDescription = "Response details"
                 setOnClickListener { toggleDetails(st, this) }
             }
-            if (!restored) actions.addView(meta, k.lp(0, WRAP_CONTENT, 1f))
+            act("more", "More") { more(st, meta, question, stats?.backend != null, full) }
+            if (!restored) { (meta.parent as? android.view.ViewGroup)?.removeView(meta); body.addView(meta, body.indexOfChild(actions) + 1, k.lp(WRAP_CONTENT)) }
             if (localTools.any { it.name.startsWith("web_") && it.ok }) body.addView(k.text("From the web · check the sources before relying on it", 10.5f, Pal.DIM).apply { setPadding(k.dp(8), 0, 0, 0) })
             if (stats?.backend != null && persona != Persona.ANALYST) body.addView(k.text("Educational only · not investment advice", 10.5f, Pal.DIM).apply { setPadding(k.dp(8), 0, 0, 0) })
             if (!restored) { actions.alpha = 0f; actions.animate().alpha(1f).setDuration(300).start() }
+        }
+
+        private var rated: Boolean? = null
+
+        /** 👍 / 👎: kept on the phone; it tunes which memory notes are used, and a 👎 asks what went wrong. */
+        private fun rate(good: Boolean, v: ImageView, other: ImageView?, memIds: Set<Int>) {
+            if (rated == good) return
+            rated = good
+            Icons.tint(v, Pal.BLUE); other?.let { Icons.tint(it, Pal.alpha(Pal.TEXT, 0.62f)) }
+            v.animate().scaleX(1.25f).scaleY(1.25f).setDuration(110).withEndAction { v.animate().scaleX(1f).scaleY(1f).setDuration(160).start() }.start()
+            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            memoryStore.feedback(memIds, good)
+            if (good) { toast("Thanks — noted on this phone"); return }
+            val why = arrayOf("Wrong or made-up numbers", "Not what I asked", "Too long", "Too short", "Hard to follow")
+            val lesson = arrayOf("Never state a figure the tools didn't produce; say what's missing instead.", "Answer exactly what was asked before adding anything else.",
+                "Keep answers short — two to four sentences.", "Give a little more explanation when asked a why or how question.", "Use plain words and short sentences.")
+            android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert).setTitle("What went wrong?").setItems(why) { _, i ->
+                val learned = memoryStore.learn(listOf(Ace.Delta(Ace.Section.LESSON, lesson[i])))
+                toast(if (learned > 0) "Thanks — the chat will remember that" else "Thanks — noted on this phone")
+            }.setNegativeButton("Skip", null).show()
+        }
+
+        /** 🔊 reads this answer aloud with the best voice on the phone; tap again to stop. */
+        private fun listen(text: String, v: ImageView) {
+            if (Speaker.speakingFor(this)) { Speaker.stop(); return }
+            Icons.tint(v, Pal.BLUE)
+            Speaker.speak(context, VoiceFlow.speakable(text, 1500), owner = this) { post { Icons.tint(v, Pal.alpha(Pal.TEXT, 0.62f)) } }
+        }
+
+        /** ⋮: change the answer (shorter, longer, simpler) or open how it was made. */
+        private fun more(st: TurnStats, meta: TextView, question: String, model: Boolean, full: String) {
+            val items = buildList {
+                if (model && question.isNotBlank()) { add("Shorter"); add("Longer"); add("Simpler") }
+                add("How this was made"); add("Copy as plain text")
+            }
+            android.app.AlertDialog.Builder(context, android.R.style.Theme_Material_Dialog_Alert).setItems(items.toTypedArray()) { _, i ->
+                when (items[i]) {
+                    "Shorter" -> modify("Shorter, please", "Rewrite your previous answer so it is much shorter: two or three sentences. Keep every figure exactly as it was.")
+                    "Longer" -> modify("A bit more detail, please", "Expand your previous answer with a little more explanation. Keep every figure exactly as it was; add no new figures.")
+                    "Simpler" -> modify("Simpler, please", "Rewrite your previous answer in plain, simple words for a beginner. Keep every figure exactly as it was.")
+                    "How this was made" -> toggleDetails(st, meta)
+                    else -> copy(Md.plain(full.ifBlank { lastDoneText }))
+                }
+            }.show()
         }
 
         private val started = System.nanoTime()

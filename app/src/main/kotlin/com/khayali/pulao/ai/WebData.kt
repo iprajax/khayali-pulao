@@ -121,9 +121,12 @@ object WebData {
     }.getOrDefault(emptyList())
 
     /** A cited answer built only from snippets — used when no model is loaded or its text can't be trusted. */
-    fun extract(results: List<Result>, max: Int = 3): String =
-        results.filter { it.snippet.length > 30 }.take(max).joinToString("\n") { "- ${it.snippet} [${it.n}]" }
-            .ifBlank { results.take(max).joinToString("\n") { "- ${it.title} [${it.n}]" } }
+    fun extract(results: List<Result>, max: Int = 3): String {
+        val good = results.filter { it.snippet.length > 30 }.take(max)
+        if (good.isEmpty()) return results.take(max).joinToString("\n") { "- ${it.title} [${it.n}]" }
+        // the best snippet leads as the answer; the others follow as points — sources are listed under it by the app
+        return (listOf("${good.first().snippet.trimEnd(' ', '.', '…')}. [${good.first().n}]") + good.drop(1).map { "- ${it.snippet} [${it.n}]" }).joinToString("\n")
+    }
 
     // -------------------------------------------------------------- quote feed
 

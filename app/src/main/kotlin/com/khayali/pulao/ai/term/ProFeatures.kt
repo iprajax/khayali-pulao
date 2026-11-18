@@ -200,7 +200,7 @@ object ConcallFeature : Feature {
 
     override suspend fun run(arg: String, f: Fetch): String {
         val q = arg.replace(Regex("""(?i)^.*\b(of|for)\s+"""), "").trim().removePrefix("@")
-        val sym = q.uppercase().takeIf { it.isNotBlank() && !it.contains(' ') } ?: f.symbol(q)?.uppercase() ?: return Card.error("Which company? Try /concall INFY.")
+        val sym = f.resolve(q) ?: return Card.error("Which company? Try /concall INFY.")
         val dmy = DateTimeFormatter.ofPattern("dd-MM-yyyy")
         val raw = runCatching { f.nse("corporate-announcements?index=equities&symbol=$sym&from_date=${f.today.minusDays(120).format(dmy)}&to_date=${f.today.format(dmy)}") }.getOrDefault("")
         val arr = runCatching { com.google.gson.JsonParser.parseString(raw).let { if (it.isJsonArray) it.asJsonArray else it.asJsonObject.getAsJsonArray("data") } }.getOrNull()

@@ -378,6 +378,27 @@ object ResultCards {
     // ------------------------------------------------------------------ web
 
     /** Numbered, tappable sources — the citations [1], [2] in the answer point here. */
+    /** Web sources as short citations under the answer: number, site and title on one line each; tap to open. */
+    fun citations(k: Kit, results: List<WebData.Result>, open: (String) -> Unit): LinearLayout? {
+        if (results.isEmpty()) return null
+        return k.column().apply {
+            setPadding(0, k.dp(10), 0, 0)
+            addView(k.caps("Sources", Pal.DIM), k.lp(MATCH_PARENT).apply { bottomMargin = k.dp(2) })
+            results.take(5).forEach { r ->
+                val row = k.row().apply {
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    background = k.press(null, 8f); contentDescription = "Open source ${r.n}: ${r.site}"
+                    setPadding(0, k.dp(5), 0, k.dp(5))
+                    setOnClickListener { if (r.url.isNotEmpty()) open(r.url) }
+                }
+                row.addView(k.text("${r.n}", 10f, Pal.BLUE, 600).apply { gravity = android.view.Gravity.CENTER; background = k.rounded(Pal.alpha(Pal.BLUE, 0.14f), 999f) }, k.lp(k.dp(18), k.dp(18)))
+                row.addView(k.text(r.site, 12f, Pal.BLUE, 500).apply { maxLines = 1; setPadding(k.dp(8), 0, k.dp(8), 0) }, k.lp(android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+                row.addView(k.text(r.title, 12f, Pal.MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, k.lp(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(row, k.lp(MATCH_PARENT))
+            }
+        }
+    }
+
     private fun LinearLayout.sourceRows(k: Kit, results: List<WebData.Result>, open: (String) -> Unit) {
         results.forEachIndexed { i, r ->
             if (i > 0) addView(View(context).apply { setBackgroundColor(Pal.LINE) }, k.lp(MATCH_PARENT, 1).apply { topMargin = k.dp(8); bottomMargin = k.dp(8) })

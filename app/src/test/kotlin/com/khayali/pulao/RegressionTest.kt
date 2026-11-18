@@ -45,8 +45,8 @@ class RegressionTest {
     @Test fun numberGuardUnderstandsUnitWords() {
         assertEquals("worth ₹250 Cr", NumberGuard.verify("worth ₹250 Cr", listOf(2.5e9)))
         assertEquals("worth ₹2.5 lakh", NumberGuard.verify("worth ₹2.5 lakh", listOf(250000.0)))
-        assertEquals("worth (see card)", NumberGuard.verify("worth ₹7 crore", listOf(250000.0)))
-        assertEquals("worth (see card)", NumberGuard.verify("worth ₹9,99,999", listOf(250000.0)))
+        assertEquals("an unverifiable amount takes its sentence with it", "", NumberGuard.verify("worth ₹7 crore", listOf(250000.0)))
+        assertEquals("Kept. Also kept.", NumberGuard.verify("Kept. It is worth ₹9,99,999. Also kept.", listOf(250000.0)))
     }
 
     @Test fun markdownEdgeCases() {
@@ -62,5 +62,23 @@ class RegressionTest {
     @Test fun byteSizesNeverReadAsThousandMegabytes() {
         assertEquals("1.00 GB", DownloadText.bytes(999_999_999))
         assertEquals("999 MB", DownloadText.bytes(999_400_000))
+    }
+}
+
+class AnswerTidyTest {
+    private val valid = { c: String -> c in setOf("/holdings", "/why INFY") }
+    @org.junit.Test fun brokenModelLinksAreRepairedOrDropped() {
+        val md = "Would you like more? See all holdings details](cmd:/holdings)  Project move](cmd:/move symbol NSE)  * Analyze flow](cmd:/nlflow)"
+        val out = NumberGuard.tidyLinks(md, valid)
+        org.junit.Assert.assertEquals("Would you like more? [See all holdings details](cmd:/holdings)", out)
+        org.junit.Assert.assertEquals("Try [Why it moved](cmd:/why INFY).", NumberGuard.tidyLinks("Try [Why it moved](cmd:/why INFY).", valid))
+        org.junit.Assert.assertEquals("No links here.", NumberGuard.tidyLinks("No links here.", valid))
+    }
+
+    @org.junit.Test fun spokenPhrasingsReachTheExactCommand() {
+        val env = com.khayali.pulao.ai.ChatFlow.Env(true, com.khayali.pulao.ai.ChatFlow.Kite.CONNECTED, true, setOf("market", "knowledge"))
+        for (t in listOf("What’s the market mood today", "What's the market mood today.", "what is the market mood today?"))
+            org.junit.Assert.assertEquals(t, com.khayali.pulao.ai.ChatFlow.Action.Term("mood", ""), com.khayali.pulao.ai.ChatFlow.route(t, env))
+        org.junit.Assert.assertEquals(com.khayali.pulao.ai.ChatFlow.Action.Term("why", "Infosys"), com.khayali.pulao.ai.ChatFlow.route("Why did Infosys fall today", env))
     }
 }

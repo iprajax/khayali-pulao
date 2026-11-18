@@ -58,6 +58,17 @@ class ChatSession(
         fun onText(full: String)
         fun onDone(full: String, stats: TurnStats)
         fun onError(message: String)
+        /** The chat overflowed the model's memory mid-answer: the thread was folded into [summary] (from [folded]) and the question is answered again. */
+        fun onCompacted(summary: String?, folded: List<Turn>) {}
+    }
+
+    /**
+     * Work the app does before the model writes — e.g. a web search whose results the answer must come from.
+     * Runs once per question (a retry reuses it); returns text added to the prompt and the events it produced.
+     */
+    class Prep(val label: String, private val work: suspend () -> Pair<String, List<ToolEvent>>) {
+        private var got: Pair<String, List<ToolEvent>>? = null
+        suspend fun get(): Pair<String, List<ToolEvent>> = got ?: work().also { got = it }
     }
 
     data class Turn(val user: String, val answer: String)
@@ -311,7 +322,7 @@ class ChatSession(
     }
 
 
-    fun send(text: String, listener: Listener, retried: Boolean = false) {
+    fun send(text: String, listener: Listener, retried: Boolean = false, prep: Prep? = null) {
         if (busy) return
         job = scope.launch {
             currentListener = listener
@@ -326,11 +337,18 @@ class ChatSession(
             AiEngine.begin()
             try {
                 stopAux()
+                var prompt = text
+                if (prep != null) {
+                    withContext(Dispatchers.Main) { listener.onToolStart(prep.label) }
+                    val (extra, events) = withContext(Dispatchers.IO) { prep.get() }
+                    events.forEach { emit(it) }
+                    if (extra.isNotBlank()) prompt = "$text\n\n$extra"
+                }
                 val conv = ensure(text)
                 if (!wasLoaded) withContext(Dispatchers.Main) { listener.onEngineReady() }
                 tools?.userPercents = AppTools.percents(text)
                 tools?.percentCorrected = false
-                conv.sendMessageAsync(withContextNotes(text)).catch { throw it }.collect { msg ->
+                conv.sendMessageAsync(withContextNotes(prompt)).catch { throw it }.collect { msg ->
                     val piece = msg.contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
                     if (piece.isEmpty()) return@collect
                     // Engine may emit deltas or the full text so far — handle both.
@@ -352,6 +370,16 @@ class ChatSession(
                 }
             } catch (t: Throwable) {
                 if (com.khayali.pulao.BuildConfig.DEBUG) android.util.Log.w("KhayaliAI", "turn failed (retried=$retried, tokens so far=${sb.length})", t)
+                // The thread outgrew the model's memory: fold it into a summary (the view saves what it taught to memory)
+                // and answer the same question again on a fresh conversation — instead of asking for a new chat.
+                if (!retried && isContextError(t) && ModelManager.get(ctx).isReady()) {
+                    val folded = synchronized(turns) { turns.toList() }
+                    val summary = compact()
+                    conversation?.let { c -> runCatching { c.close() } }; conversation = null
+                    job = null
+                    withContext(Dispatchers.Main) { listener.onCompacted(summary, folded); send(text, listener, retried = true, prep = prep) }
+                    return@launch
+                }
                 val nothingShown = sb.isEmpty() && synchronized(turnTools) { turnTools.isEmpty() }
                 // A small model sometimes writes a tool call the runtime can't parse. No text has streamed, so asking again is safe.
                 val fumbledToolCall = sb.isEmpty() && isToolCallError(t)
@@ -363,7 +391,7 @@ class ChatSession(
                     job = null
                     // The sampler is seeded, so the same prompt would fumble the same way: say what went wrong.
                     val again = if (fumbledToolCall) "$text\n(Your last tool call was malformed. Call the tool again; give every argument a complete value and leave out optional arguments you don't need.)" else text
-                    withContext(Dispatchers.Main) { send(again, listener, retried = true) }
+                    withContext(Dispatchers.Main) { send(again, listener, retried = true, prep = prep) }
                     return@launch
                 }
                 conversation?.let { c -> runCatching { c.close() } }; conversation = null       // never reuse a conversation that just failed
@@ -469,7 +497,7 @@ class ChatSession(
         return when {
             "downloaded" in m -> "The AI model isn't downloaded yet."
             "memory" in m.lowercase() || t is OutOfMemoryError -> "Not enough memory right now. Close a few apps and try again."
-            isContextError(t) -> "This chat got too long for the on-device model. Start a new chat and ask again."
+            isContextError(t) -> "This question needs more room than the on-device model has, even after folding the chat into a summary. Ask it more narrowly, or start a new chat."
             isToolCallError(t) -> "The on-device model fumbled that calculation twice. Try again, or use a command — type / to see them (for example /move -20)."
             else -> "Something went wrong running the model on your phone. Try again."
         }

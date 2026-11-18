@@ -46,6 +46,22 @@ interface Fetch {
     val webOn: Boolean get() = false
     /** symbol → company name (Nifty 500) from the phone's store, for linking news to stocks. */
     suspend fun names(): Map<String, String> = emptyMap()
+
+    /**
+     * A stock from how people say it: an NSE symbol ("INFY"), or a company name ("Infosys", "tata motors") matched on
+     * the phone against NSE's own list of names; only if neither matches, the symbol search.
+     */
+    suspend fun resolve(query: String): String? {
+        val q = query.trim().removePrefix("@").trim()
+        if (q.isEmpty()) return null
+        val names = names()
+        q.uppercase().takeIf { !it.contains(' ') && it in names }?.let { return it }
+        val want = q.lowercase().replace(Regex("""\b(ltd|limited|the)\b\.?"""), "").replace(Regex("""\s+"""), " ").trim()
+        if (want.length >= 3) names.entries
+            .filter { (_, n) -> n.lowercase().replace(Regex("""\b(ltd|limited|the)\b\.?"""), "").replace(Regex("""\s+"""), " ").trim().let { it == want || it.startsWith("$want ") } }
+            .minByOrNull { it.value.length }?.let { return it.key }
+        return symbol(q)?.uppercase()
+    }
     /** The community-screens knowledge bank shipped with the app (null where assets aren't available). */
     val knowledge: com.khayali.pulao.ai.term.Knowledge? get() = null
     /** Models and data kept on the phone (null in tests without it). */

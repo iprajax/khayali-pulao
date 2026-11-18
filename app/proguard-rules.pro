@@ -9,4 +9,7 @@
 
 # LiteRT-LM: native code calls back into these classes by name (JNI) — keep them intact.
 -keep class com.google.ai.edge.litertlm.** { *; }
+
+# sherpa-onnx (the natural voice): its native code reads these config classes' fields by name (JNI) — keep them intact.
+-keep class com.k2fsa.sherpa.onnx.** { *; }
 -dontwarn com.google.ai.edge.litertlm.**

@@ -18,11 +18,11 @@ object WhyFeature : Feature {
     override val method = "From your NSE history: the stock's last-day return is split into a market part (its beta to the Nifty 50 over 120 sessions × the Nifty's move), " +
         "a sector part (its NSE sector index's move minus the Nifty's) and what's left — the stock's own move. Evidence is ranked: volume against its 20-day median, " +
         "the move against its own 60-day volatility, new 52-week highs or lows, streaks; with web on, its NSE filings over two days and news stories that name it."
-    override val triggers = listOf(Regex("""(?i)^why (is|did|has) @?([A-Za-z][A-Za-z0-9&\-]{1,19}) (moving|move|moved|up|down|rising|falling|fall(ing|en)?|ris(e|en|ing)|jump(ing|ed)?|drop(ping|ped)?|crash(ing|ed)?|rall(y|ying|ied))( today)?\??$"""))
+    override val triggers = listOf(Regex("""(?i)^why (is|did|has) @?(?<sym>[A-Za-z][A-Za-z0-9&\-]{1,19}) (moving|move|moved|up|down|rising|falling|fall(ing|en)?|ris(e|en|ing)|jump(ing|ed)?|drop(ping|ped)?|crash(ing|ed)?|rall(y|ying|ied))( today)?\??$"""))
 
     override suspend fun run(arg: String, f: Fetch): String {
         val q = arg.trim().removePrefix("@").ifBlank { return Card.error("Which stock? Try /why INFY.") }
-        val sym = q.uppercase().takeIf { !it.contains(' ') } ?: f.symbol(q)?.uppercase() ?: q.uppercase()
+        val sym = f.resolve(q) ?: q.uppercase()
         val p = f.market(400) ?: return Card.error("This uses your NSE history. Type /data 1y to download it.", "/data 1y")
         val s = p.of(sym) ?: return Card.error("$sym isn't in your NSE history (not listed, or too thinly traded).", "/news $sym")
         val d = p.days - 1

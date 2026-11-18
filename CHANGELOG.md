@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.11.0
+
+The chat, redesigned around how the best AI assistants feel to use — and still entirely on the phone.
+
+- **A side drawer for your chats.** New chat, search, your chats (pinned first, then recent) and the app's own places — commands, memory, setup, data — at the bottom. Long-press a chat to pin, rename or delete it (delete asks first). Swipe left or press back to close. Every chat lives only on this phone.
+- **A new input bar.** **+** opens one sheet of tools, each with a line on what it does. With the box empty you get dictation (speak into the box, check, send) and Live; once you type, or while a reply runs, send / **stop** takes Live's place.
+- **Live voice inside the chat.** A compact dock takes the input bar's place and the conversation stays on screen: what you say becomes your message, the answer appears as usual (cards and all) while it's read aloud sentence by sentence, with the spoken word lit in the caption. Talk over it or tap the orb to interrupt; mute or End any time. Leaving the app, or three quiet minutes, pauses it. Talk-over listens only to how loud the microphone is — no words recognised, no sound kept.
+- **A natural voice, still offline.** Choose it and the Kokoro-82M voice (Apache-2.0) downloads once from a public Hugging Face repo, pinned to its exact size and SHA-256, then runs on the phone through sherpa-onnx — nothing you say or hear is sent anywhere. It speaks a streamed answer without gaps and lights each word as it's said; numbers are read the Indian way (lakh, crore), and tickers and market names are spelled so they're said right.
+- **Under every answer:** 👍 / 👎 (kept on the phone; a 👎 asks what went wrong), 🔊 read aloud with the best offline voice, and ⋮ to make it shorter, longer or simpler, or open How this was made.
+- **The steps it took** are listed live while it works, then fold into one line ("✓ 2 steps · 1.4 s") you can tap open.
+- **Web answers lead with the answer**, written only from what the phone found, with the sources as short citations under it.
+- **Long chats no longer stop you:** when a thread outgrows the model's memory it's folded into a summary and the same question is answered again.
+- Stricter number checks: a sentence with a ₹ figure that doesn't match what the tools produced is dropped, and suggested commands that don't exist are removed.
+- Curly quotes from speech and phone keyboards are understood everywhere.
+
 ## 0.10.0
 
 Built from a survey of 19 finance apps and AI agents (Perplexity Finance, Robinhood Cortex, Public, Bloomberg, Fiscal.ai, Koyfin, TradingView, Seeking Alpha, Tickertape, INDmoney, Groww, Zerodha, Moneycontrol Pro, ET Markets and others), taking the features Indian investors use most that can run privately on a phone.

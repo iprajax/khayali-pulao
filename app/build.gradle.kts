@@ -7,11 +7,12 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         applicationId = "com.khayali.pulao"
         minSdk = 28
         targetSdk = 36
-        versionCode = 15
-        versionName = "0.10.0"
+        versionCode = 16
+        versionName = "0.11.0"
         // LiteRT-LM ships arm64 only; every modern Android phone is arm64.
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -51,8 +52,14 @@ dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.19.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("com.google.code.gson:gson:2.14.0")
+    // On-device neural voice (Kokoro-82M through sherpa-onnx, Apache-2.0; ONNX Runtime, MIT). The voice files are
+    // downloaded once from Hugging Face, only if you choose the natural voice.
+    implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v2.0.1")
 
     testImplementation("junit:junit:4.13.2")
+    // on-device checks, run by hand with `adb shell am instrument` (never uninstalls the app or its data)
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 // The live market test loads years of real NSE data into memory.

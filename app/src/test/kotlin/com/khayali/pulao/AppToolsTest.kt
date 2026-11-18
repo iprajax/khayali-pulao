@@ -128,8 +128,9 @@ class AppToolsTest {
 
     @Test fun unverifiedRupeesAreRemoved() {
         val known = listOf(100000.0, 310585.0, 190670.0)
-        assertEquals("It becomes ₹3,10,585, or (see card) today.",
-            NumberGuard.verify("It becomes ₹310585, or ₹19,067 today.", known))
+        assertEquals("It becomes ₹3,10,585. Concentration adds risk.",
+            NumberGuard.verify("It becomes ₹310585. It was ₹19,067 today. Concentration adds risk.", known))
+        assertTrue("never a placeholder", !NumberGuard.verify("It becomes ₹310585, or ₹19,067 today.", known).contains("see card"))
         assertEquals("₹1,00,000 grows nicely", NumberGuard.verify("₹1,00,000 grows nicely", known))
         assertEquals("fee ₹20", NumberGuard.verify("fee ₹20", known))   // tiny amounts are left alone
     }

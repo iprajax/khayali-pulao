@@ -96,7 +96,8 @@ object ChatFlow {
     }
 
     fun route(raw: String, env: Env): Action {
-        val text = raw.trim()
+        // speech and phone keyboards write curly quotes ("What’s"); every matcher expects plain ones
+        val text = raw.trim().replace('’', '\'').replace('‘', '\'').replace('“', '"').replace('”', '"')
         if (text.isEmpty()) return Action.Ignore
         if (text.startsWith("Connect Kite") || text.startsWith("Reconnect Kite")) return Action.ConnectKite(null, env.kite == Kite.EXPIRED)
         if (Regex("""(?i)^(/setup|set ?up( everything| the app)?|get started|onboard(ing)?)\s*[.!?]*$""").matches(text)) return Action.Setup

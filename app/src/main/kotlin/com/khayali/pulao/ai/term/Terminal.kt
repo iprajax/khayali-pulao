@@ -24,9 +24,10 @@ object Terminal {
         // keyboards add stray spaces and punctuation ("today ?", "holdings!"); match on the words
         val t = text.trim().replace(Regex("""\s+"""), " ").trimEnd('?', '!', '.', ' ').let { if (text.trim().endsWith("?")) "$it?" else it }
         if (t.startsWith("/") || t.length > 60 || t.split(Regex("""\s+""")).size > 8) return null
-        val hit = FEATURES.firstOrNull { f -> f.triggers.any { it.containsMatchIn(t) } } ?: return null
-        // the argument is whatever looks like a symbol or @mention in the question
-        val arg = Regex("""@([A-Za-z0-9&\-]+)""").find(t)?.groupValues?.get(1)
+        var named: String? = null
+        val hit = FEATURES.firstOrNull { f -> f.triggers.any { re -> re.find(t)?.also { m -> named = runCatching { m.groups["sym"]?.value }.getOrNull() } != null } } ?: return null
+        // the argument: a stock the trigger names ("why did Infosys fall"), an @mention, or "… of/for/on X"
+        val arg = named?.removePrefix("@") ?: Regex("""@([A-Za-z0-9&\-]+)""").find(t)?.groupValues?.get(1)
             ?: Regex("""\b(?:of|for|on)\s+([A-Za-z][A-Za-z0-9&\- ]{1,24})$""").find(t)?.groupValues?.get(1)?.trim().orEmpty()
         return hit to arg
     }
