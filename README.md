@@ -50,6 +50,7 @@ It is also built to be *useful*, not just private: ask "what should I do today?"
 
 ## 🔒 Nothing leaves your phone
 
+- **Your voice stays on the phone.** Live voice uses Android's on-device speech recognizer only; the app never receives or keeps your audio, and there is no cloud fallback. The microphone is asked for only when you first tap 🎤.
 - **The AI runs on the phone.** Gemma 4 E2B (Google LiteRT-LM), downloaded once and checked by SHA-256. Your questions and its answers are never sent to a cloud AI.
 - **Your data stays on the phone.** Kite holdings are matched on the phone. Your NSE history, analysis, backtests, chat and memory live in private app storage — excluded from cloud backup and phone-to-phone transfer.
 - **No analytics, no audit trail.** No analytics, crash reporting, ads or third-party SDKs. No account, no login. The app keeps no logs anywhere but your phone, and you can wipe everything (⋮ → Models & data, Memory → Erase, New chat).
@@ -64,12 +65,24 @@ It is also built to be *useful*, not just private: ask "what should I do today?"
 | Knowledge bank, when you ask | This project's website | The file request |
 | Connect Kite (optional) | Zerodha's official [Kite MCP](https://github.com/zerodha/kite-mcp-server) | Read-only calls; you log in on Zerodha's own page |
 | Web lookups (opt-in) | DuckDuckGo, Yahoo Finance, NSE, Moneycontrol, InvestorGain | Topic words or a symbol — amounts, quantities and IDs are stripped first |
+| News and SEBI (with Web on) | Economic Times, Mint, Business Standard, BusinessLine, CNBC-TV18, SEBI | A request for each public feed — nothing about you |
 
-**Never sent, to anyone:** your holdings, amounts, questions, chat or memory. The app has no server and keeps no logs; the sites above see an ordinary request, as from any browser.
+**Never sent, to anyone:** your holdings, amounts, questions, voice, chat or memory. The app has no server and keeps no logs; the sites above see an ordinary request, as from any browser.
 
-**How you can check it:** the app asks for one permission (Internet). All networking lives in two files, and CI fails the build if networking code appears anywhere else or an unlisted host is used ([`OnDeviceOnlyTest`](app/src/test/kotlin/com/khayali/pulao/OnDeviceOnlyTest.kt)). Every reply's **How this was made** panel says what, if anything, was sent. Details: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md).
+**How you can check it:** the app asks for three permissions: Internet; the microphone, for live voice; and notifications, for price alerts — the last two only when you first use them. All networking lives in two files, and CI fails the build if networking code appears anywhere else or an unlisted host is used ([`OnDeviceOnlyTest`](app/src/test/kotlin/com/khayali/pulao/OnDeviceOnlyTest.kt)). Every reply's **How this was made** panel says what, if anything, was sent. Details: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md).
 
 ## What it does for you
+
+### 🎤 Talk to it
+Tap the mic and speak. Your words appear as live captions while you talk; the answer is read back with each word lit as it's spoken, Gemini-Live style. Tap the orb to interrupt. It all happens on the phone: speech is recognised by Android's on-device recognizer (never a cloud one), answers use an offline voice, and what you say goes through the same chat — so every command, plan and card works by voice.
+
+<p align="center"><img src="docs/screens/chat-voice.png" width="220" alt="Live voice with captions"></p>
+
+### ❓ Why is it moving? News, filings and SEBI
+- `/why INFY` splits a move into market, sector and the stock's own part, then ranks the evidence — unusual volume, a big move for this stock, 52-week levels, filings and news.
+- `/news` reads five outlets (Economic Times, Mint, Business Standard, BusinessLine, CNBC-TV18), folds them into one story per event, tags the tone and links each to the stocks it names. Buy/sell tips are never relayed.
+- `/radar` sorts two days of NSE filings by what matters, your stocks first; `/sebi` shows the regulator's latest circulars, orders and press releases.
+- `/mood` is a 0–100 fear-greed gauge from your own data; `/pulse` puts mood, breadth, sectors, hidden patterns and headlines on one screen.
 
 ### 🗺 Plans your day — and ends with what to do next
 Ask **"What should I do today?"** and it becomes a plan: the market's trend and hidden patterns from your own NSE data, the news behind the most unusual stock it found, the week's results and dividends, and today's picks of the strategy that tested best — each step's card in turn, ticking off as it goes. It ends with what it all shows and **next steps you can tap**. The same works for one stock (*"should I buy INFY?"*), your portfolio, why the market moved, which strategy to follow, or an IPO.
@@ -89,6 +102,19 @@ Ask **"What should I do today?"** and it becomes a plan: the market's trend and 
 | `/screens quality low debt` | Search those 500 community screens by idea (a 289 KB knowledge bank with EmbeddingGemma 2 vectors) |
 | `/sectorboard 1w` | All 18 NSE sector indices: 1D to 5Y returns, CAGR and P/E, sorted by any period or date range — tap one to open it |
 | `/sector bank 1m` | One sector: every period and CAGR, valuation, a year against the Nifty 50, and its gainers and losers |
+| `/pulse` | The market on one screen: mood, breadth, sectors, hidden patterns, headlines |
+| `/mood` | Market mood index, 0–100 fear to greed, from six parts of your own data |
+| `/why INFY` | Why a stock moved: market, sector and its own part, then the evidence |
+| `/news` · `/news INFY` | Market news from five outlets, one story per event, tone-tagged and linked to tickers |
+| `/radar` · `/radar mine` | Two days of exchange filings sorted by what matters, your stocks first |
+| `/sebi` | SEBI's latest circulars, orders, press releases and consultation papers |
+| `/find oversold above 200 day` | A screener in plain words over every liquid stock in your history |
+| `/alert INFY above 1800` | Price alerts checked on the phone after each close, with a notification — even with the app closed |
+| `/redflags` | Your stocks on NSE's surveillance lists (ASM, GSM, ESM) |
+| `/healthscore` | Portfolio health 0–100: diversification, concentration, beta, volatility, drawdown, vs Nifty |
+| `/harvest 80000` | Tax-loss harvesting: losses that could offset gains you've booked, and the tax it could save |
+| `/positioning` | FII, DII, Pro and Client positioning in index futures and options |
+| `/concall INFY` | A company's earnings-call transcripts, audio and analyst-meet filings |
 
 Sector levels are NSE's **official index closes** (from NSE's daily index file) and members come from **NSE Indices'** published lists — both fetched by your phone with the market history.
 
@@ -106,11 +132,11 @@ Under each reply, **How this was made**: why you're seeing it (you typed it, a p
 ### 💼 Your portfolio, read-only
 **Connect Kite** (optional) and it reads your holdings, positions, margins and orders through Zerodha's official Kite MCP — reviewing each holding's trend, concentration and risk. The original **daydream sheet** still floats on Kite: tap a holding to see what it's worth at +5%, +15% or 2×, whether you beat an FD, and what the profit buys in hand after tax.
 
-### 📟 83 commands, and opt-in web
+### 📟 96 commands, and opt-in web
 A market terminal in the chat — indices, sectors, movers, breadth, option chain, technicals, results as a money-flow, shareholding, global markets, mutual funds and planners. With **Web** on: the week's calendar, IPOs and grey-market premium, and news with numbered sources (figures not found in a source are removed).
 
 <details>
-<summary><b>All 83 commands</b></summary>
+<summary><b>All 96 commands</b></summary>
 
 <!-- terminal-commands -->
 
@@ -273,7 +299,7 @@ Everything in that picture runs on the phone. The router, planner, engine and ex
 
 ```bash
 git clone https://github.com/iprajax/khayali-pulao.git && cd khayali-pulao
-./gradlew testDebugUnitTest     # 320+ tests: engine, planner, routing, maths, privacy guards
+./gradlew testDebugUnitTest     # 340+ tests: engine, planner, routing, maths, privacy guards
 ./gradlew assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
 ```
 

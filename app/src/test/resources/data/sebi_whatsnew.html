@@ -1,0 +1,643 @@
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="utf-8"/>
+        
+        <title>SEBI | News List All</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=11,chrome=1">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="lang" content="en" />
+        <meta name="title" content = "SEBI | News List All" />
+        <meta name="description" content = "Securities and Exchange Board of India is made for protect the interests of investors in securities and to promote the development of, and to regulate the securities market and for matters connected therewith or incidental thereto" />
+        <meta name="keywords" content = "Securities and Exchange Board of India, SEBI" />
+        <link rel="shortcut icon" href="https://www.sebi.gov.in/images/icons/sebi-icon.png" type="text/css" media="all">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+        <link rel="stylesheet" href="https://www.sebi.gov.in/fonts/fonts.css" type="text/css">
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/date_picker2.css" type="text/css" media="all" />
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/reset.css" type="text/css" media="all">
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/style.css" type="text/css" media="all">
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/modal.css" type="text/css" media="all" />
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/webslidemenu.css" type="text/css" media="all" />
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/responsive.css" type="text/css" media="all">        
+        <!--[if IE 7]><link rel="stylesheet" href="https://www.sebi.gov.in/css/ie7.css" type="text/css" media="all" /><![endif]-->
+        <!-- Javascript	================================================== -->
+        <!--[if lt IE 9]>
+        <script src="https://www.sebi.gov.in/js/html5.js"></script>
+        <script src="https://www.sebi.gov.in/js/css3-mediaqueries.js"></script>
+        <link rel="stylesheet" href="https://www.sebi.gov.in/css/ie.css" type="text/css" media="all" />
+        <![endif]-->
+    </head>
+    <body id="mainContainer">
+    <form name="homeForm" method="post" action="/sebiweb/home/HomeAction.do;jsessionid=4100935FC66F80F0A27C71B2A82205E0" class="form-horizontal" onsubmit="return false;">
+        <header id="header">
+    <script type="text/javascript" src="https://www.sebi.gov.in/js/header.js"></script>
+</header>
+<div class="full_width_menu">
+    <div id="header-bottom" class="wrapper clearfix" >
+        <div class="wsmenucontainer clearfix">
+            <div class="overlapblackbg"></div>
+            <div class="wsmobileheader clearfix">
+                <a id="wsnavtoggle" class="animated-arrow"><span></span></a>
+            </div>
+            <div class="header">
+                <nav class="wsmenu clearfix">
+                    <script type="text/javascript" src="https://www.sebi.gov.in/js/menu.js"></script>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="clear"></div>
+<div class="header-marquee">
+    <div id="marquee-horizontal"></div>
+</div>
+        <!--header-->
+        <div class="wrapper clearfix" id="main-content">
+            <nav class="cfc-main-header breadcrum">
+                <ol class="cfc-breadcrumb" id="brdcrm">
+                    <li><a href="https://www.sebi.gov.in/index.html">Home</a> </li>
+                    <li>&raquo;</li>
+                    <li class="active_page">News Listing</li>
+                    <span id ="infobrdname"></span>
+                </ol>
+            </nav>
+            <div class="main-full">
+                <div id="member-wrapper" class="clearfix">
+                    <section id="inside-menu" class="department-news news-detail">
+                        <div>
+                            <div class="aside stickem">
+                                <nav id="nav-main">
+                                    <header class="mob_hide">
+                                        <h3>Section</h3>
+                                        <span id="triangle">&nbsp;</span><span id="arrow">&nbsp;</span>
+                                    </header>
+                                    <header class="hide_filter">
+                                        <input type="hidden" id="expcoll" value="1">
+                                        <a onclick="javascript: expand_collapse();">
+                                            <span class="font-green panel-title filter_text">Section</span>
+                                            <span id="1_arrows" class="filter_arrow">▼</span>
+                                        </a>
+                                    </header>
+                                    <div id="1" class="scroll-div clearfix cssmenu">
+                                        <aside class="sidebar">
+                                            <nav class="sidebar-nav">
+                                                <ul class="metismenu" id="auto-collapse-menu-demo">
+                                                    <li id='sect_1'><a href="javascript: showSectionEntry('1','0','0');"><span> Legal </span></a></li><li id='sect_2'><a href="javascript: showSectionEntry('2','0','0');"><span> Enforcement </span></a></li><li id='sect_3'><a href="javascript: showSectionEntry('3','0','0');"><span> Filings </span></a></li><li id='sect_4'><a href="javascript: showSectionEntry('4','0','0');"><span> Reports & Statistics </span></a></li><li id='sect_6'><a href="javascript: showSectionEntry('6','0','0');"><span> Media & Notifications </span></a></li>
+                                                    
+                                                </ul>
+                                            </nav>
+                                        </aside>
+                                    </div>
+                                    <div id="department-news-bottom"></div>
+                                </nav>
+                                <nav id="nav-mobile"></nav>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="department-slider news_main news-detail-slider">
+                        <h1>
+                            News Listing
+                            <span id ="infoname"></span>
+                        </h1>
+                        <div class="social-share-btn">
+                            <script type="text/javascript" src="https://www.sebi.gov.in/js/sharenew.js"></script>
+                        </div>
+                        <div class="social-share clearfix">
+                            <section class="main_section">
+                                <h3 class="title_name">
+                                    <a class="arrows font-green accordion_up user_module search-btn" href="javascript:expand_collapse_search('2');">
+                                        <span class="font-green panel-title">Search</span>
+                                        <span id="2_search">&#9660;</span>
+                                    </a>
+                                </h3>
+                                <div id="2" class="main_full search_main">
+                                    <label class="lable_value" for="search">Search</label>
+                                    <div class="search_area report_area">
+                                        <input type="text" name="search" maxlength="200" value="" onkeypress="javascript: searchFormNewsListAll_OnEnter(event);" class="search_keyword" id="search">
+                                        <script type="text/javascript">
+                                             document.getElementById('search').setAttribute('placeholder', 'Search by Title, Keywords, Entity Name');
+                                        </script>
+                                    </div>
+                                    <div class="date_picker_area">
+                                        <span class="fr_date"><label for="fromDate">Date :</label></span>
+                                        <div class="input-group date from_date">
+                                            <input type="text" name="fromDate" maxlength="10" value="" style="width:100% !important;" class="form-control input_date input-group-addon" id="fromDate">
+                                            <script type="text/javascript">
+                                                 document.getElementById('fromDate').setAttribute('placeholder', 'DD-MM-YYYY');
+                                            </script>                                            
+                                        </div>
+                                        <span class="to_date"><label for="toDate">To</label></span>
+                                        <div class="input-group date from_date">
+                                            <input type="text" name="toDate" maxlength="10" value="" style="width:100% !important;" class="form-control input_date input-group-addon" id="toDate">
+                                            <script type="text/javascript">
+                                                 document.getElementById('toDate').setAttribute('placeholder', 'DD-MM-YYYY');
+                                            </script>
+                                        </div>
+                                    </div>
+                                    <label class="lable_value" for="deptId">Department</label>
+                                    <div class="select_sub_section report_sub_section">
+                                        <select name="deptId" class="f_control" id="deptId"><option value="-1">-- All Department --</option>
+<option value="75">Alternative Investment Fund and Foreign Portfolio Investors Department</option>
+<option value="95">Board Cell</option>
+<option value="42">Communications Department</option>
+<option value="1">Corporation Finance Department</option>
+<option value="73">Corporation Finance Investigation Department</option>
+<option value="3">Department Economic and Policy Analysis</option>
+<option value="64">Department of Debt and Hybrid Securities</option>
+<option value="19">Department of Investor Awareness and Services</option>
+<option value="6">Enforcement Department - 1</option>
+<option value="5">Enquiries and Adjudication Department</option>
+<option value="85">General Services Department - 1</option>
+<option value="84">General Services Department - 2</option>
+<option value="83">General Services Department - 3</option>
+<option value="37">Human Resources Department</option>
+<option value="35">Information Technology Department</option>
+<option value="10">Integrated Surveillance Department</option>
+<option value="11">Investigations Department</option>
+<option value="9">Investment Management Department</option>
+<option value="78">Legal Affairs Department 1 (LAD 1) Vertical-I</option>
+<option value="76">Legal Affairs Department 1 (Vertical 2)</option>
+<option value="14">Market Intermediaries Regulation and Supervision Department</option>
+<option value="15">Market Regulation Department</option>
+<option value="86">National Institute of Securities Markets</option>
+<option value="98">Office of Ethics and Compliance</option>
+<option value="36">Office of International Affairs</option>
+<option value="17">Office of the Chairperson</option>
+<option value="91">Office of WTM</option>
+<option value="93">PACL Committtee</option>
+<option value="97">Parliament Questions (PQ) Cell & Right to Information (RTI) Cell</option>
+<option value="81">Prosecution and Settlement Department</option>
+<option value="77">Quasi-Judicial Cell</option>
+<option value="68">Recovery and Refund department</option>
+<option value="43">Regional Offices</option>
+<option value="88">Regulatory Review Cell</option>
+<option value="90">SAT - SC Department</option>
+<option value="79">System Compliance and Reforms Department</option>
+<option value="67">Vigilance Department</option></select>
+                                    </div>
+                                    <label class="lable_value" for="sid">Section</label>
+                                    <div class="select_sub_section report_sub_section">
+                                        <select name="sid" onchange="javascript: fillSubSection();" class="f_control" id="sid"><option value="-1">-- All Section --</option>
+<option value="1">Legal</option>
+<option value="2">Enforcement</option>
+<option value="3">Filings</option>
+<option value="4">Reports & Statistics</option>
+<option value="6">Media & Notifications</option></select>
+                                    </div>
+                                    <label class="lable_value" for="ssid">Sub Section</label>
+                                    <div class="select_sub_section report_sub_section" id="ss_div" style="display:none">
+                                        <select name="ssid" onchange="javascript: fillSubSectionMenu();" class="f_control" id="ssid"><option value="-1">-- All Sub Section --</option></select>
+                                    </div>
+                                    <label class="lable_value" for="smid">Sub Sub Section</label>
+                                    <div id="sm_div1" style="display:none">
+                                        <select name="smid" class="f_control" id="smid"><option value="-1">-- All Sub Section List --</option></select>
+                                    </div>
+                                    <label class="lable_value" for="intmid">Intermediary</label>
+                                    <div id="sm_div2" style="display:none">
+                                        <select name="intmid" class="f_control" id="intmid"><option value="-1">-- All Sub Section List --</option></select>
+                                    </div>
+                                    <label class="lable_value" for="cid">Info For</label>
+                                    <div class="select_s_s_list report_sub_section">
+                                        <select name="cid" class="f_control" id="cid"><option value="-1">-- All Info for --</option>
+<option value="25">Alternative Investment Funds (AIFs)</option>
+<option value="22">Bankers to an Issue</option>
+<option value="4">Collective Investment Schemes (C.I.S)</option>
+<option value="29">Commodity Derivatives</option>
+<option value="16">Corp. Debt Market</option>
+<option value="71">COVID-19 Measures</option>
+<option value="21">Credit Rating Agencies</option>
+<option value="23">Debenture Trustees</option>
+<option value="9">Depository Participants</option>
+<option value="10">Derivatives</option>
+<option value="74">Electronic Gold Receipts</option>
+<option value="8">Foreign Portfolio Investors (FPI)</option>
+<option value="59">Infrastructure Investment Trusts (InvITs)</option>
+<option value="5">International Affairs</option>
+<option value="11">Investigation</option>
+<option value="26">Investment Advisers</option>
+<option value="47">Investor Survey</option>
+<option value="1">Issues And Listing</option>
+<option value="7">Legal Affairs</option>
+<option value="65">Listing Regulations</option>
+<option value="18">Merchant Bankers</option>
+<option value="77">Municipal Debt Securities</option>
+<option value="3">Mutual Fund</option>
+<option value="13">Portfolio Managers</option>
+<option value="14">Prosecution</option>
+<option value="64">Real Estate Investment Trusts (REITs)</option>
+<option value="17">Registrars to an Issue and Share Transfer Agents</option>
+<option value="28">Research Analysts</option>
+<option value="24">Stock Brokers</option>
+<option value="6">Takeover</option>
+<option value="2">Trading, etc</option>
+<option value="19">Underwriters</option>
+<option value="12">Venture Capital</option></select>
+                                    </div>
+                                    <div style="float:left;">
+                                    <div class="go_area go-area"><a href="javascript: searchFormNewsListAll('s','-1');" class="go-search go_search">GO</a></div>
+                                    <div class="go_area go-area"><a href="javascript: resetFormNewsList();" class="go-search go_search">Reset</a></div>
+                                </div></div>
+                                <div class="main_full top_space">
+                                    <div id="ajax_cat">
+
+                                            <input type="hidden" name="nextValue" value="1">
+
+                        <div class="pagination">
+                            <div class="pagination_inner">
+                                <p>1 to 25 of 85346 records</p>
+                            </div>
+                            <div class="pagination_outer">
+                                <ul>
+                                    
+                                    
+                                    
+                                                <li><a class="active" href="#">1</a></li>
+                                    
+                                                <li><a href="javascript: searchFormNewsListAll('n', '1');">2</a></li>
+                                    
+                                                <li><a href="javascript: searchFormNewsListAll('n', '2');">3</a></li>
+                                    
+                                                <li><a href="javascript: searchFormNewsListAll('n', '3');">4</a></li>
+                                    
+                                                <li><a href="javascript: searchFormNewsListAll('n', '4');">5</a></li>
+                                    
+                                                <li><a href="javascript: searchFormNewsListAll('n', '5');">6</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n','-1')" title='Next'><i class='fa'></i></a></li>
+                                    
+                                    <li class=""><a href="javascript: searchFormNewsListAll('n','3413');" title="Last"><i class="fa fa-angle-double-right"></i></a></li>
+                                    
+                                </ul>
+                            </div>
+                        </div>
+                        <div class='main_full top_space'>
+                            <div class='table-scrollable'>
+                                <table class='table table-striped table-bordered table-hover bordered fix_table dataTable no-footer' id='sample_1' role='grid' aria-describedby='sample_1_info'>
+                                    <thead>
+                                        <tr role='row'>
+                                            <th style='width:18%'>Date</th>
+                                            <th style='width:18%'>Type</th>
+                                            
+                                            
+                                            <th>Title</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 17, 2026</td>
+                                    <td>Circulars</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/legal/circulars/nov-2026/review-of-margin-framework-for-commodity-derivatives-segment_105799.html"  target="_blank" title="Review of Margin Framework for Commodity Derivatives Segment" class="points"> Review of Margin Framework for Commodity Derivatives Segment</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 17, 2026</td>
+                                    <td>Orders</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/orders/nov-2026/appeal-no-7156-of-2026-filed-by-b-venkataramani_105798.html"  target="_blank" title="Appeal No. 7156 of 2026 filed by B Venkataramani" class="points"> Appeal No. 7156 of 2026 filed by B Venkataramani</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 17, 2026</td>
+                                    <td>Mutual Funds</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/mutual-funds/nov-2026/carnelian-flexi-cap-fund_105797.html"  target="_blank" title="Carnelian Flexi Cap Fund" class="points"> Carnelian Flexi Cap Fund</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 17, 2026</td>
+                                    <td>Public Issues</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/public-issues/nov-2026/liqvd-digital-india-limited-prospectus_105796.html"  target="_blank" title="LIQVD DIGITAL INDIA LIMITED - Prospectus" class="points"> LIQVD DIGITAL INDIA LIMITED - Prospectus</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 17, 2026</td>
+                                    <td>Public Issues</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/public-issues/nov-2026/il-jin-electronics-india-limited-drhp_105795.html"  target="_blank" title="IL JIN ELECTRONICS (INDIA) LIMITED - DRHP <br><a href='https://www.sebi.gov.in/sebi_data/commondocs/nov-2026/IL%20JIN%20ELECTRONICS%20(INDIA)%20LIMITED_p.pdf' style=color:#000000>IL JIN ELECTRONICS (INDIA) LIMITED - Draft Abridged Prospectus</a>" class="points"> IL JIN ELECTRONICS (INDIA) LIMITED - DRHP <br><a href='https://www.sebi.gov.in/sebi_data/commondocs/nov-2026/IL%20JIN%20ELECTRONICS%20(INDIA)%20LIMITED_p.pdf' style=color:#000000>IL JIN ELECTRONICS (INDIA) LIMITED - Draft Abridged Prospectus</a></a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Informal Guidance</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/informal-guidance/nov-2026/request-for-informal-guidance-by-way-of-an-interpretive-letter-under-the-securities-and-exchange-board-of-india-informal-guidance-scheme-2025-regarding-provisions-of-the-securities-and-exchange-boa-_105792.html"  target="_blank" title="Request for Informal Guidance by way of an Interpretive Letter under the Securities and Exchange Board of India (Informal Guidance) Scheme, 2025 regarding provisions of the Securities and Exchange Board of India (Merchant Banker) Regulations, 1992, in relation to valuation activities undertaken under the Income Tax Act and the Foreign Exchange Management (Non-Debt Instruments) Rules, 2019" class="points"> Request for Informal Guidance by way of an Interpretive Letter under the Securities and Exchange Board of India (Informal Guidance) Scheme, 2025 regarding provisions of the Securities and Exchange Board of India (Merchant Banker) Regulations, 1992, in relation to valuation activities undertaken under the Income Tax Act and the Foreign Exchange Management (Non-Debt Instruments) Rules, 2019</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Press Releases</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/media-and-notifications/press-releases/nov-2026/sebi-constitutes-a-sub-group-of-pmac-to-review-specified-provisions-of-the-sebi-icdr-regulations-2018_105790.html"  target="_blank" title="SEBI Constitutes a Sub-Group of PMAC to Review Specified Provisions of the SEBI  (ICDR) Regulations, 2018" class="points"> SEBI Constitutes a Sub-Group of PMAC to Review Specified Provisions of the SEBI  (ICDR) Regulations, 2018</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Mutual Funds</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/mutual-funds/nov-2026/zerodha-case-liquid-fund_105789.html"  target="_blank" title="Zerodha CASE Liquid Fund" class="points"> Zerodha CASE Liquid Fund</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Mutual Funds</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/mutual-funds/nov-2026/kotak-defence-fund_105786.html"  target="_blank" title="KOTAK DEFENCE FUND" class="points"> KOTAK DEFENCE FUND</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Orders</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/orders/nov-2026/appeal-no-7160-of-2026-filed-by-henil-bagadia_105784.html"  target="_blank" title="Appeal No. 7160 of 2026 filed by Henil Bagadia" class="points"> Appeal No. 7160 of 2026 filed by Henil Bagadia</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Orders</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/orders/nov-2026/appeal-no-7159-of-2026-filed-by-saraswati_105783.html"  target="_blank" title="Appeal No. 7159 of 2026 filed by Saraswati" class="points"> Appeal No. 7159 of 2026 filed by Saraswati</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Orders</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/orders/nov-2026/appeal-no-7158-of-2026-filed-by-sachin-yadav_105782.html"  target="_blank" title="Appeal No. 7158 of 2026 filed by Sachin Yadav" class="points"> Appeal No. 7158 of 2026 filed by Sachin Yadav</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Orders</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/orders/nov-2026/appeal-no-7157-of-2026-filed-by-gondaliya-amirali-mahmadali_105780.html"  target="_blank" title="Appeal No. 7157 of 2026 filed by Gondaliya Amirali Mahmadali" class="points"> Appeal No. 7157 of 2026 filed by Gondaliya Amirali Mahmadali</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 16, 2026</td>
+                                    <td>Mutual Funds</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/mutual-funds/nov-2026/nippon-india-fixed-maturity-plan-xlvii-series-1-to-5-_105779.html"  target="_blank" title="Nippon India Fixed Maturity Plan XLVII (Series 1 to 5)" class="points"> Nippon India Fixed Maturity Plan XLVII (Series 1 to 5)</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 15, 2026</td>
+                                    <td>Press Releases</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/media-and-notifications/press-releases/nov-2026/inauguration-of-sebi-s-pavilion-at-the-iitf-2026-by-chairman-sebi_105775.html"  target="_blank" title="Inauguration of SEBI’s Pavilion at the IITF, 2026 by Chairman, SEBI" class="points"> Inauguration of SEBI’s Pavilion at the IITF, 2026 by Chairman, SEBI</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 14, 2026</td>
+                                    <td>Public Issues</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/public-issues/nov-2026/rediff-com-india-limited-udrhp-i_105794.html"  target="_blank" title="Rediff com India Limited - UDRHP-I  <br><a href='https://www.sebi.gov.in/sebi_data/commondocs/nov-2026/Rediff_DA_p.pdf' style=color:#000000>Rediff com India Limited - Draft Abridged Prospectus</a>" class="points"> Rediff com India Limited - UDRHP-I  <br><a href='https://www.sebi.gov.in/sebi_data/commondocs/nov-2026/Rediff_DA_p.pdf' style=color:#000000>Rediff com India Limited - Draft Abridged Prospectus</a></a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 14, 2026</td>
+                                    <td>Speeches</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/media-and-notifications/speeches/nov-2026/address-by-chairman-at-india-international-trade-fair_105774.html"  target="_blank" title="Address by Chairman at India International Trade Fair" class="points"> Address by Chairman at India International Trade Fair</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Public Issues</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/filings/public-issues/nov-2026/mahanadi-coalfields-limited-rhp_105777.html"  target="_blank" title="Mahanadi Coalfields Limited - RHP" class="points"> Mahanadi Coalfields Limited - RHP</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-s-sengolancy-beaula-under-rc-no-7711-of-2024-in-the-matter-of-arvind-remedies-ltd-_105770.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against S Sengolancy Beaula under RC No. 7711 of 2024 in the matter of Arvind Remedies Ltd." class="points"> General Remittance Order dated November 13, 2026 issued against S Sengolancy Beaula under RC No. 7711 of 2024 in the matter of Arvind Remedies Ltd.</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-subhalakshmi-m-s-under-rc-no-7712-of-2024-in-the-matter-of-arvind-remedies-ltd-_105772.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against Subhalakshmi M S under RC No. 7712 of 2024 in the matter of Arvind Remedies Ltd." class="points"> General Remittance Order dated November 13, 2026 issued against Subhalakshmi M S under RC No. 7712 of 2024 in the matter of Arvind Remedies Ltd.</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-k-manikandan-under-rc-no-7698-of-2024-in-the-matter-of-arvind-remedies-ltd-_105757.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against K Manikandan under RC No. 7698 of 2024 in the matter of Arvind Remedies Ltd." class="points"> General Remittance Order dated November 13, 2026 issued against K Manikandan under RC No. 7698 of 2024 in the matter of Arvind Remedies Ltd.</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-m-sasikala-under-rc-no-7699-of-2024-in-the-matter-of-arvind-remedies-ltd-_105759.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against M Sasikala under RC No.7699 of 2024 in the matter of Arvind Remedies Ltd." class="points"> General Remittance Order dated November 13, 2026 issued against M Sasikala under RC No.7699 of 2024 in the matter of Arvind Remedies Ltd.</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-m-sethujanani-under-rc-no-7709-of-2024-in-the-matter-of-arvind-remedies-ltd-_105769.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against M Sethujanani under RC No. 7709 of 2024 in the matter of Arvind Remedies Ltd." class="points"> General Remittance Order dated November 13, 2026 issued against M Sethujanani under RC No. 7709 of 2024 in the matter of Arvind Remedies Ltd.</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-murali-prakash-naidu-under-rc-no-7707-of-2024-in-the-matter-of-arvind-remedies-ltd_105765.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against Murali Prakash Naidu under RC No. 7707 of 2024 in the matter of Arvind Remedies Ltd" class="points"> General Remittance Order dated November 13, 2026 issued against Murali Prakash Naidu under RC No. 7707 of 2024 in the matter of Arvind Remedies Ltd</a></td>
+                                </tr>
+
+                                    <tr role='row' class='odd'>
+                                    <td>Nov 13, 2026</td>
+                                    <td>Recovery Proceedings</td>
+                                    
+                                    
+                                    <td><a href="https://www.sebi.gov.in/enforcement/recovery-proceedings/nov-2026/general-remittance-order-dated-november-13-2026-issued-against-raja-p-under-rc-no-7704-of-2024-in-the-matter-of-arvind-remedies-ltd-_105761.html"  target="_blank" title="General Remittance Order dated November 13, 2026 issued against Raja P under RC No. 7704 of 2024 in the matter of Arvind Remedies Ltd." class="points"> General Remittance Order dated November 13, 2026 issued against Raja P under RC No. 7704 of 2024 in the matter of Arvind Remedies Ltd.</a></td>
+                                </tr>
+
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+						<div class="pagination">
+                            <div class="pagination_inner">
+                                <p>1 to 25 of 85346 records</p>
+                            </div>
+                            <div class="pagination_outer">
+                                <ul>
+                                    
+                                    
+                                    
+                                    <li><a class="active" href="#">1</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n', '1');">2</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n', '2');">3</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n', '3');">4</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n', '4');">5</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n', '5');">6</a></li>
+                                    
+                                    <li><a href="javascript: searchFormNewsListAll('n','-1')" title='Next'><i class='fa'></i></a></li>
+                                    
+                                    <li class=""><a href="javascript: searchFormNewsListAll('n','3413');" title="Last"><i class="fa fa-angle-double-right"></i></a></li>
+                                    
+                                </ul>
+                            </div>
+                        </div>
+
+                        </div>
+                        </div>
+                            </section>
+                        </div>
+                    </section>
+                </div>
+            </div>
+            <!--one-third-->
+        </div>
+        <!--wrapper-->
+        <div id="footer-aside">
+            <script type="text/javascript" src="https://www.sebi.gov.in/js/footer.js"></script>
+        </div>
+        <div id="entryModal" class="modal fade" role="dialog"></div>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/emailtofriend.js"></script>
+        
+<input type="hidden" name="org.apache.struts.taglib.html.TOKEN" value="...">
+<div class="modal fade" id="loginModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog login_div" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 class="modal-title" id="myModalLabel">Login</h4>
+            </div>
+            <div class="modal-body">
+                <fieldset class="fieldset_area">
+                    <div class="form-group">
+                        <div class="input-group">
+                            <div class="input-group-addon"><label for='loginEmail'><em class="fa fa-user"></em></label></div>
+                            <input name="loginEmail" id="loginEmail" aria-label="loginEmail" class="form-control" placeholder="Enter your Id" type="text" maxlength="100" autocomplete="off"/></div>
+                    </div>
+                    <div class="form-group">
+                        <div class="input-group">
+                            <div class="input-group-addon"><label for='loginPassword'><em class="fa fa-key" aria-hidden="true"></em></label></div>
+                        <input name="loginPassword" id="loginPassword" aria-label="loginPassword" class="form-control" placeholder="Enter your Password" type="password" maxlength="20" value="" autocomplete="off"/></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-inline">
+                        <input value="1" checked="true" aria-label="ckvalue" name="ckvalue" type="checkbox">Remember me </label>
+                    </div>
+                    <div class='form-group'>
+                        <div class='two-column-1 sm-two-column-1 bottom_space2'>
+                            <span class='kp-dropcap lable_font-1'><label for='txtInputlogin'>Please fill the captcha code</label></span>
+                            <input type='text' id='txtCaptcha_login' readonly class='captcha_text contact-captcha' maxlength='20' onfocus="javascript: disableCopy('txtCaptcha_login');" onmousedown="javascript: DisableRightClick(event);" onkeydown="javascript: DisableRightClick(event);"/>
+                            <input type='button' id='btnrefreshlogin' class='refreshcaptcha' onClick='DrawCaptchaLogin();'/>
+                            <div id='audio'></div><a href="javascript: speakcaptcha('txtCaptcha_login');" title='Text to Speech' style='float: left;'><em class='fa fa-volume-up'></em></a>
+                            <div class='cl'>
+                                <input type='text' class='captcha_input' name='cap_login' id='txtInputlogin' maxlength='20' onfocus="javascript: disablePaste('txtInputlogin');" onmousedown="javascript: DisableRightClick(event);" onkeydown="javascript: DisableRightClick(event);" autocomplete="off"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sign_button">
+                        <div class="col-md-3 sign_left_space">
+                            <a title="Sign In" href="javascript:submitLogin();" class="submit submit_reset">Submit</a>
+                            <a href="javascript:resetLoginForm();" class="reset submit_reset">Reset</a>
+                        </div>
+                        <div class="col-md-9 forgot_area" id="forDiv">
+                            <a title="Forgot Password" href="javascript:forgetPassword();" class="forgot_pass">Forgot Password ?</a> |
+                            <a title="Subscription for email updates from SEBI" href="/sebiweb/home/HomeAction.do?doRegister=yes" class="forgot_pass">Subscription for email updates from SEBI</a>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+        </div>
+    </div>
+</div>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/jquery-2.2.4.min.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/jquery.min.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/b_min.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/webslidemenu1.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/jquery-1.7.1.min.js"></script>        
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/sticky.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/custom.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/right-sidemenu.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/jquery.flexslider.js"></script>
+         <script type='text/javascript' src="https://www.sebi.gov.in/js/date_picker1.js"></script>
+        <script type='text/javascript' src="https://www.sebi.gov.in/js/date_picker2.js"></script>
+		<script type='text/javascript' src="https://www.sebi.gov.in/js/common.js"></script>
+        <script type='text/javascript' src="https://www.sebi.gov.in/js/commonsite.js"></script>
+		<script type='text/javascript' src="https://www.sebi.gov.in/js/entry.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/front-end.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/jflickrfeed.min.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/cufon-yui.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/jquery.carouFredSel-5.6.1.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/kendo.web.min.js"></script>
+        <script type="text/javascript" src="https://www.sebi.gov.in/js/go-to-top.js"></script>
+        <script type="text/javascript">
+            function addLoadEvent(func) {
+                var oldonload = window.onload;
+                if (typeof window.onload != 'function') {
+                    window.onload = func;
+                } else {
+                    window.onload = function() {
+                        if (oldonload) {
+                            oldonload();
+                        }
+                    }
+                }
+            }
+            addLoadEvent(chcklogin());
+            addLoadEvent(getmarquee());
+            addLoadEvent(infoOnLoad());
+            addLoadEvent(function() {
+            })
+        </script>
+        <script type="text/javascript">
+            $("form").attr('autocomplete', 'off');
+        </script>
+    </form>
+    </body>
+
+</html>

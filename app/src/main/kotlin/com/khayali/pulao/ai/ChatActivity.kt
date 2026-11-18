@@ -74,6 +74,11 @@ class ChatActivity : Activity() {
         }.show()
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == ChatView.MIC_REQUEST) chat.onMicPermission(grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED)
+    }
+
     override fun onResume() { super.onResume(); ModelManager.get(this).refresh(); chat.onResume() }
     override fun onDestroy() { chat.release(); super.onDestroy() }
 

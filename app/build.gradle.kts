@@ -10,8 +10,8 @@ android {
         applicationId = "com.khayali.pulao"
         minSdk = 28
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.9.4"
+        versionCode = 15
+        versionName = "0.10.0"
         // LiteRT-LM ships arm64 only; every modern Android phone is arm64.
         ndk { abiFilters += "arm64-v8a" }
     }

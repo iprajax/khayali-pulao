@@ -30,7 +30,7 @@ object Planner {
         if (t.startsWith("/") || t.split(Regex("""\s+""")).size > 16) return null
         if (DAY.matches(t)) return Plan("Your plan for today", listOfNotNull(
             Step("Read the market and your holdings", "/brief", "market"),
-            Step("Find out why the most unusual stock moved", "/news {top}", "web"),
+            Step("Find out why the most unusual stock moved", "/why {top}", "market"),
             Step("See what's coming up this week", "/calendar", "web"),
             Step("See today's picks of the best-tested strategy", "/screen {best}", "market")))
         if (PORTFOLIO.matches(t)) return Plan("A review of your portfolio", listOf(
@@ -40,12 +40,11 @@ object Planner {
             Step("Stress-test a market fall", "/stress", "kite"),
             Step("Check events for your stocks this week", "/calendar", "web")))
         if (MARKET.matches(t)) return Plan("What's moving the market", listOf(
-            Step("Read the whole market", "/report", "web"),
-            Step("See which sectors led and lagged", "/sectormovers", "web"),
+            Step("Take the market's pulse", "/pulse", "market"),
+            Step("Compare every sector today", "/sectorboard 1d", "market"),
+            Step("Read the day's headlines", "/news", "web"),
             Step("Check foreign and domestic fund flows", "/fiidii", "web"),
-            Step("Search the news for the reason", "/web why is the Indian stock market moving today", "web"),
-            Step("Compare every sector", "/sectorboard", "market"),
-            Step("Spot unusual stocks", "/anomalies", "market")))
+            Step("See the latest filings and SEBI notices", "/radar", "web")))
         if (STRATEGY.matches(t)) return Plan("Finding a strategy that works now", listOf(
             Step("Backtest every strategy on your data", "/strategies", "market"),
             Step("See today's picks of the best one", "/screen {best}", "market"),
@@ -58,8 +57,9 @@ object Planner {
                 Step("Search reviews and subscription status", "/web $name IPO review subscription status", "web")), NO_CALLS) }
         STOCK.find(t)?.let { m -> val sym = m.groups["sym"]!!.value.uppercase()
             if (sym !in NOT_A_SYMBOL && (sym.length >= 2)) return Plan("A closer look at $sym", listOf(
-                Step("Check its trend and risk", "/health $sym", "market"),
+                Step("Explain today's move", "/why $sym", "market"),
                 Step("Read the latest news", "/news $sym", "web"),
+                Step("Check its trend and risk", "/health $sym", "market"),
                 Step("See upcoming results and dividends", "/events $sym", "web"),
                 Step("Follow the money in its results", "/flow $sym", "web")), if (Regex("""(?i)\b(buy|sell|hold|exit|add|keep|average)\b""").containsMatchIn(t)) NO_CALLS else null) }
         return null
@@ -125,7 +125,7 @@ object Planner {
     /** Next steps across all results: their own suggestions, most useful kinds first, without repeating what ran. */
     fun next(results: List<String>, ran: Set<String>): List<String> {
         val all = results.flatMap { j -> obj(j)?.getAsJsonArray("pills")?.map { it.asString }.orEmpty() }.filter { it.startsWith("/") && it !in ran }.distinct()
-        val order = listOf("/health", "/screen", "/news", "/stress", "/events", "/learn", "/chart")
+        val order = listOf("/why", "/health", "/screen", "/news", "/stress", "/events", "/learn", "/chart")
         return all.sortedBy { p -> order.indexOfFirst { p.startsWith(it) }.let { if (it < 0) order.size else it } }.take(5)
     }
 }
@@ -141,7 +141,19 @@ object Labels {
             "screen" -> "🎯 Today's ${if (arg.isBlank()) "" else (com.khayali.pulao.ai.term.Playbook.get(arg)?.name?.lowercase() ?: arg) + " "}picks"
             "learn" -> if (arg.isBlank()) "📘 Strategy playbook" else "📘 Learn ${com.khayali.pulao.ai.term.Playbook.get(arg)?.name?.lowercase() ?: arg}"
             "health" -> if (arg.isBlank()) "🩺 Check my holdings" else "🩺 Check $arg's trend"
-            "news" -> "📰 News on $arg"
+            "news" -> if (arg.isBlank()) "📰 Market news" else "📰 News on $arg"
+            "why" -> "❓ Why $arg moved"
+            "pulse" -> "💓 Market pulse"
+            "mood" -> "🌡 Market mood"
+            "redflags" -> "🚩 Red flags"
+            "positioning" -> "📊 FII positioning"
+            "find" -> "🔎 Find: ${arg.take(24)}"
+            "healthscore" -> "🩺 Portfolio health"
+            "harvest" -> "🧾 Tax-loss harvesting"
+            "concall" -> "🎙 $arg earnings calls"
+            "alert" -> if (arg.isBlank()) "🔔 My alerts" else "🔔 Alert: $arg"
+            "sebi" -> if (arg.isBlank()) "⚖ SEBI updates" else "⚖ SEBI $arg"
+            "radar" -> if (arg == "mine") "📡 Filings on my stocks" else "📡 Filings radar"
             "events" -> if (arg.isBlank()) "📅 This week's events" else "📅 $arg's events"
             "chart" -> "📈 Chart ${arg.substringBefore(' ')}"
             "quote" -> "💹 $arg quote"

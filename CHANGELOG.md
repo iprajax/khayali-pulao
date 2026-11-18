@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.10.0
+
+Built from a survey of 19 finance apps and AI agents (Perplexity Finance, Robinhood Cortex, Public, Bloomberg, Fiscal.ai, Koyfin, TradingView, Seeking Alpha, Tickertape, INDmoney, Groww, Zerodha, Moneycontrol Pro, ET Markets and others), taking the features Indian investors use most that can run privately on a phone.
+
+- **Talk to it — live voice, on the phone.** Tap 🎤: speak, watch your words appear as live captions, hear the answer read back with each word lit as it's spoken; tap the orb to interrupt, ✕ to end. Speech is recognised by Android's on-device recognizer only (no cloud fallback — if it isn't available, voice stays off), answers use an offline voice, and your words go through the same chat, so commands, plans and cards all work by voice. The microphone is asked for only when you first tap 🎤.
+- **`/why SYMBOL` — why a stock moved.** The day's move split into market (beta × Nifty 50), sector (its NSE sector index vs the Nifty) and the stock's own part, then the evidence ranked: volume against its usual, the move against its own volatility, 52-week levels, streaks, and — with web on — its filings and the news that names it. On every ticker's wheel, and the first step of "what's happening with X".
+- **`/news` — market news, folded and linked.** Five outlets (Economic Times, Mint, Business Standard, BusinessLine, CNBC-TV18) read as public RSS, folded into one story per event, tone-tagged with a finance word list, and linked to tickers through NSE's full list of 2,632 companies plus common short forms (RIL, SBI, L&T…). Headlines that read as buy/sell tips are never relayed. `/news SYMBOL` shows the stories that name a stock.
+- **`/radar` — filings radar.** Two days of NSE company filings (1,200+ on a typical day pair) sorted into results, orders and deals, ratings, management changes, pledge and takeover, insider trading, legal and regulatory, and more — your stocks first — plus takeover (SAST) and credit-rating actions. Tap one to open the document.
+- **`/sebi` — the regulator's latest.** SEBI's What's New list: circulars, orders, press releases and consultation papers, by type.
+- **`/mood` — market mood index.** A 0–100 fear-greed gauge from six parts of your own NSE data (breadth, trend, momentum, highs vs lows, calm, advancers), each shown, with 60 days of history.
+- **`/pulse` — the market on one screen.** Mood gauge, Nifty and breadth, every sector today, hidden patterns, and (with web on) the headlines that matter and SEBI's latest. "Why did the market move?" plans now start here.
+- **`/find` — a screener in plain words.** "above 200 day near 52 week high volume spike", "oversold above 200 day", "up 30% in a year low volatility": the card shows the checks it understood and the matches, over every liquid stock in your history (about 30 ms).
+- **`/alert` — price alerts that work with the app closed.** `/alert INFY above 1800`, `/alert TCS below 3000`, `/alert SBIN moves 5%`. Checked on the phone against each close — while the chat is open, and by an Android background job after the evening's NSE file — with a notification (asked for when you set your first alert).
+- **`/redflags` — surveillance lists.** NSE's ASM (long and short term), GSM and ESM lists checked against your holdings and watched stocks, with what each means.
+- **`/healthscore` — portfolio health, 0–100.** Diversification, the largest holding and sector, beta, volatility, distance from highs, the year against the Nifty and any red flags — each part shown on a gauge.
+- **`/harvest` — tax-loss harvesting.** Holdings in loss, how much they could offset of gains you've booked, the tax that could save (20% short-term, 12.5% long-term above ₹1.25 lakh) and the days left to 31 March.
+- **`/positioning` — who's long and short.** FII, DII, Pro and Client positions in index futures and options from NSE's daily participant file, over recent weeks.
+- **`/concall SYMBOL` — earnings calls.** A company's call transcripts, audio and analyst-meet filings with NSE, one tap from the document.
+- **Live voice speaks AI answers as they're written**, a sentence at a time, so the first words come quickly; sentences with figures wait for the final, checked answer.
+- A native gauge block for cards; the website replay gains a "Talk to it" scene.
+
 ## 0.9.4
 
 - **Sector member lists retry until they arrive** — a failed fetch was recorded as done and wouldn't retry for 30 days, leaving sector cards without gainers and losers. Now it retries whenever none are stored. Checked on a phone: 18 of 18 lists, and `/sector PSU Bank 1w` shows its members' breadth, gainers and the wheel on each.

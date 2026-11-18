@@ -179,6 +179,7 @@ class ChatView(
 
     /** A turn ended (answer, error or stop): settle the phase and bring the pills back. */
     private fun finishTurn(ev: ChatFlow.Ev = ChatFlow.Ev.Finished) {
+        if (voiceAwaiting) { voiceAwaiting = false; val t = lastDoneText; post { live?.answer(t.ifBlank { "Done — it's in the chat." }) } }
         dispatch(ev)
         if (!mm.isReady()) dispatch(ChatFlow.Ev.ModelMissing)
     }
@@ -588,6 +589,12 @@ class ChatView(
         }
         setSendIcon(false)
         inputBar.addView(input, k.lp(0, WRAP_CONTENT, 1f))
+        // Live voice: talk to the chat, entirely on the phone
+        inputBar.addView(TickerWheel.LineIcon(context, "mic", k).apply {
+            background = k.press(k.rounded(Pal.alpha(0xFFFFFFFF.toInt(), 0.06f), 999f), 999f)
+            contentDescription = "Talk (live voice)"
+            setOnClickListener { startLive() }
+        }, k.lp(k.dp(40), k.dp(40)).apply { marginEnd = k.dp(6) })
         inputBar.addView(send, k.lp(k.dp(44), k.dp(44)))
         val wrap = FrameLayout(context).apply { setPadding(k.dp(12), k.dp(2), k.dp(12), k.dp(12)) }
         wrap.addView(inputBar, LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -798,6 +805,7 @@ class ChatView(
             ChatFlow.Action.ShowMemory -> { input.setText(""); showMemory(text) }
             ChatFlow.Action.Compact -> { input.setText(""); compactNow(text) }
             is ChatFlow.Action.Term -> { input.setText(""); runTerm(a.id, a.arg, text)
+                if (a.id == "alert" && a.arg.isNotBlank()) askNotifications()
                 if (a.id == "data") { if (a.arg.trim().startsWith("knowledge", true)) watchKnowledge() else watchDownload() } }
             is ChatFlow.Action.NeedArtifact -> { input.setText(""); offerArtifact(a.artifact, a.pending) }
             is ChatFlow.Action.Plan -> { input.setText(""); runPlan(a.plan, text) }
@@ -1060,6 +1068,10 @@ class ChatView(
         refreshedAt = System.currentTimeMillis()
         scope.launch {
             val done = runCatching { refresher.runDue() }.getOrDefault(emptyList())
+            val fired: List<com.khayali.pulao.ai.data.Alerts.Hit> = withContext(Dispatchers.IO) {
+                runCatching { com.khayali.pulao.ai.data.Alerts.schedule(context); com.khayali.pulao.ai.data.Alerts.run(context) }.getOrDefault(emptyList()) }
+            fired.forEach { h ->
+                list.addView(k.text("🔔 ${h.text}", 13f, Pal.SAFFRON, 500).apply { setPadding(k.dp(16), k.dp(10), k.dp(16), 0); setOnClickListener { submit("/why ${h.rule.symbol}") } }, k.lp(MATCH_PARENT)); scrollToEnd() }
             for (d in done) {
                 if (d.fetching) {
                     if (!phase.busy) watchDownload()
@@ -1087,6 +1099,7 @@ class ChatView(
     private fun runAction(c: String) {
         when {
             c == "Allow web access" -> { pending = lastQuestion; askWeb(null) }
+            c.startsWith("https://") -> openUrl(c)                // a filing, SEBI notice or news story: open it in the browser
             c.endsWith("…") -> { input.setText(c.removeSuffix("…").trimEnd() + " "); input.setSelection(input.text.length); input.requestFocus() }
             phase.busy -> android.widget.Toast.makeText(context, "One moment — finishing the current answer", android.widget.Toast.LENGTH_SHORT).show()
             else -> { if (via == null) via = "action"; submit(c) }
@@ -1244,6 +1257,47 @@ class ChatView(
             combine(mm.state, com.khayali.pulao.ai.data.MarketPack.get(context).state, com.khayali.pulao.ai.data.KnowledgePack.get(context).state, kite.state) { _, _, _, _ -> }
                 .collect { render() }
         }
+    }
+
+    // ---------------------------------------------------------------- live voice
+
+    private var live: LiveVoice? = null
+    private var voiceAwaiting = false
+    private var lastDoneText = ""
+
+    /** Opens live voice; asks for the microphone first (only when you tap the mic). */
+    fun startLive() {
+        if (live != null) return
+        if (context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val a = context as? android.app.Activity
+            if (a != null) a.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), MIC_REQUEST)
+            else say("", "Open Khayali Pulao from your home screen once to allow the microphone, then voice works here too.")
+            return
+        }
+        context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
+        val v = LiveVoice(context, k, ask = { text ->
+            if (phase.busy) { live?.answer("One moment, I'm still working on the last question."); return@LiveVoice }
+            voiceAwaiting = true; lastDoneText = ""; via = "voice"
+            submit(text)
+            // things that answer on the spot (help, a download offer) don't run a turn: speak whatever was shown
+            post { if (voiceAwaiting && !phase.busy) { voiceAwaiting = false; live?.answer(lastDoneText.ifBlank { "I've put that in the chat for you." }) } }
+        }, onClose = { live?.let { removeView(it) }; live = null; voiceAwaiting = false })
+        v.bias = { (kiteHoldings().map { it.name } + watch.symbols).distinct() }
+        live = v
+        addView(v, LayoutParams(MATCH_PARENT, MATCH_PARENT)); v.open()
+    }
+
+    /** Alerts notify after each close; Android 13+ asks once, the first time an alert is set. */
+    private fun askNotifications() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return
+        if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        (context as? android.app.Activity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFY_REQUEST)
+    }
+
+    /** From the activity after the microphone permission prompt. */
+    fun onMicPermission(granted: Boolean) {
+        if (granted) startLive()
+        else say("", "Voice needs the microphone. Your speech is recognised on the phone by Android and never leaves it. You can allow it any time in Settings → Apps → Khayali Pulao → Permissions.")
     }
 
     /** Whether a terminal step used the network (for the privacy line). */
@@ -1467,6 +1521,7 @@ class ChatView(
                 dispatch(ChatFlow.Ev.Token)
                 // With a data card on screen, raw streaming text could show a figure before it is checked: wait for the final, checked answer.
                 if (bot.hasDataCard) bot.status("Writing the takeaway…") else bot.text(full)
+                if (voiceAwaiting && !bot.hasDataCard) live?.stream(full)          // live voice: speak whole sentences as they arrive
                 scrollToEnd()
             }
             override fun onDone(full: String, stats: TurnStats) {
@@ -1694,6 +1749,7 @@ class ChatView(
         var why: String? = null
 
         fun done(full: String, stats: TurnStats?, retry: (() -> Unit)?, question: String = "", chips: List<Pair<String, () -> Unit>> = emptyList(), restored: Boolean = false) {
+            if (!restored) lastDoneText = full
             stopSpin(); shimmer.visibility = GONE; status.visibility = GONE
             // Always show the final, checked text — what streamed may have contained figures that were since removed.
             // An app-only answer whose card already shows the summary adds nothing as a paragraph.
@@ -1825,6 +1881,9 @@ class ChatView(
 
     companion object {
         private val THINKING = listOf("Working it out…", "Running the numbers…", "Checking the maths…")
+        const val MIC_REQUEST = 7301
+        const val NOTIFY_REQUEST = 7302
         const val WEB_EXPLAINER = "Allow Khayali Pulao to use the web?\n- Search DuckDuckGo for news, results and dates, and show its sources\n- Read the latest share price from Yahoo Finance (may be delayed)\n\nOnly the company name or search words are sent. Your holdings, quantities and amounts are stripped from every query and never leave the phone. You're asked once; the switch is in Settings."
     }
+
 }

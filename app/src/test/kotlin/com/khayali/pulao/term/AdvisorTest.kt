@@ -55,6 +55,15 @@ class AdvisorTest {
         assertTrue(run("screen trend").contains("RISER"))
     }
 
+    @Test fun moodIsAGaugeWithItsParts() {
+        val r = com.khayali.pulao.ai.data.Mood.compute(panel)
+        assertEquals(60, r.size)
+        assertTrue(r.all { it.score in 0.0..100.0 && it.parts.size == 6 && it.zone == com.khayali.pulao.ai.data.Mood.zone(it.score) })
+        val j = run("mood"); assertEquals(null, TermTesting.error(j))
+        assertTrue(TermTesting.blocks(j).any { it["type"].asString == "gauge" })
+        assertEquals("Extreme fear", com.khayali.pulao.ai.data.Mood.zone(10.0)); assertEquals("Neutral", com.khayali.pulao.ai.data.Mood.zone(50.0))
+    }
+
     @Test fun withoutDataTheyAskForADownload() {
         val j = run("brief", TermTesting.Fake())
         assertTrue(TermTesting.error(j)!!.contains("/data"))

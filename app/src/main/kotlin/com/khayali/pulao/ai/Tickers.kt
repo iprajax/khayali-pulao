@@ -101,6 +101,7 @@ object Tickers {
 
     /** What the menu offers for a symbol: label → command (or "ask:" text to put in the box). */
     fun menu(sym: String, web: Boolean, market: Boolean): List<Pair<String, String>> = listOfNotNull(
+        if (market) "❓  Why it moved" to "/why $sym" else null,
         if (market) "🩺  Trend & risk" to "/health $sym" else null,
         "📈  Chart, 1 year" to "/chart $sym 1y",
         "📰  Latest news" + (if (web) "" else "  (web)") to "/news $sym",

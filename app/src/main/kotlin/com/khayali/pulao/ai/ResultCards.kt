@@ -77,6 +77,7 @@ object ResultCards {
                 "bars" -> addView(NativeBlocks.bars(k, b), k.lp(MATCH_PARENT))
                 "kpis" -> { addView(k.space(8)); addView(NativeBlocks.kpis(k, b), k.lp(MATCH_PARENT)) }
                 "breadth" -> addView(NativeBlocks.breadth(k, b), k.lp(MATCH_PARENT))
+                "gauge" -> addView(NativeBlocks.gauge(k, b), k.lp(MATCH_PARENT))
                 "section" -> addView(NativeBlocks.section(k, b.s("title"), b.s("tone")), k.lp(MATCH_PARENT))
             }
             // The takeaway: the exact summary, inside the card, so the chat doesn't repeat it as a paragraph.

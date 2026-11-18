@@ -12,15 +12,28 @@ import java.time.format.DateTimeFormatter
  * Days are added in date order; each stock's price is chained from NSE's adjusted previous close
  * as it is added, so splits and bonuses never look like crashes. Never backed up, never uploaded.
  */
-class MarketStore private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "market.db", null, 2) {
+class MarketStore private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "market.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE syms (id INTEGER PRIMARY KEY, sym TEXT UNIQUE NOT NULL, last_adj REAL, last_d INTEGER)")
         db.execSQL("CREATE TABLE bars (d INTEGER NOT NULL, s INTEGER NOT NULL, adj REAL, ret REAL, val REAL, vol REAL, PRIMARY KEY (d, s)) WITHOUT ROWID")
         db.execSQL("CREATE TABLE days (d INTEGER PRIMARY KEY, n INTEGER)")
         db.execSQL("CREATE TABLE missing (d INTEGER PRIMARY KEY)")
         sectorTables(db)
+        nameTable(db)
     }
-    override fun onUpgrade(db: SQLiteDatabase, a: Int, b: Int) { if (a < 2) sectorTables(db) }
+    override fun onUpgrade(db: SQLiteDatabase, a: Int, b: Int) { if (a < 2) sectorTables(db); if (a < 3) nameTable(db) }
+
+    private fun nameTable(db: SQLiteDatabase) = db.execSQL("CREATE TABLE IF NOT EXISTS names (sym TEXT PRIMARY KEY, name TEXT NOT NULL) WITHOUT ROWID")
+
+    @Synchronized fun setNames(names: Map<String, String>) {
+        if (names.isEmpty()) return
+        val db = writableDatabase
+        db.beginTransaction()
+        try { names.forEach { (s, n) -> db.insertWithOnConflict("names", null, ContentValues().apply { put("sym", s); put("name", n) }, SQLiteDatabase.CONFLICT_REPLACE) }; db.setTransactionSuccessful() }
+        finally { db.endTransaction() }
+    }
+
+    fun names(): Map<String, String> = readableDatabase.rawQuery("SELECT sym, name FROM names", null).use { c -> buildMap { while (c.moveToNext()) put(c.getString(0), c.getString(1)) } }
 
     /** Official index closes (with P/E, P/B, dividend yield) per day, and each sector index's members. */
     private fun sectorTables(db: SQLiteDatabase) {

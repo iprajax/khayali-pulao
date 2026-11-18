@@ -40,6 +40,12 @@ interface Fetch {
     suspend fun market(days: Int = 300): com.khayali.pulao.ai.data.Panel? = null
     /** Official NSE sector index history, valuations and members, from the phone's own store (null if not downloaded). */
     suspend fun sectors(): com.khayali.pulao.ai.data.MarketPack.SectorBook? = null
+    /** The user's price alerts, kept on the phone (null in tests without it). */
+    val alerts: com.khayali.pulao.ai.data.Alerts.Store? get() = null
+    /** The user's web switch. Features that work offline must check it before any lookup. */
+    val webOn: Boolean get() = false
+    /** symbol → company name (Nifty 500) from the phone's store, for linking news to stocks. */
+    suspend fun names(): Map<String, String> = emptyMap()
     /** The community-screens knowledge bank shipped with the app (null where assets aren't available). */
     val knowledge: com.khayali.pulao.ai.term.Knowledge? get() = null
     /** Models and data kept on the phone (null in tests without it). */
@@ -117,6 +123,9 @@ class Card(private val kicker: String, private val accent: String = "blue") {
     /** Coloured stat tiles (2 or 3 to a row). */
     fun kpis(items: List<Kpi>) = apply { if (items.isNotEmpty()) blocks += mapOf("type" to "kpis", "items" to items.map { mapOf("label" to it.label, "value" to it.value, "change" to it.change, "sub" to it.sub) }) }
     /** Advances / declines / unchanged as one proportional bar. */
+    /** A half-circle gauge, 0–100, coloured from red (fear) to green (greed), with a needle at [value]. */
+    fun gauge(title: String, value: Double, label: String, sub: String = "", left: String = "Fear", right: String = "Greed") =
+        apply { blocks += mapOf("type" to "gauge", "title" to title, "value" to value, "label" to label, "sub" to sub, "left" to left, "right" to right) }
     fun breadth(title: String, up: Int, down: Int, flat: Int) = apply { blocks += mapOf("type" to "breadth", "title" to title, "up" to up, "down" to down, "flat" to flat) }
     /** A coloured section heading that separates parts of a long card. */
     fun section(title: String, tone: String = "") = apply { blocks += mapOf("type" to "section", "title" to title, "tone" to tone) }

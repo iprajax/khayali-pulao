@@ -184,6 +184,39 @@ object NativeBlocks {
     }
 
     /** One bar split green / grey / red with counts. */
+    /** A half-circle gauge with a red → amber → green arc, a needle, the value and its zone. */
+    fun gauge(k: Kit, b: JsonObject): View = k.column().apply {
+        val v = (b.dn("value") ?: 50.0).coerceIn(0.0, 100.0)
+        if (b.s("title").isNotBlank()) addView(section(k, b.s("title"), if (v >= 50) "up" else "down"))
+        val tone = when { v < 25 -> Pal.RED; v < 45 -> 0xFFE8875A.toInt(); v <= 55 -> Pal.SAFFRON; v <= 75 -> 0xFF8BC34A.toInt(); else -> Pal.GREEN }
+        addView(object : View(context) {
+            val arc = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+            val track = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; color = Pal.alpha(Pal.LINE, 0.8f) }
+            val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); strokeCap = Paint.Cap.ROUND }
+            val txt = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+            var shown = 0f
+            override fun onDraw(c: Canvas) {
+                val w = width.toFloat(); val sw = k.dpf(14); val r = minOf(w / 2f - sw, height - k.dpf(30)); val cx = w / 2f; val cy = r + sw
+                val oval = android.graphics.RectF(cx - r, cy - r, cx + r, cy + r)
+                track.strokeWidth = sw; c.drawArc(oval, 180f, 180f, false, track)
+                arc.strokeWidth = sw
+                arc.shader = android.graphics.SweepGradient(cx, cy, intArrayOf(Pal.GREEN, Pal.RED, 0xFFE8875A.toInt(), Pal.SAFFRON, 0xFF8BC34A.toInt(), Pal.GREEN), floatArrayOf(0f, 0.5f, 0.62f, 0.75f, 0.88f, 1f))
+                c.drawArc(oval, 180f, 180f * shown / 100f, false, arc)
+                val a = Math.toRadians(180.0 + 180.0 * shown / 100.0)
+                needle.strokeWidth = k.dpf(3)
+                c.drawLine(cx, cy, cx + (r - sw * 1.3f) * kotlin.math.cos(a).toFloat(), cy + (r - sw * 1.3f) * kotlin.math.sin(a).toFloat(), needle)
+                c.drawCircle(cx, cy, k.dpf(6), needle)
+                txt.textSize = k.dpf(30); txt.color = tone; txt.isFakeBoldText = true
+                c.drawText("%.0f".format(shown), cx, cy - r * 0.32f, txt)
+                txt.textSize = k.dpf(11); txt.color = Pal.MUTED; txt.isFakeBoldText = false
+                c.drawText(b.s("left"), cx - r, cy + k.dpf(20), txt); c.drawText(b.s("right"), cx + r, cy + k.dpf(20), txt)
+                if (shown < v.toFloat() - 0.2f) { shown += (v.toFloat() - shown) * 0.12f; postInvalidateOnAnimation() } else shown = v.toFloat()
+            }
+        }, k.lp(MATCH_PARENT, k.dp(150)))
+        addView(k.text(b.s("label"), 18f, tone, 700).apply { gravity = Gravity.CENTER }, k.lp(MATCH_PARENT))
+        if (b.s("sub").isNotBlank()) addView(k.text(b.s("sub"), 12f, Pal.MUTED).apply { gravity = Gravity.CENTER; setPadding(0, k.dp(2), 0, k.dp(6)) }, k.lp(MATCH_PARENT))
+    }
+
     fun breadth(k: Kit, b: JsonObject): View = k.column().apply {
         val up = b.dn("up")?.toInt() ?: 0; val down = b.dn("down")?.toInt() ?: 0; val flat = b.dn("flat")?.toInt() ?: 0
         val total = (up + down + flat).coerceAtLeast(1)

@@ -142,9 +142,13 @@ class TickerWheel(
                 "events" -> { c.drawRoundRect(RectF(x(0.05f), y(0.15f), x(0.95f), y(0.95f)), k.dpf(2.5f), k.dpf(2.5f), p)
                     c.drawLine(x(0.05f), y(0.4f), x(0.95f), y(0.4f), p); c.drawLine(x(0.3f), y(0.02f), x(0.3f), y(0.25f), p); c.drawLine(x(0.7f), y(0.02f), x(0.7f), y(0.25f), p) }
                 "quote" -> { t.textSize = s * 1.15f; c.drawText("₹", width / 2f, height / 2f - (t.descent() + t.ascent()) / 2f, t) }
+                "why" -> { t.textSize = s * 1.2f; c.drawText("?", width / 2f, height / 2f - (t.descent() + t.ascent()) / 2f, t) }
                 "dive" -> { c.drawCircle(x(0.42f), y(0.42f), s * 0.32f, p); c.drawLine(x(0.66f), y(0.66f), x(0.98f), y(0.98f), p) }
                 "ask" -> { val r = RectF(x(0.02f), y(0.08f), x(0.98f), y(0.72f)); c.drawRoundRect(r, k.dpf(5f), k.dpf(5f), p)
                     path.moveTo(x(0.3f), y(0.72f)); path.lineTo(x(0.22f), y(0.95f)); path.lineTo(x(0.5f), y(0.72f)); c.drawPath(path, p) }
+                "mic" -> { c.drawRoundRect(android.graphics.RectF(x(0.33f), y(0f), x(0.67f), y(0.62f)), s * 0.17f, s * 0.17f, p)
+                    c.drawArc(android.graphics.RectF(x(0.15f), y(0.25f), x(0.85f), y(0.8f)), 0f, 180f, false, p)
+                    c.drawLine(x(0.5f), y(0.8f), x(0.5f), y(1f), p) }
                 else -> c.drawCircle(width / 2f, height / 2f, s * 0.3f, p)
             }
         }
@@ -155,6 +159,7 @@ class TickerWheel(
         fun items(sym: String, web: Boolean, market: Boolean): List<Triple<String, String, String>> = Tickers.menu(sym, web, market).map { (label, cmd) ->
             val text = label.substringAfter(' ').trim()
             when {
+                text.startsWith("Why") -> Triple("why", "Why", cmd)
                 text.startsWith("Trend") -> Triple("trend", "Trend", cmd); text.startsWith("Chart") -> Triple("chart", "Chart", cmd)
                 text.startsWith("Latest news") -> Triple("news", "News", cmd); text.startsWith("Results") -> Triple("events", "Events", cmd)
                 text.startsWith("Full quote") -> Triple("quote", "Quote", cmd); text.startsWith("Deep dive") -> Triple("dive", "Deep dive", cmd)

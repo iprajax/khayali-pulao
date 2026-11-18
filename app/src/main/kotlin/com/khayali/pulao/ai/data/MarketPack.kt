@@ -87,7 +87,7 @@ class MarketPack private constructor(private val ctx: Context) {
         val days = todo(start)
         // index history for days already stored (sector analysis), and member lists once a month
         val backfill = store.daysWithoutIndices()
-        val membersDue = System.currentTimeMillis() - prefs.getLong("members_at", 0) > 30L * 86_400_000 || store.members().isEmpty()
+        val membersDue = System.currentTimeMillis() - prefs.getLong("members_at", 0) > 30L * 86_400_000 || store.members().isEmpty() || store.names().isEmpty()
         if (days.isEmpty() && backfill.isEmpty() && !membersDue) { refresh(); return 0 }
         // extending or updating existing data keeps it usable while new days arrive; a first install downloads
         _state.value = if (store.lastDay() != null) Artifacts.State.Updating(0, days.size + backfill.size) else Artifacts.State.Downloading(0, days.size.toLong())
@@ -114,6 +114,7 @@ class MarketPack private constructor(private val ctx: Context) {
                     val got = Sectors.ALL.map { s -> async { s to runCatching { com.khayali.pulao.ai.MarketFetcher.members(s) }
                         .onFailure { android.util.Log.w("KhayaliMarket", "members ${s.index}: ${it.message}") }.getOrDefault(emptyList()) } }.awaitAll()
                     got.forEach { (s, m) -> if (m.isNotEmpty()) store.setMembers(s.index, m) }
+                    runCatching { store.setNames(com.khayali.pulao.ai.MarketFetcher.names()) }.onFailure { android.util.Log.w("KhayaliMarket", "names: ${it.message}") }
                     // only count the refresh as done when the lists actually arrived; otherwise the next update retries
                     if (got.count { it.second.isNotEmpty() } >= Sectors.ALL.size / 2) prefs.edit().putLong("members_at", System.currentTimeMillis()).apply()
                     android.util.Log.i("KhayaliMarket", "member lists: ${got.count { it.second.isNotEmpty() }} of ${Sectors.ALL.size}")
@@ -129,6 +130,9 @@ class MarketPack private constructor(private val ctx: Context) {
         }
         return days.size + backfill.size
     }
+
+    /** symbol → company name (Nifty 500), for linking news headlines to stocks. */
+    fun names(): Map<String, String> = store.names()
 
     @Volatile private var sectorBook: SectorBook? = null
     /** Official sector index history, latest valuations and members, from the phone's own store. */

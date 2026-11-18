@@ -158,7 +158,7 @@
 
   // ---------------------------------------------------------------- scenes
   function greet() {
-    body.innerHTML = ""; setPills([]); sheet.classList.remove("on"); wheel.classList.remove("on"); hideFinger();
+    body.innerHTML = ""; setPills([]); sheet.classList.remove("on"); wheel.classList.remove("on"); phone.querySelector(".cd-live").classList.remove("on"); hideFinger();
     var g = el("div", "cd-greet", '<div class="cd-logo">🍲</div><div class="cd-hi">What shall we cook today?</div><div class="cd-sub2">Ask anything — or start with a task</div>');
     var tasks = [["🧭", "Plan my day — what should I do today?"], ["📰", "What's happening with INFRA — trend, news and results"], ["💼", "Review my portfolio — trend, concentration, risk"],
       ["🎯", "Find a strategy that's working right now"], ["📅", "What's coming up this week — results, dividends, IPOs"], ["🔎", "Find quality companies with low debt"]];
@@ -173,6 +173,24 @@
     return card('<div class="cd-kick">SETUP</div><div class="cd-h cd-sh">Set up everything in one tap</div><div class="cd-sub cd-ss">Pick what you want; it all starts at once.</div>' +
       steps.map(function (st, i) { return '<div class="cd-srow"><span class="cd-chk">' + (i < 4 ? "☑" : "☐") + '</span><span>' + st[0] + '</span><div><b>' + st[1] + '</b><em>' + st[2] + '</em><i class="cd-sbar"><u></u></i></div><span class="cd-sst"></span></div>'; }).join("") +
       '<div class="cd-btn">⚡ Set up everything</div>');
+  }
+
+  // live voice: the orb, the user's words as live captions, then the answer lit word by word
+  function liveScene() {
+    var lv = phone.querySelector(".cd-live");
+    var you = lv.querySelector(".cd-you"), ans = lv.querySelector(".cd-ans"), orb = lv.querySelector(".cd-orb"), hint = lv.querySelector(".cd-lhint");
+    lv.classList.add("on"); orb.className = "cd-orb listen"; you.textContent = ""; ans.innerHTML = ""; hint.textContent = "Listening…";
+    var q = "What's the market mood today?".split(" "), i = 0;
+    function word() { if (i >= q.length) return sleep(500); you.textContent = q.slice(0, ++i).join(" "); return sleep(230).then(word); }
+    var a = "Market mood is 42 out of 100 — fear. Breadth is weak: only 40 percent of liquid stocks are above their 50-day average, and volatility is higher than most of the past year.".split(" ");
+    return sleep(500).then(word).then(function () { orb.className = "cd-orb think"; hint.textContent = "Working it out…"; you.classList.add("dim"); return sleep(1100); })
+      .then(function () {
+        orb.className = "cd-orb speak"; hint.textContent = "Tap the orb to interrupt";
+        ans.innerHTML = a.map(function (w) { return "<span>" + w + "</span>"; }).join(" ");
+        var spans = ans.querySelectorAll("span"), k = 0;
+        function lit() { if (k >= spans.length) return sleep(900); if (k > 0) spans[k - 1].className = "said"; spans[k].className = "now"; k++; return sleep(190).then(lit); }
+        return lit();
+      }).then(function () { lv.classList.remove("on"); you.classList.remove("dim"); return sleep(400); });
   }
 
   var SCENES = [
@@ -204,6 +222,9 @@
     { title: "Starts with tasks, not a blank box", sub: "Personalised starters: plan my day, a stock you own, your portfolio", run: function () {
       greet();
       return sleep(1600).then(function () { return tap(body.querySelector(".cd-task")); });
+    } },
+    { title: "Talk to it — live captions, on the phone", sub: "Speak; see your words as you say them; hear the answer, each word lit as it's spoken", run: function () {
+      return liveScene();
     } },
     { title: "Makes a plan — and runs every step", sub: "A broad question becomes 4 steps; each lands as its own card", run: function () {
       body.innerHTML = ""; hideFinger();

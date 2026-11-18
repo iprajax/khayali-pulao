@@ -29,6 +29,7 @@ object Methods {
             via.startsWith("ticker:") -> "You picked an action from ${via.removePrefix("ticker:")}'s menu"
             via == "starter" -> "You picked a starter task"
             via == "model" -> "The AI model chose to run this to answer you"
+            via == "voice" -> "You asked by voice (recognised on the phone)"
             else -> null
         }
         val typed = t.startsWith("/")
@@ -59,6 +60,13 @@ object Methods {
         "Yahoo Finance" to "public price history from Yahoo Finance's chart feed (only the symbol is sent)",
         "screener.in public screens" to "the knowledge bank: rules of 500 public screens from screener.in, with EmbeddingGemma 2 vectors, downloaded once",
         "Playbook" to "the app's built-in strategy playbook",
+        "SEBI" to "SEBI's own What's New list on sebi.gov.in, read by this phone",
+        "NSE announcements" to "NSE's corporate-announcements list (company filings), read by this phone",
+        "NSE live feed" to "NSE's live announcements feed on its archive, read by this phone",
+        "NSE filings" to "NSE's company filings for this stock, read by this phone",
+        "News feeds" to "public RSS feeds of Economic Times, Mint, Business Standard, BusinessLine and CNBC-TV18 (only the feed address is requested)",
+        "Economic Times" to "Economic Times' public markets RSS feed", "Mint" to "Mint's public markets RSS feed", "Business Standard" to "Business Standard's public markets RSS feed",
+        "BusinessLine" to "BusinessLine's public markets RSS feed", "CNBC-TV18" to "CNBC-TV18's public market RSS feed",
         "This phone" to "what is installed on this phone",
     )
 

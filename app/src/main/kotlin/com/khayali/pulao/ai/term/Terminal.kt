@@ -3,7 +3,7 @@ package com.khayali.pulao.ai.term
 /** Every terminal feature, in one place. Adding a feature = one object + one line here. */
 object Terminal {
     val FEATURES: List<Feature> = listOf(
-        BriefFeature, RegimeFeature, AnomaliesFeature, StrategiesFeature, ScreenFeature, HealthFeature, LearnFeature, DataFeature, ScreensFeature, SectorBoardFeature, SectorFeature,
+        BriefFeature, RegimeFeature, AnomaliesFeature, StrategiesFeature, ScreenFeature, HealthFeature, LearnFeature, DataFeature, ScreensFeature, SectorBoardFeature, SectorFeature, MoodFeature, NewsFeature, PulseFeature, WhyFeature, SebiFeature, RadarFeature, RedFlagsFeature, PositioningFeature, FindFeature, HealthScoreFeature, HarvestFeature, ConcallFeature, AlertFeature,
         MarketReportFeature, SectorMoversFeature, PreopenFeature, WatchFeature,
         HeatmapFeature, ResultsFlowFeature,
         PulseIndicesFeature, PulseSectorsFeature, PulseMoversFeature, PulseBreadthFeature, PulseActiveFeature, PulseStatusFeature, PulseHighsFeature, PulseBandsFeature, PulseVolumeFeature,
@@ -48,7 +48,8 @@ object Hosts {
         ARCHIVES,                                         // NSE's filings archive (results XBRL)
         GlobalWorldBank.HOST,                               // India inflation and GDP (World Bank open data, no key)
         FundsData.HOST,                                   // mutual fund NAV history (mfapi.in open data, no key)
-    )
+        com.khayali.pulao.ai.data.Bhavcopy.HOST,          // NSE's archive: live announcements feed
+    ) + Feeds.HOSTS                                       // news outlets' RSS feeds and SEBI's What's New list
     fun host(url: String) = url.substringAfter("://").substringBefore('/').substringBefore('?').lowercase()
     fun allowed(url: String) = url.startsWith("https://") && host(url) in ALLOWED
 }

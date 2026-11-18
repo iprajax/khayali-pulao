@@ -39,7 +39,15 @@ object Params {
             "fd" -> listOf(Slot("Held for how many years?", listOf("1", "2", "3", "5"), optional = true))
             "move" -> listOf(Slot("If it moves by (%)?", listOf("-20", "-10", "10", "20", "50"), optional = true))
             "gmp" -> listOf(Slot("Which IPO? (type its name)", emptyList()))
-            "ipo", "news", "price", "events", "quote" -> if (n == "ipo") emptyList() else listOf(stock)
+            "why", "concall" -> listOf(stock)
+            "find" -> listOf(Slot("Describe the stocks", listOf("above 200 day near 52 week high", "oversold above 200 day", "volume spike up 10% in a month", "low volatility golden cross")))
+            "alert" -> listOf(stock, Slot("When?", listOf("above", "below", "moves")), Slot("Price or %", listOf("5", "10", "1000", "2000")))
+            "harvest" -> listOf(Slot("Gains you've booked this year (optional)", listOf("25000", "50000", "100000", "200000"), optional = true))
+            "redflags" -> listOf(Slot("A stock (optional)", syms, optional = true))
+            "news" -> listOf(Slot("A stock — or run it for the whole market", syms, optional = true))
+            "radar" -> listOf(Slot("All filings, or only your stocks?", listOf("mine"), optional = true))
+            "sebi" -> listOf(Slot("Which kind?", listOf("circulars", "orders", "press", "consultation"), optional = true))
+            "ipo", "price", "events", "quote" -> if (n == "ipo") emptyList() else listOf(stock)
             else -> {
                 if (n in Commands.SYMBOL_COMMANDS) return listOf(stock)
                 // other commands: offer their own example as a one-tap choice

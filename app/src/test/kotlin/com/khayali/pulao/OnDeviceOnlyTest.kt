@@ -23,7 +23,7 @@ class OnDeviceOnlyTest {
     @Test fun onlyInternetPermission() {
         val requested = Regex("""<uses-permission[^>]*>""").findAll(manifest).map { it.value }
             .filterNot { it.contains("""tools:node="remove"""") }.toList()
-        assertEquals(listOf("android.permission.INTERNET"), requested.map { Regex("""android:name="([^"]+)"""").find(it)!!.groupValues[1] })
+        assertEquals(listOf("android.permission.INTERNET", "android.permission.RECORD_AUDIO", "android.permission.POST_NOTIFICATIONS"), requested.map { Regex("""android:name="([^"]+)"""").find(it)!!.groupValues[1] })
     }
 
     @Test fun backupAndTransferOff() {
@@ -102,6 +102,17 @@ class OnDeviceOnlyTest {
         assertEquals("only the model and the pack downloader may use DownloadManager", setOf("ModelManager.kt", "FilePack.kt"),
             sources.filter { it.readText().contains("DownloadManager.Request") }.map { it.name }.toSet())
         assertEquals("packs come only from the project's own site", "iprajax.github.io", java.net.URI(com.khayali.pulao.ai.data.KnowledgePack.SPEC.url).host)
+    }
+
+    /** Voice is on-device only: the recognizer that can fall back to the cloud is never used, and speech uses an offline voice. */
+    @Test fun voiceNeverLeavesThePhone() {
+        val all = sources.associate { it.name to it.readText() }
+        all.forEach { (name, text) -> assertFalse("$name must not use the general (cloud-capable) recognizer", text.contains("SpeechRecognizer.createSpeechRecognizer(")) }
+        val live = all.getValue("LiveVoice.kt")
+        assertTrue(live.contains("SpeechRecognizer.createOnDeviceSpeechRecognizer("))
+        assertTrue("only offline voices", live.contains("!it.isNetworkConnectionRequired"))
+        assertTrue("no recognizer when on-device isn't available", live.contains("isOnDeviceRecognitionAvailable"))
+        assertEquals("only LiveVoice touches the recognizer", setOf("LiveVoice.kt"), all.filter { it.value.contains("SpeechRecognizer.") }.keys)
     }
 
     private fun fail(msg: String): Nothing = throw AssertionError(msg)

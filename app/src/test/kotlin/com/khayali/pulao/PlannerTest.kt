@@ -57,8 +57,9 @@ class PlannerTest {
     @Test fun plansRespectDownloads() {
         val none = ChatFlow.Env(true, ChatFlow.Kite.OFF, false, emptySet())
         assertEquals(ChatFlow.Action.NeedArtifact("market", "what should I do today?"), ChatFlow.route("what should I do today?", none))
-        // the market plan starts with web steps, so it runs and skips what it can't do
-        assertTrue(ChatFlow.route("why did the market fall today", none) is ChatFlow.Action.Plan)
+        // the market plan starts from the phone's own data, so it offers that download first too
+        assertEquals(ChatFlow.Action.NeedArtifact("market", "why did the market fall today"), ChatFlow.route("why did the market fall today", none))
+        assertTrue(ChatFlow.route("why did the market fall today", ChatFlow.Env(true, ChatFlow.Kite.OFF, false, setOf("market"))) is ChatFlow.Action.Plan)
     }
 
     @Test fun pillsReadAsActions() {

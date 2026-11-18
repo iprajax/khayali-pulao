@@ -7,6 +7,10 @@
          connection (mcp.kite.trade), and optional web lookups (DuckDuckGo search, Yahoo Finance quotes).
          No analytics, no ads, no upload of anything read from the screen. Enforced by OnDeviceOnlyTest. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Live voice only: asked when you tap the mic; speech is recognised on the phone (on-device recognizer, no cloud). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Price alerts only: asked when you set your first alert. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <queries>
@@ -68,6 +72,11 @@
             android:name=".ai.MemoryActivity"
             android:exported="false"
             android:label="Memory" />
+
+        <service
+            android:name=".ai.data.Alerts$Job"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <activity
             android:name=".ai.ArtifactsActivity"

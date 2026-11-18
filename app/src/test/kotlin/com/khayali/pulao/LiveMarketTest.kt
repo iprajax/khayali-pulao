@@ -41,6 +41,13 @@ class LiveMarketTest {
         }
         val p2 = Panel.build(days); val tAll = System.currentTimeMillis(); val all = Market.backtestAll(p2)
         println("LIVE backtestAll ${all.size} strategies in ${System.currentTimeMillis() - tAll} ms (fresh panel, parallel)")
+        val tm = System.currentTimeMillis(); val mood = com.khayali.pulao.ai.data.Mood.compute(p2)
+        println("LIVE mood ${mood.last().date} ${"%.1f".format(mood.last().score)} ${mood.last().zone} in ${System.currentTimeMillis() - tm} ms; parts " + mood.last().parts.joinToString { "${it.name} ${it.score.toInt()} (${it.detail})" })
+        println("LIVE mood history " + mood.takeLast(8).joinToString { "${it.date}:${it.score.toInt()}" })
+        for (q in listOf("above 200 day near 52 week high volume spike", "oversold above 200 day", "up 30% in a year low volatility")) {
+            val ck = com.khayali.pulao.ai.data.Screener.parse(q); val d = p2.days - 1; val tq = System.currentTimeMillis()
+            val hits = com.khayali.pulao.ai.data.Market.liquid(p2, d).mapNotNull { s -> com.khayali.pulao.ai.data.Screener.facts(p2, s, d)?.takeIf { fx -> ck.all { it.test(fx) } } }
+            println("LIVE find \"$q\" → ${ck.map { it.label }}: ${hits.size} stocks in ${System.currentTimeMillis() - tq} ms, e.g. ${hits.take(6).map { it.sym }}") }
         val rt = Runtime.getRuntime(); println("LIVE heap used ${(rt.totalMemory() - rt.freeMemory()) / 1_000_000} MB")
     }
 }

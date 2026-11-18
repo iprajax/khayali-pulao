@@ -150,6 +150,9 @@ class WebClient private constructor(ctx: Context) {
         override val watched = seen
         override val artifacts = com.khayali.pulao.ai.data.AndroidArtifactHub(app)
         override val knowledge get() = com.khayali.pulao.ai.data.KnowledgePack.bank(app)
+        override val alerts get() = com.khayali.pulao.ai.data.Alerts.Store(app)
+        override val webOn get() = com.khayali.pulao.Prefs(app).webOn
+        override suspend fun names() = withContext(Dispatchers.IO) { com.khayali.pulao.ai.data.MarketPack.get(app).names() }
         override suspend fun sectors() = withContext(Dispatchers.IO) { com.khayali.pulao.ai.data.MarketPack.get(app).sectors() }
         override suspend fun market(days: Int) = withContext(Dispatchers.IO) { com.khayali.pulao.ai.data.MarketPack.get(app).panel(days) }
         override val profile get() = MemoryStore.get(app).let { m -> if (m.enabled) m.playbook.bullets.filter { it.section != Ace.Section.LESSON }.map { it.text } else emptyList() }
@@ -302,6 +305,11 @@ object MarketFetcher {
     /** One day's official closes for every NSE index (empty when there was no file, e.g. a holiday). */
     fun indices(day: java.time.LocalDate): List<com.khayali.pulao.ai.data.Bhavcopy.IndexClose> =
         text(com.khayali.pulao.ai.data.Bhavcopy.indexUrl(day), com.khayali.pulao.ai.data.Bhavcopy.HOST)?.let { com.khayali.pulao.ai.data.Bhavcopy.parseIndices(it) }.orEmpty()
+
+    /** Company names (symbol → name) for linking news to stocks. */
+    fun names(): Map<String, String> =
+        (text(com.khayali.pulao.ai.data.Sectors.equityListUrl(), com.khayali.pulao.ai.data.Bhavcopy.HOST)?.let { com.khayali.pulao.ai.data.Sectors.parseNames(it) }.orEmpty()).ifEmpty {
+            text(com.khayali.pulao.ai.data.Sectors.namesUrl(), com.khayali.pulao.ai.data.Sectors.MEMBERS_HOST)?.let { com.khayali.pulao.ai.data.Sectors.parseNames(it) }.orEmpty() }
 
     /** A sector index's members, from NSE Indices' published list. */
     fun members(s: com.khayali.pulao.ai.data.Sectors.Sector): List<String> =

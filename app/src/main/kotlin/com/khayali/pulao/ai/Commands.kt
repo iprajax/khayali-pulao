@@ -20,7 +20,6 @@ object Commands {
         Cmd("gmp", "/gmp Crystal Crop", "An IPO's grey-market premium, its trend and the listing price it implies"),
         Cmd("events", "/events INFY", "One company's calendar: results, dividends, splits, AGM"),
         Cmd("results", "/results tomorrow", "Who reports results on a day — or /results INFY for the latest numbers"),
-        Cmd("news", "/news INFY", "Recent news, with sources"),
         Cmd("web", "/web your question", "Search the web (DuckDuckGo) with sources"),
         Cmd("fd", "/fd 3", "Did my portfolio beat an FD over N years?"),
         Cmd("goal", "/goal 50 lakh", "How long to reach an amount?"),
@@ -168,7 +167,6 @@ object Commands {
                 else if (MarketData.window(arg, java.time.LocalDate.now()) != null) Parsed.Web(ChatFlow.WebKind.CALENDAR, arg)
                 else Parsed.Web(ChatFlow.WebKind.SEARCH, "${arg.removePrefix("@")} latest quarterly results revenue net profit")
             "compact" -> Parsed.Compact
-            "news" -> if (arg.isBlank()) Parsed.Help else Parsed.Web(ChatFlow.WebKind.SEARCH, "${arg.removePrefix("@")} share latest news")
             "web" -> if (arg.isBlank()) Parsed.Help else Parsed.Web(ChatFlow.WebKind.SEARCH, arg)
             "remember" -> if (arg.isBlank()) Parsed.Memory else Parsed.Remember(arg)
             "memory" -> Parsed.Memory

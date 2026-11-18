@@ -47,6 +47,23 @@ object Sectors {
         return ALL.flatMap { s -> s.words.filter { w -> Regex("""\b${Regex.escape(w)}\b""").containsMatchIn(q) }.map { s to it.length } }.maxByOrNull { it.second }?.first
     }
 
+    /** Company names for linking news to tickers: NSE Indices' Nifty 500 list (name, industry, symbol). */
+    const val NAMES_FILE = "ind_nifty500list"
+    fun namesUrl() = "https://$MEMBERS_HOST/IndexConstituent/$NAMES_FILE.csv"
+    /** NSE's list of every main-board equity (symbol, name of company, …). */
+    fun equityListUrl() = "https://${Bhavcopy.HOST}/content/equities/EQUITY_L.csv"
+
+    /** symbol → company name, from NSE Indices' lists ("Company Name","Symbol") or NSE's EQUITY_L ("SYMBOL","NAME OF COMPANY"). */
+    fun parseNames(csv: String): Map<String, String> {
+        val lines = csv.lineSequence().map { it.trimEnd('\r') }.filter { it.isNotBlank() }.toList()
+        if (lines.isEmpty()) return emptyMap()
+        val h = lines[0].split(',').map { it.trim().lowercase() }
+        val cs = h.indexOf("symbol"); val cn = h.indexOfFirst { it == "company name" || it == "name of company" }
+        if (cs < 0 || cn < 0) return emptyMap()
+        return lines.drop(1).mapNotNull { l -> val f = l.split(','); val s = f.getOrNull(cs)?.trim(); val n = f.getOrNull(cn)?.trim()
+            if (s.isNullOrEmpty() || n.isNullOrEmpty()) null else s to n }.toMap()
+    }
+
     /** Members from an NSE Indices CSV (Company Name, Industry, Symbol, Series, ISIN). */
     fun parseMembers(csv: String): List<String> {
         val lines = csv.lineSequence().map { it.trimEnd('\r') }.filter { it.isNotBlank() }.toList()

@@ -56,9 +56,9 @@ class SetupTest {
 
     @Test fun theWheelHasEveryTickerAction() {
         val w = TickerWheel.items("BALLIA", web = true, market = true)
-        assertEquals(listOf("Trend", "Chart", "News", "Events", "Quote", "Deep dive", "Ask"), w.map { it.second })
-        assertEquals(listOf("trend", "chart", "news", "events", "quote", "dive", "ask"), w.map { it.first })      // line icons, not emoji
+        assertEquals(listOf("Why", "Trend", "Chart", "News", "Events", "Quote", "Deep dive", "Ask"), w.map { it.second })
+        assertEquals(listOf("why", "trend", "chart", "news", "events", "quote", "dive", "ask"), w.map { it.first })      // line icons, not emoji
         assertTrue(w.all { it.third.isNotBlank() })
-        assertEquals("/chart BALLIA 1y", w[1].third)
+        assertEquals("/why BALLIA", w[0].third); assertEquals("/chart BALLIA 1y", w[2].third)
     }
 }
